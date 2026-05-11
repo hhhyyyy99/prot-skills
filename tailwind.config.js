@@ -1,0 +1,68 @@
+// tailwind.config.js
+export default {
+  content: ["./index.html", "./src/**/*.{ts,tsx}"],
+  theme: {
+    extend: {
+      colors: {
+        canvas: "var(--color-canvas)",
+        surface: "var(--color-surface)",
+        "surface-raised": "var(--color-surface-raised)",
+        "border-subtle": "var(--color-border-subtle)",
+        "border-default": "var(--color-border-default)",
+        "border-strong": "var(--color-border-strong)",
+        "text-primary": "var(--color-text-primary)",
+        "text-secondary": "var(--color-text-secondary)",
+        "text-tertiary": "var(--color-text-tertiary)",
+        accent: "var(--color-accent)",
+        "accent-hover": "var(--color-accent-hover)",
+        "accent-fg": "var(--color-accent-foreground)",
+        success: "var(--color-success)",
+        warning: "var(--color-warning)",
+        danger: "var(--color-danger)",
+      },
+      fontFamily: {
+        sans: "var(--font-sans)",
+        mono: "var(--font-mono)",
+      },
+      fontSize: {
+        "12": ["var(--fs-12)", { lineHeight: "var(--lh-12)" }],
+        "13": ["var(--fs-13)", { lineHeight: "var(--lh-13)" }],
+        "14": ["var(--fs-14)", { lineHeight: "var(--lh-14)" }],
+        "16": ["var(--fs-16)", { lineHeight: "var(--lh-16)" }],
+        "20": ["var(--fs-20)", { lineHeight: "var(--lh-20)" }],
+        "28": ["var(--fs-28)", { lineHeight: "var(--lh-28)" }],
+      },
+      spacing: {
+        "1": "var(--space-1)",
+        "2": "var(--space-2)",
+        "3": "var(--space-3)",
+        "4": "var(--space-4)",
+        "5": "var(--space-5)",
+        "6": "var(--space-6)",
+        "8": "var(--space-8)",
+        "12": "var(--space-12)",
+        "16": "var(--space-16)",
+      },
+      borderRadius: {
+        sm: "var(--radius-sm)",
+        md: "var(--radius-md)",
+        lg: "var(--radius-lg)",
+        full: "var(--radius-full)",
+      },
+      boxShadow: {
+        none: "var(--shadow-none)",
+        overlay: "var(--shadow-overlay)",
+      },
+      transitionDuration: {
+        fast: "var(--dur-fast)",
+        base: "var(--dur-base)",
+        slow: "var(--dur-slow)",
+      },
+      transitionTimingFunction: {
+        "out-quart": "var(--ease-out-quart)",
+        "in-out-quart": "var(--ease-in-out-quart)",
+      },
+    },
+  },
+  plugins: [],
+};
