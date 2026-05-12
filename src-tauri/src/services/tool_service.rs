@@ -102,4 +102,20 @@ impl ToolService {
         )?;
         Ok(())
     }
+
+    pub fn add_tool(db: &Database, id: &str, name: &str, config_path: &str) -> Result<()> {
+        let conn = db.get_connection();
+        conn.execute(
+            "INSERT OR REPLACE INTO ai_tools (id, name, config_path, skills_subdir, is_detected, is_enabled)
+             VALUES (?1, ?2, ?3, 'skills', 0, 0)",
+            rusqlite::params![id.to_string(), name.to_string(), config_path.to_string()],
+        )?;
+        Ok(())
+    }
+
+    pub fn delete_tool(db: &Database, tool_id: &str) -> Result<()> {
+        let conn = db.get_connection();
+        conn.execute("DELETE FROM ai_tools WHERE id = ?1", [tool_id])?;
+        Ok(())
+    }
 }

@@ -58,6 +58,14 @@ export const updateToolPath = (toolId: string, customPath: string): Promise<void
   return invoke('update_tool_path', { toolId, customPath });
 };
 
+export const addTool = (id: string, name: string, configPath: string): Promise<AITool> => {
+  return invoke('add_tool', { id, name, configPath });
+};
+
+export const deleteTool = (toolId: string): Promise<void> => {
+  return invoke('delete_tool', { toolId });
+};
+
 // Filesystem / path APIs
 export const openFolder = (path: string): Promise<void> => {
   return invoke('open_folder', { path });

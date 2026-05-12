@@ -42,6 +42,8 @@ pub fn run() {
             commands::detect_tools,
             commands::toggle_tool,
             commands::update_tool_path,
+            commands::add_tool,
+            commands::delete_tool,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
