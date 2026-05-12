@@ -1,163 +1,164 @@
 import { useEffect, useState } from 'react';
-import { Search, CheckSquare, Square, ArrowRight } from 'lucide-react';
+import { Search, ArrowRight } from 'lucide-react';
 import { getTools, scanLocalSkills, migrateLocalSkill } from '../api';
+import { useToast } from '../hooks/useToast';
+import { WorkspaceHeader } from '../shell/WorkspaceHeader';
+import { Button } from '../components/primitives/Button';
+import { Select } from '../components/primitives/Select';
+import { Checkbox } from '../components/primitives/Checkbox';
+import { Badge } from '../components/primitives/Badge';
+import { ListRow } from '../components/patterns/ListRow';
+import { EmptyState } from '../components/patterns/EmptyState';
+import { middleEllipsis } from '../lib/truncate';
 import type { AITool, LocalSkill } from '../types';
 
 export function MigratePage() {
-  const [tools, setTools] = useState<AITool[]>([]);
-  const [selectedTool, setSelectedTool] = useState<string>('');
+  const [allTools, setAllTools] = useState<AITool[]>([]);
+  const [toolId, setToolId] = useState('');
+  const [scanning, setScanning] = useState(false);
   const [skills, setSkills] = useState<LocalSkill[]>([]);
-  const [selectedSkills, setSelectedSkills] = useState<Set<string>>(new Set());
-  const [loading, setLoading] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
   const [migrating, setMigrating] = useState(false);
+  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
+  const [rowStatus, setRowStatus] = useState<Record<string, 'idle' | 'success' | 'error'>>({});
+  const { toast } = useToast();
+
+  const detectedTools = allTools.filter(t => t.is_detected);
 
   useEffect(() => {
-    loadTools();
+    getTools()
+      .then(data => {
+        setAllTools(data);
+        const detected = data.filter(t => t.is_detected);
+        if (detected.length > 0) setToolId(detected[0].id);
+      })
+      .catch(e => toast({ variant: 'error', title: String((e as Error).message ?? e) }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const loadTools = async () => {
+  const scan = async () => {
+    if (!toolId) return;
+    setScanning(true);
+    setSelected(new Set());
     try {
-      const data = await getTools();
-      setTools(data.filter(t => t.is_detected));
-      if (data.length > 0) {
-        setSelectedTool(data[0].id);
-      }
-    } catch (error) {
-      console.error('Failed to load tools:', error);
-    }
-  };
-
-  const handleScan = async () => {
-    if (!selectedTool) return;
-    
-    setLoading(true);
-    try {
-      const data = await scanLocalSkills(selectedTool);
+      const data = await scanLocalSkills(toolId);
       setSkills(data);
-      setSelectedSkills(new Set());
-    } catch (error) {
-      console.error('Failed to scan:', error);
+      const status: Record<string, 'idle'> = {};
+      data.forEach(s => { status[s.path] = 'idle'; });
+      setRowStatus(status);
+    } catch (e) {
+      toast({ variant: 'error', title: String((e as Error).message ?? e) });
     } finally {
-      setLoading(false);
+      setScanning(false);
     }
   };
 
-  const toggleSelection = (path: string) => {
-    const newSet = new Set(selectedSkills);
-    if (newSet.has(path)) {
-      newSet.delete(path);
-    } else {
-      newSet.add(path);
-    }
-    setSelectedSkills(newSet);
+  const toggleSelected = (path: string) => {
+    setSelected(prev => {
+      const next = new Set(prev);
+      if (next.has(path)) next.delete(path); else next.add(path);
+      return next;
+    });
   };
 
-  const handleMigrate = async () => {
-    if (selectedSkills.size === 0) return;
-    
+  const toggleAll = () => {
+    if (selected.size === skills.length) setSelected(new Set());
+    else setSelected(new Set(skills.map(s => s.path)));
+  };
+
+  const migrateSelected = async () => {
     setMigrating(true);
-    try {
-      for (const path of selectedSkills) {
-        const skill = skills.find(s => s.path === path);
-        if (skill) {
-          const skillId = skill.name.toLowerCase().replace(/\s+/g, '-');
-          await migrateLocalSkill(path, skillId);
-        }
+    setProgress({ done: 0, total: selected.size });
+    let success = 0, fail = 0, done = 0;
+    const nextStatus = { ...rowStatus };
+    for (const path of selected) {
+      try {
+        const s = skills.find(sk => sk.path === path);
+        const skillId = s!.name.toLowerCase().replace(/\s+/g, '-');
+        await migrateLocalSkill(path, skillId);
+        nextStatus[path] = 'success';
+        success++;
+      } catch {
+        nextStatus[path] = 'error';
+        fail++;
+      } finally {
+        done++;
+        setProgress({ done, total: selected.size });
+        setRowStatus({ ...nextStatus });
       }
-      // Refresh list
-      await handleScan();
-      alert('迁移完成！');
-    } catch (error) {
-      console.error('Failed to migrate:', error);
-      alert('迁移失败，请查看控制台');
-    } finally {
-      setMigrating(false);
+    }
+    toast({ variant: fail === 0 ? 'success' : 'info', title: `Migrated ${success}, failed ${fail}`, durationMs: 6000 });
+    setProgress(null);
+    setMigrating(false);
+    if (success > 0) scan();
+  };
+
+  const retry = async (path: string) => {
+    const s = skills.find(sk => sk.path === path);
+    const skillId = s!.name.toLowerCase().replace(/\s+/g, '-');
+    try {
+      await migrateLocalSkill(path, skillId);
+      setRowStatus(prev => ({ ...prev, [path]: 'success' }));
+      toast({ variant: 'success', title: `Migrated ${s!.name}`, durationMs: 6000 });
+    } catch {
+      setRowStatus(prev => ({ ...prev, [path]: 'error' }));
+      toast({ variant: 'error', title: `Failed to migrate ${s!.name}` });
     }
   };
 
   return (
-    <div className="p-8">
-      <h2 className="text-2xl font-bold text-gray-900 mb-6">本地迁移</h2>
-
-      <div className="bg-white rounded-lg shadow p-4 mb-6">
-        <div className="flex items-center gap-4">
-          <select
-            value={selectedTool}
-            onChange={(e) => setSelectedTool(e.target.value)}
-            className="px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="">选择工具</option>
-            {tools.map(tool => (
-              <option key={tool.id} value={tool.id}>
-                {tool.name}
-              </option>
-            ))}
-          </select>
-
-          <button
-            onClick={handleScan}
-            disabled={!selectedTool || loading}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
-          >
-            <Search size={16} />
-            {loading ? '扫描中...' : '扫描'}
-          </button>
+    <>
+      <WorkspaceHeader title="Migrate" meta="Import Skills from a detected tool's folder" />
+      <main className="px-8 py-4 overflow-y-auto flex-1">
+        <div className="flex items-center gap-3 pb-4">
+          <Select
+            size="sm"
+            value={toolId}
+            options={detectedTools.length ? detectedTools.map(t => ({ value: t.id, label: t.name })) : [{ value: '__none__', label: 'No detected tools' }]}
+            onChange={setToolId}
+            placeholder="Select a tool"
+            disabled={detectedTools.length === 0}
+          />
+          <Button variant="primary" size="sm" leadingIcon={<Search size={14} />} loading={scanning} disabled={!toolId} onClick={scan}>Scan</Button>
+          {!toolId && <span className="text-13 text-text-tertiary">Select a detected tool first. Go to Tools to detect.</span>}
         </div>
-      </div>
 
-      {skills.length > 0 && (
-        <div className="bg-white rounded-lg shadow">
-          <div className="p-4 border-b border-gray-100 flex items-center justify-between">
-            <h3 className="font-medium">发现的 Skills ({skills.length})</h3>
-            <button
-              onClick={handleMigrate}
-              disabled={selectedSkills.size === 0 || migrating}
-              className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
-            >
-              <ArrowRight size={16} />
-              {migrating ? '迁移中...' : `迁移选中 (${selectedSkills.size})`}
-            </button>
+        {skills.length > 0 && selected.size > 0 && (
+          <div className="sticky top-0 z-10 bg-canvas/80 backdrop-blur-sm py-2 mb-2 flex items-center gap-3 border-b border-border-subtle">
+            <Checkbox checked={selected.size === skills.length ? true : (selected.size === 0 ? false : 'indeterminate')} onChange={toggleAll} label="Select all" />
+            <span className="text-13 text-text-secondary">Selected {selected.size}</span>
+            <div className="ml-auto flex gap-2">
+              <Button variant="primary" size="sm" leadingIcon={<ArrowRight size={14} />} loading={migrating} onClick={migrateSelected}>Migrate selected ({selected.size})</Button>
+              <Button variant="ghost" size="sm" onClick={() => setSelected(new Set())}>Clear</Button>
+            </div>
           </div>
+        )}
 
-          <div className="divide-y divide-gray-100">
-            {skills.map(skill => (
-              <div
-                key={skill.path}
-                className="p-4 flex items-center gap-4 hover:bg-gray-50"
-              >
-                <button
-                  onClick={() => toggleSelection(skill.path)}
-                  className="text-blue-600"
-                >
-                  {selectedSkills.has(skill.path) ? (
-                    <CheckSquare size={20} />
-                  ) : (
-                    <Square size={20} />
-                  )}
-                </button>
+        {progress && <div className="text-13 text-text-secondary mb-2">Migrating {progress.done}/{progress.total}…</div>}
 
-                <div className="flex-1">
-                  <div className="font-medium">{skill.name}</div>
-                  <div className="text-sm text-gray-500 font-mono">
-                    {skill.path}
-                  </div>
-                  {skill.is_symlink && (
-                    <div className="text-xs text-orange-600 mt-1">
-                      软链接 → {skill.target_path}
-                    </div>
-                  )}
-                </div>
-              </div>
+        {skills.length === 0 && !scanning && toolId && (
+          <EmptyState title="No local Skills found" description="The tool folder is empty or not readable" />
+        )}
+
+        {skills.length > 0 && (
+          <ul role="rowgroup" className="divide-y divide-border-subtle border-t border-border-subtle">
+            {skills.map(s => (
+              <ListRow
+                key={s.path}
+                id={s.path}
+                leading={<Checkbox checked={selected.has(s.path)} onChange={() => toggleSelected(s.path)} aria-label={`Select ${s.name}`} />}
+                primary={<span className="text-14 text-text-primary">{s.name}</span>}
+                meta={[
+                  <code key="p" className="font-mono text-12 text-text-secondary">{middleEllipsis(s.path, 48)}</code>,
+                  s.is_symlink ? <Badge key="sym" variant="warning">Symlink</Badge> : null,
+                  rowStatus[s.path] === 'error' ? <Badge key="err" variant="danger">Failed</Badge> : null,
+                ].filter(Boolean) as React.ReactNode[]}
+                trailing={rowStatus[s.path] === 'error' ? <Button variant="ghost" size="sm" onClick={() => retry(s.path)}>Retry</Button> : undefined}
+              />
             ))}
-          </div>
-        </div>
-      )}
-
-      {skills.length === 0 && !loading && (
-        <div className="text-center py-12 text-gray-500">
-          选择工具并点击"扫描"发现本地 Skills
-        </div>
-      )}
-    </div>
+          </ul>
+        )}
+      </main>
+    </>
   );
 }
