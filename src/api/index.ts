@@ -30,6 +30,10 @@ export const scanLocalSkills = (toolId: string): Promise<LocalSkill[]> => {
   return invoke('scan_local_skills', { toolId });
 };
 
+export const scanAllLocalSkills = (toolIds: string[]): Promise<LocalSkill[]> => {
+  return invoke('scan_all_local_skills', { toolIds });
+};
+
 export const migrateLocalSkill = (
   sourcePath: string,
   skillId: string

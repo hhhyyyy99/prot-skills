@@ -22,6 +22,8 @@ export interface LocalSkill {
   path: string;
   is_symlink: boolean;
   target_path?: string;
+  tool_id?: string;
+  tool_name?: string;
 }
 
 export interface AITool {
