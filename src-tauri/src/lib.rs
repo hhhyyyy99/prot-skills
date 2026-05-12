@@ -20,10 +20,9 @@ pub fn run() {
             
             let db_path = app_dir.join("metadata.db");
             let db = Database::new(db_path).expect("Failed to initialize database");
-            
-            // Initialize default tools
-            ToolService::init_default_tools(&db).expect("Failed to init tools");
-            
+
+            ToolService::detect_tools(&db).expect("Failed to detect tools");
+
             app.manage(std::sync::Mutex::new(db));
             Ok(())
         })

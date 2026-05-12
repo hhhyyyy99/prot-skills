@@ -1,6 +1,7 @@
 use crate::db::Database;
 use crate::models::AITool;
 use crate::services::{ToolService, LinkService};
+use crate::utils::expand_path;
 use tauri::State;
 
 #[tauri::command]
@@ -16,6 +17,10 @@ pub fn add_tool(
     name: String,
     config_path: String,
 ) -> Result<AITool, String> {
+    if !expand_path(&config_path).exists() {
+        return Err("Tool config path does not exist".into());
+    }
+
     let db = db.lock().map_err(|e| e.to_string())?;
     ToolService::add_tool(&db, &id, &name, &config_path).map_err(|e| e.to_string())?;
     let tools = ToolService::get_all_tools(&db).map_err(|e| e.to_string())?;
@@ -52,6 +57,10 @@ pub fn update_tool_path(
     tool_id: String,
     custom_path: String,
 ) -> Result<(), String> {
+    if !expand_path(&custom_path).exists() {
+        return Err("Tool config path does not exist".into());
+    }
+
     let db = db.lock().map_err(|e| e.to_string())?;
     ToolService::update_tool_path(&db, &tool_id, &custom_path)
         .map_err(|e| e.to_string())

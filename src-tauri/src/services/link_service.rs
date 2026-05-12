@@ -149,7 +149,7 @@ impl LinkService {
 
         if !tool.is_detected {
             return Err(AppError::Path(format!(
-                "{} is not detected. Run Re-detect on the Tools page or set a custom path before enabling.",
+                "{} is not detected. Scan tools on the Tools page or set a custom path before enabling.",
                 tool.name
             )));
         }

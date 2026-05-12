@@ -29,10 +29,10 @@ describe('ToolsPage', () => {
     vi.clearAllMocks();
   });
 
-  it('shows empty state when no tools returned', async () => {
+  it('shows empty state when no agent tools are detected', async () => {
     vi.mocked(getTools).mockResolvedValue([]);
     const { findByText } = renderPage();
-    expect(await findByText('No tools detected')).toBeInTheDocument();
+    expect(await findByText('No agent tools detected')).toBeInTheDocument();
   });
 
   it('renders tool name and badge when tool is returned', async () => {
@@ -42,11 +42,11 @@ describe('ToolsPage', () => {
     expect(await findByText('Detected')).toBeInTheDocument();
   });
 
-  it('calls detectTools when Re-detect is clicked', async () => {
+  it('calls detectTools when Scan tools is clicked', async () => {
     vi.mocked(getTools).mockResolvedValue([mockTool]);
     vi.mocked(detectTools).mockResolvedValue([mockTool]);
     const { findByRole } = renderPage();
-    const btn = await findByRole('button', { name: /re-detect/i });
+    const btn = await findByRole('button', { name: /scan tools/i });
     fireEvent.click(btn);
     await waitFor(() => {
       expect(detectTools).toHaveBeenCalled();

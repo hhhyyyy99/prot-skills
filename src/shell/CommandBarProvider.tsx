@@ -43,7 +43,7 @@ export function CommandBarProvider({ children }: { children: ReactNode }) {
       { id: 'go-settings', label: 'Go to Settings', group: 'Navigate', shortcut: '⌘5', perform: () => navigateRef.current?.('settings') },
     ];
     const tools: CommandItem[] = redetectRef.current
-      ? [{ id: 'redetect-tools', label: 'Re-detect Tools', group: 'Tools', perform: () => redetectRef.current?.() }]
+      ? [{ id: 'redetect-tools', label: 'Scan Tools', group: 'Tools', perform: () => redetectRef.current?.() }]
       : [];
     const skills: CommandItem[] = scanLocalRef.current
       ? [{ id: 'scan-local', label: 'Scan Local Skills', group: 'Skills', perform: () => scanLocalRef.current?.() }]

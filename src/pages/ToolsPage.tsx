@@ -116,7 +116,7 @@ export function ToolsPage() {
         meta={`${detectedCount} detected · ${enabledCount} enabled`}
         primaryActions={[
           <Button key="add" variant="secondary" size="sm" leadingIcon={<Plus size={14} />} onClick={() => setShowAdd(true)}>Add</Button>,
-          <Button key="redetect" variant="primary" size="sm" leadingIcon={<ScanLine size={14} />} loading={detecting} onClick={redetect}>Re-detect</Button>,
+          <Button key="redetect" variant="primary" size="sm" leadingIcon={<ScanLine size={14} />} loading={detecting} onClick={redetect}>Scan tools</Button>,
         ]}
       />
       <main className="px-8 py-4 overflow-y-auto flex-1">
@@ -150,7 +150,7 @@ export function ToolsPage() {
           <ul>{Array.from({ length: 4 }).map((_, i) => <ListRow key={i} id={`skeleton-${i}`} primary="" loading />)}</ul>
         )}
         {!loading && !tools.length && !error && (
-          <EmptyState title="No tools detected" description="Click Re-detect or add a custom tool" primaryAction={{ label: 'Re-detect', onClick: redetect }} />
+          <EmptyState title="No agent tools detected" description="Scan this device for installed agent tools or add a custom tool" primaryAction={{ label: 'Scan tools', onClick: redetect }} />
         )}
         {tools.length > 0 && (
           <ul role="rowgroup" className="divide-y divide-border-subtle border-t border-border-subtle">
