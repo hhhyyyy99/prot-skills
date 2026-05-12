@@ -53,3 +53,12 @@ export const toggleTool = (toolId: string, enabled: boolean): Promise<void> => {
 export const updateToolPath = (toolId: string, customPath: string): Promise<void> => {
   return invoke('update_tool_path', { toolId, customPath });
 };
+
+// Filesystem / path APIs
+export const openFolder = (path: string): Promise<void> => {
+  return invoke('open_folder', { path });
+};
+
+export const getSkillsDirPath = (): Promise<string> => {
+  return invoke('get_skills_dir_path');
+};
