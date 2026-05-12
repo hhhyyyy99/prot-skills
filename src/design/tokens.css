@@ -67,14 +67,14 @@
 
 :root[data-theme="dark"] {
   --color-canvas: #0B0B0D;
-  --color-surface: #111114;
-  --color-surface-raised: #1A1A1F;
-  --color-border-subtle: #1F1F24;
-  --color-border-default: #2A2A30;
-  --color-border-strong: #52525B;
+  --color-surface: #131318;
+  --color-surface-raised: #1F1F26;
+  --color-border-subtle: #26262C;
+  --color-border-default: #3A3A42;
+  --color-border-strong: #6B6B75;
   --color-text-primary: #F4F4F5;
-  --color-text-secondary: #A1A1AA;
-  --color-text-tertiary: #71717A;
+  --color-text-secondary: #C8C8CE;
+  --color-text-tertiary: #9A9AA3;
   --color-accent: #8B95E5;
   --color-accent-hover: #A3ABEE;
   --color-accent-foreground: #0B0B0D;
@@ -82,6 +82,12 @@
   --color-warning: #FBBF24;
   --color-danger: #F87171;
   --shadow-overlay: 0 8px 24px rgba(0, 0, 0, 0.48), 0 2px 6px rgba(0, 0, 0, 0.32);
+  color-scheme: dark;
+}
+
+:root[data-theme="light"],
+:root:not([data-theme="dark"]) {
+  color-scheme: light;
 }
 
 @media (prefers-reduced-motion: reduce) {

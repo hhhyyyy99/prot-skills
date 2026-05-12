@@ -3,3 +3,33 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer base {
+  html, body, #root {
+    height: 100%;
+  }
+  body {
+    background-color: var(--color-canvas);
+    color: var(--color-text-primary);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  ::selection {
+    background-color: var(--color-accent);
+    color: var(--color-accent-foreground);
+  }
+  /* disabled form elements should remain readable in dark mode */
+  input:disabled,
+  textarea:disabled {
+    color: var(--color-text-tertiary);
+    -webkit-text-fill-color: var(--color-text-tertiary);
+    opacity: 1;
+  }
+}
+
+@supports (-webkit-backdrop-filter: blur(0)) {
+  .app-shell[data-platform="macos"] nav[aria-label="Primary"] {
+    padding-top: 28px;
+  }
+}
