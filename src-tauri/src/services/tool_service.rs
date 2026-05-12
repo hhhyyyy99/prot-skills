@@ -15,6 +15,7 @@ struct ToolScanRule {
 const BUILTIN_TOOL_RULES: &[ToolScanRule] = &[
     ToolScanRule { id: "cursor", name: "Cursor", config_dir: ".cursor", skills_subdir: "skills" },
     ToolScanRule { id: "trae", name: "Trae", config_dir: ".trae", skills_subdir: "skills" },
+    ToolScanRule { id: "trae-cn", name: "Trae CN", config_dir: ".trae-cn", skills_subdir: "skills" },
     ToolScanRule { id: "claude", name: "Claude", config_dir: ".claude", skills_subdir: "skills" },
     ToolScanRule { id: "kiro", name: "Kiro", config_dir: ".kiro", skills_subdir: "skills" },
     ToolScanRule { id: "codex", name: "Codex", config_dir: ".codex", skills_subdir: "skills" },
@@ -174,6 +175,22 @@ mod tests {
         assert_eq!(tools[0].name, "Cursor");
         assert_eq!(tools[0].config_path, home.join(".cursor").to_string_lossy());
         assert!(tools[0].is_detected);
+        assert_eq!(tools[0].skills_subdir, "skills");
+    }
+
+    #[test]
+    fn detects_trae_cn_agent_tool() {
+        let root = temp_dir("detect-trae-cn");
+        let home = root.join("home");
+        fs::create_dir_all(home.join(".trae-cn")).expect("create trae cn config");
+        let db = test_db(&root);
+
+        let tools = ToolService::detect_tools_in_home(&db, &home).expect("detect tools");
+
+        assert_eq!(tools.len(), 1);
+        assert_eq!(tools[0].id, "trae-cn");
+        assert_eq!(tools[0].name, "Trae CN");
+        assert_eq!(tools[0].config_path, home.join(".trae-cn").to_string_lossy());
         assert_eq!(tools[0].skills_subdir, "skills");
     }
 
