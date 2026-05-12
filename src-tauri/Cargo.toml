@@ -3,8 +3,8 @@ name = "prot-skills"
 version = "0.1.0"
 description = "A Tauri App"
 authors = ["you"]
-license = ""
-repository = ""
+license = "MIT"
+repository = "https://github.com/hhhyyyy99/prot-skills"
 edition = "2021"
 
 [build-dependencies]
