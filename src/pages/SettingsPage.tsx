@@ -142,7 +142,7 @@ export function SettingsPage() {
         <section>
           <h2 className="text-16 font-semibold text-text-primary mb-2">About</h2>
           <div className="border-t border-border-subtle pt-3 space-y-1 text-13 text-text-secondary">
-            <p>AI Skills Manager</p>
+            <p>Prot Skills</p>
             <p>Version 0.1.0</p>
             <p>Build: {import.meta.env.VITE_BUILD_TIME ?? 'dev'}</p>
             <p><a href="#licenses" className="text-accent underline-offset-2 hover:underline">Licenses</a></p>

@@ -14,7 +14,7 @@ pub fn run() {
         .setup(|app| {
             let app_dir = dirs::home_dir()
                 .expect("Failed to get home dir")
-                .join(".ai-skills-manager");
+                .join(".prot-skills");
             
             std::fs::create_dir_all(&app_dir)?;
             

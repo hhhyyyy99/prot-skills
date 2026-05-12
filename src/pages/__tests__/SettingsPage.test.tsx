@@ -5,7 +5,7 @@ import { ToastProvider } from '../../shell/ToastProvider';
 import { SettingsPage } from '../SettingsPage';
 
 vi.mock('../../api', () => ({
-  getSkillsDirPath: vi.fn(() => Promise.resolve('/Users/test/.ai-skills-manager/skills')),
+  getSkillsDirPath: vi.fn(() => Promise.resolve('/Users/test/.prot-skills/skills')),
   openFolder: vi.fn(() => Promise.resolve()),
 }));
 
@@ -22,25 +22,28 @@ describe('SettingsPage', () => {
     localStorage.clear();
   });
 
-  it('renders Theme select with System as default', () => {
-    const { getByText } = render(<SettingsPage />, { wrapper: Wrapper });
+  it('renders Theme select with System as default', async () => {
+    const { getByText, findByText } = render(<SettingsPage />, { wrapper: Wrapper });
     expect(getByText('System')).toBeInTheDocument();
+    await findByText('/Users/test/.prot-skills/skills');
   });
 
-  it('applies dark theme when localStorage has dark preference', () => {
+  it('applies dark theme when localStorage has dark preference', async () => {
     localStorage.setItem('ui.theme', 'dark');
-    render(<SettingsPage />, { wrapper: Wrapper });
+    const { findByText } = render(<SettingsPage />, { wrapper: Wrapper });
     expect(document.documentElement.dataset.theme).toBe('dark');
+    await findByText('/Users/test/.prot-skills/skills');
   });
 
-  it('About section contains AI Skills Manager', () => {
-    const { getByText } = render(<SettingsPage />, { wrapper: Wrapper });
-    expect(getByText('AI Skills Manager')).toBeInTheDocument();
+  it('About section contains Prot Skills', async () => {
+    const { getByText, findByText } = render(<SettingsPage />, { wrapper: Wrapper });
+    expect(getByText('Prot Skills')).toBeInTheDocument();
+    await findByText('/Users/test/.prot-skills/skills');
   });
 
   it('loads and displays real skills folder path from backend', async () => {
     const { findByText } = render(<SettingsPage />, { wrapper: Wrapper });
-    expect(await findByText('/Users/test/.ai-skills-manager/skills')).toBeInTheDocument();
+    expect(await findByText('/Users/test/.prot-skills/skills')).toBeInTheDocument();
   });
 
   it('Open folder button is disabled until path resolves', async () => {
