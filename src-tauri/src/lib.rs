@@ -1,5 +1,6 @@
 pub mod commands;
 pub mod db;
+pub mod error;
 pub mod models;
 pub mod services;
 pub mod utils;
@@ -34,6 +35,8 @@ pub fn run() {
             commands::uninstall_skill,
             commands::scan_local_skills,
             commands::migrate_local_skill,
+            commands::open_folder,
+            commands::get_skills_dir_path,
             // Tool commands
             commands::get_tools,
             commands::detect_tools,

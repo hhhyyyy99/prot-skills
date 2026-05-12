@@ -1,10 +1,15 @@
 use crate::db::Database;
 use crate::models::{Skill, LocalSkill};
 use crate::services::{SkillService, LinkService, DiscoveryService};
-use crate::utils::{is_in_manager_dir, is_symlink, resolve_symlink};
+use crate::utils::{get_skills_dir, is_in_manager_dir, is_symlink, resolve_symlink};
 use std::fs;
 use std::path::{Path, PathBuf};
 use tauri::State;
+
+#[tauri::command]
+pub fn get_skills_dir_path() -> Result<String, String> {
+    Ok(get_skills_dir().to_string_lossy().into_owned())
+}
 
 #[tauri::command]
 pub fn get_skills(db: State<std::sync::Mutex<Database>>) -> Result<Vec<Skill>, String> {
@@ -62,6 +67,32 @@ pub fn uninstall_skill(
 }
 
 #[tauri::command]
+pub fn open_folder(path: String) -> Result<(), String> {
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("open")
+            .arg(&path)
+            .spawn()
+            .map_err(|e| e.to_string())?;
+    }
+    #[cfg(target_os = "windows")]
+    {
+        std::process::Command::new("explorer")
+            .arg(&path)
+            .spawn()
+            .map_err(|e| e.to_string())?;
+    }
+    #[cfg(target_os = "linux")]
+    {
+        std::process::Command::new("xdg-open")
+            .arg(&path)
+            .spawn()
+            .map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
 pub fn scan_local_skills(
     db: State<std::sync::Mutex<Database>>,
     tool_id: String,
@@ -76,7 +107,7 @@ pub fn scan_local_skills(
         .ok_or("Tool not found")?;
 
     let skills_path = tool.skills_path();
-    let skills = DiscoveryService::scan_directory(Path::new(&skills_path));
+    let skills = DiscoveryService::scan_directory(&skills_path, &db);
     
     Ok(skills)
 }

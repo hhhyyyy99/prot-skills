@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use std::path::PathBuf;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AITool {
@@ -13,7 +14,10 @@ pub struct AITool {
 }
 
 impl AITool {
-    pub fn skills_path(&self) -> String {
-        format!("{}/{}", self.config_path, self.skills_subdir)
+    /// 返回该工具放置 skill 软链接的绝对目录。
+    /// 自动展开 `config_path` 中可能存在的 `~` 前缀，
+    /// 避免下游 `fs::create_dir_all` 在当前工作目录下误建字面量 `~` 文件夹。
+    pub fn skills_path(&self) -> PathBuf {
+        crate::utils::expand_path(&self.config_path).join(&self.skills_subdir)
     }
 }

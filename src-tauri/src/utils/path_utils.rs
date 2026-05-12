@@ -4,6 +4,18 @@ pub fn get_home_dir() -> PathBuf {
     dirs::home_dir().expect("Failed to get home directory")
 }
 
+/// 将用户路径字符串展开为绝对 PathBuf。
+/// 支持 `~` 与 `~/` 前缀，非 `~` 开头的直接原样返回。
+pub fn expand_path(s: &str) -> PathBuf {
+    if s == "~" {
+        get_home_dir()
+    } else if let Some(rest) = s.strip_prefix("~/") {
+        get_home_dir().join(rest)
+    } else {
+        PathBuf::from(s)
+    }
+}
+
 pub fn get_manager_dir() -> PathBuf {
     get_home_dir().join(".ai-skills-manager")
 }

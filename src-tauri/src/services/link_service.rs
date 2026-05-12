@@ -1,87 +1,89 @@
 use crate::db::Database;
-use crate::models::{Skill, AITool, SkillLink};
+use crate::error::{AppError, AppResult};
+use crate::models::{AITool, Skill, SkillLink};
 use crate::services::{SkillService, ToolService};
-use crate::utils::{is_symlink};
-use rusqlite::Result;
+use crate::utils::is_symlink;
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 pub struct LinkService;
 
 impl LinkService {
-    pub fn create_link(db: &Database, skill: &Skill, tool: &AITool) -> Result<SkillLink> {
-        let skills_path = tool.skills_path();
-        let link_path = format!("{}/{}", skills_path, skill.id);
+    pub fn create_link(db: &Database, skill: &Skill, tool: &AITool) -> AppResult<SkillLink> {
+        let skills_path: PathBuf = tool.skills_path();
+        let link_path: PathBuf = skills_path.join(&skill.id);
 
-        // Ensure parent directory exists
-        fs::create_dir_all(&skills_path).map_err(|_| {
-            rusqlite::Error::ExecuteReturnedResults
-        })?;
+        // Ensure parent directory exists. Any IO error propagates as AppError::Io
+        // with a real message (not the misleading rusqlite ExecuteReturnedResults).
+        fs::create_dir_all(&skills_path)?;
 
-        // Remove existing if exists
-        if Path::new(&link_path).exists() {
-            if is_symlink(Path::new(&link_path)) {
+        // Remove existing target if present (stale symlink or real file/dir).
+        if link_path.exists() || is_symlink(&link_path) {
+            if is_symlink(&link_path) {
                 fs::remove_file(&link_path).ok();
-            } else {
+            } else if link_path.is_dir() {
                 fs::remove_dir_all(&link_path).ok();
+            } else {
+                fs::remove_file(&link_path).ok();
             }
         }
 
-        // Create symlink
+        // Create symlink pointing to the managed skill body.
         #[cfg(unix)]
         {
-            std::os::unix::fs::symlink(&skill.local_path, &link_path).map_err(|_| {
-                rusqlite::Error::ExecuteReturnedResults
-            })?;
+            std::os::unix::fs::symlink(&skill.local_path, &link_path)?;
         }
-
-        // For Windows, we'd use std::os::windows::fs::symlink_dir
         #[cfg(windows)]
         {
-            std::os::windows::fs::symlink_dir(&skill.local_path, &link_path).ok();
+            // 在 Windows 上 symlink_dir 需要管理员权限；失败时记录错误但不中断整个流程。
+            if let Err(e) = std::os::windows::fs::symlink_dir(&skill.local_path, &link_path) {
+                return Err(AppError::Io(e));
+            }
         }
 
-        // Record in database
+        // Record in database.
         let conn = db.get_connection();
+        let link_path_str = link_path.to_string_lossy().into_owned();
         conn.execute(
             "INSERT OR REPLACE INTO skill_links (skill_id, tool_id, link_path, is_active)
              VALUES (?1, ?2, ?3, 1)",
-            [&skill.id, &tool.id, &link_path],
+            rusqlite::params![skill.id, tool.id, link_path_str],
         )?;
 
-        Self::get_link(db, &skill.id, &tool.id)
-            .map(|l| l.expect("Link should exist"))
+        Self::get_link(db, &skill.id, &tool.id)?
+            .ok_or_else(|| AppError::NotFound(format!("link for skill={} tool={}", skill.id, tool.id)))
     }
 
-    pub fn remove_link(db: &Database, skill_id: &str, tool_id: &str) -> Result<()> {
+    pub fn remove_link(db: &Database, skill_id: &str, tool_id: &str) -> AppResult<()> {
         if let Some(link) = Self::get_link(db, skill_id, tool_id)? {
-            // Remove filesystem symlink
-            if Path::new(&link.link_path).exists() {
-                if is_symlink(Path::new(&link.link_path)) {
-                    fs::remove_file(&link.link_path).ok();
+            let p = Path::new(&link.link_path);
+            if p.exists() || is_symlink(p) {
+                if is_symlink(p) {
+                    fs::remove_file(p).ok();
+                } else if p.is_dir() {
+                    fs::remove_dir_all(p).ok();
                 } else {
-                    fs::remove_dir_all(&link.link_path).ok();
+                    fs::remove_file(p).ok();
                 }
             }
 
-            // Remove from database
             let conn = db.get_connection();
             conn.execute(
                 "DELETE FROM skill_links WHERE skill_id = ?1 AND tool_id = ?2",
-                [skill_id, tool_id],
+                rusqlite::params![skill_id, tool_id],
             )?;
         }
         Ok(())
     }
 
-    pub fn get_link(db: &Database, skill_id: &str, tool_id: &str) -> Result<Option<SkillLink>> {
+    pub fn get_link(db: &Database, skill_id: &str, tool_id: &str) -> AppResult<Option<SkillLink>> {
         let conn = db.get_connection();
         let mut stmt = conn.prepare(
             "SELECT id, skill_id, tool_id, link_path, is_active, created_at
-             FROM skill_links WHERE skill_id = ?1 AND tool_id = ?2"
+             FROM skill_links WHERE skill_id = ?1 AND tool_id = ?2",
         )?;
 
-        let mut links = stmt.query_map([skill_id, tool_id], |row| {
+        let mut links = stmt.query_map(rusqlite::params![skill_id, tool_id], |row| {
             Ok(SkillLink {
                 id: row.get(0)?,
                 skill_id: row.get(1)?,
@@ -92,32 +94,29 @@ impl LinkService {
             })
         })?;
 
-        links.next().transpose()
+        match links.next() {
+            Some(r) => Ok(Some(r?)),
+            None => Ok(None),
+        }
     }
 
-    pub fn sync_skill_links(db: &Database, skill_id: &str) -> Result<()> {
+    pub fn sync_skill_links(db: &Database, skill_id: &str) -> AppResult<()> {
         let skill = SkillService::get_skill_by_id(db, skill_id)?
-            .ok_or(rusqlite::Error::QueryReturnedNoRows)?;
-        
+            .ok_or_else(|| AppError::NotFound(format!("skill {}", skill_id)))?;
+
         let tools = ToolService::get_all_tools(db)?;
-        let enabled_tools: Vec<_> = tools.into_iter()
-            .filter(|t| t.is_enabled)
-            .collect();
+        let enabled_tools: Vec<_> = tools.into_iter().filter(|t| t.is_enabled).collect();
 
         if skill.is_enabled {
-            // Create links for all enabled tools
             for tool in enabled_tools {
                 Self::create_link(db, &skill, &tool)?;
             }
         } else {
-            // Remove all links for this skill
             let conn = db.get_connection();
-            let mut stmt = conn.prepare(
-                "SELECT tool_id FROM skill_links WHERE skill_id = ?1"
-            )?;
-            let tool_ids: Vec<String> = stmt.query_map([skill_id], |row| {
-                row.get::<_, String>(0)
-            })?.collect::<Result<Vec<_>, _>>()?;
+            let mut stmt = conn.prepare("SELECT tool_id FROM skill_links WHERE skill_id = ?1")?;
+            let tool_ids: Vec<String> = stmt
+                .query_map([skill_id], |row| row.get::<_, String>(0))?
+                .collect::<Result<Vec<_>, _>>()?;
 
             for tool_id in tool_ids {
                 Self::remove_link(db, skill_id, &tool_id)?;
@@ -127,34 +126,47 @@ impl LinkService {
         Ok(())
     }
 
-    pub fn sync_tool_links(db: &Database, tool_id: &str) -> Result<()> {
-        let tool = ToolService::get_all_tools(db)?.into_iter()
+    pub fn sync_tool_links(db: &Database, tool_id: &str) -> AppResult<()> {
+        let tool = ToolService::get_all_tools(db)?
+            .into_iter()
             .find(|t| t.id == tool_id)
-            .ok_or(rusqlite::Error::QueryReturnedNoRows)?;
+            .ok_or_else(|| AppError::NotFound(format!("tool {}", tool_id)))?;
 
-        let skills = SkillService::get_all_skills(db)?;
-        let enabled_skills: Vec<_> = skills.into_iter()
-            .filter(|s| s.is_enabled)
-            .collect();
-
-        if tool.is_enabled {
-            // Create links for all enabled skills
-            for skill in enabled_skills {
-                Self::create_link(db, &skill, &tool)?;
-            }
-        } else {
-            // Remove all links for this tool
+        // 主动校验 config_path：如果工具未检测到或路径不存在，直接给出明确错误，
+        // 而不是让 fs::create_dir_all 去踩雷并产生晦涩的 IO 错误。
+        if !tool.is_enabled {
+            // 关闭该工具：清理现有 link，不再创建。
             let conn = db.get_connection();
-            let mut stmt = conn.prepare(
-                "SELECT skill_id FROM skill_links WHERE tool_id = ?1"
-            )?;
-            let skill_ids: Vec<String> = stmt.query_map([tool_id], |row| {
-                row.get::<_, String>(0)
-            })?.collect::<Result<Vec<_>, _>>()?;
-
+            let mut stmt = conn.prepare("SELECT skill_id FROM skill_links WHERE tool_id = ?1")?;
+            let skill_ids: Vec<String> = stmt
+                .query_map([tool_id], |row| row.get::<_, String>(0))?
+                .collect::<Result<Vec<_>, _>>()?;
             for skill_id in skill_ids {
                 Self::remove_link(db, &skill_id, tool_id)?;
             }
+            return Ok(());
+        }
+
+        if !tool.is_detected {
+            return Err(AppError::Path(format!(
+                "{} is not detected. Run Re-detect on the Tools page or set a custom path before enabling.",
+                tool.name
+            )));
+        }
+
+        let config_root = crate::utils::expand_path(&tool.config_path);
+        if !config_root.exists() {
+            return Err(AppError::Path(format!(
+                "config path does not exist: {}",
+                config_root.display()
+            )));
+        }
+
+        let skills = SkillService::get_all_skills(db)?;
+        let enabled_skills: Vec<_> = skills.into_iter().filter(|s| s.is_enabled).collect();
+
+        for skill in enabled_skills {
+            Self::create_link(db, &skill, &tool)?;
         }
 
         Ok(())
