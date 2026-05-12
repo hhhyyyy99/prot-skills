@@ -14,3 +14,14 @@ Object.defineProperty(window, 'matchMedia', {
     dispatchEvent: () => false,
   }),
 });
+
+// ResizeObserver polyfill for cmdk
+class ResizeObserverStub {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+}
+window.ResizeObserver = ResizeObserverStub as unknown as typeof ResizeObserver;
+
+// scrollIntoView polyfill for cmdk
+Element.prototype.scrollIntoView = () => {};
