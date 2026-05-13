@@ -1,13 +1,57 @@
 use crate::db::Database;
 use crate::models::{Skill, SkillMetadata};
 use crate::utils::get_skills_dir;
-use rusqlite::Result;
+use rusqlite::{params, Result};
 use std::fs;
 use std::path::Path;
 
 pub struct SkillService;
 
 impl SkillService {
+    pub fn register_existing_skills(db: &Database, skills_dir: &Path) -> Result<usize> {
+        if !skills_dir.exists() {
+            return Ok(0);
+        }
+
+        let conn = db.get_connection();
+        let mut registered = 0;
+
+        if let Ok(entries) = fs::read_dir(skills_dir) {
+            for entry in entries.flatten() {
+                let path = entry.path();
+
+                if !path.is_dir() || !path.join("SKILL.md").exists() {
+                    continue;
+                }
+
+                let Some(skill_id) = path.file_name().and_then(|n| n.to_str()) else {
+                    continue;
+                };
+
+                let inserted = conn.execute(
+                    "INSERT OR IGNORE INTO skills (id, name, source_type, source_url, local_path, metadata)
+                     VALUES (?1, ?2, 'local', NULL, ?3, ?4)",
+                    params![
+                        skill_id,
+                        skill_id,
+                        path.to_string_lossy().into_owned(),
+                        serde_json::to_string(&SkillMetadata {
+                            author: None,
+                            description: None,
+                            tags: vec![],
+                            version: None,
+                        })
+                        .unwrap(),
+                    ],
+                )?;
+
+                registered += inserted;
+            }
+        }
+
+        Ok(registered)
+    }
+
     pub fn get_all_skills(db: &Database) -> Result<Vec<Skill>> {
         let conn = db.get_connection();
         let mut stmt = conn.prepare(
@@ -158,4 +202,41 @@ fn copy_dir_all(src: &Path, dst: &Path) -> std::io::Result<()> {
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::SkillService;
+    use crate::db::Database;
+    use std::fs;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    fn unique_test_dir(name: &str) -> std::path::PathBuf {
+        let nonce = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("system time before Unix epoch")
+            .as_nanos();
+        std::env::temp_dir().join(format!("prot-skills-{name}-{nonce}"))
+    }
+
+    #[test]
+    fn registers_existing_skill_folders_from_managed_directory() {
+        let root = unique_test_dir("register-existing");
+        let skills_dir = root.join("skills");
+        let skill_dir = skills_dir.join("alpha");
+        fs::create_dir_all(&skill_dir).expect("create skill dir");
+        fs::write(skill_dir.join("SKILL.md"), "---\nname: Alpha\n---\n").expect("write skill file");
+
+        let db = Database::new(root.join("metadata.db")).expect("create test database");
+
+        SkillService::register_existing_skills(&db, &skills_dir).expect("register existing skills");
+
+        let skills = SkillService::get_all_skills(&db).expect("load skills");
+        assert_eq!(skills.len(), 1);
+        assert_eq!(skills[0].id, "alpha");
+        assert_eq!(skills[0].name, "alpha");
+        assert_eq!(skills[0].local_path, skill_dir.to_string_lossy());
+
+        fs::remove_dir_all(root).ok();
+    }
 }

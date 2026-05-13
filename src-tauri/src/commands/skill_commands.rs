@@ -14,6 +14,7 @@ pub fn get_skills_dir_path() -> Result<String, String> {
 #[tauri::command]
 pub fn get_skills(db: State<std::sync::Mutex<Database>>) -> Result<Vec<Skill>, String> {
     let db = db.lock().map_err(|e| e.to_string())?;
+    SkillService::register_existing_skills(&db, &get_skills_dir()).map_err(|e| e.to_string())?;
     SkillService::get_all_skills(&db).map_err(|e| e.to_string())
 }
 
