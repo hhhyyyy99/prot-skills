@@ -11,13 +11,15 @@ use tauri::Manager;
 
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_fs::init())
+        .plugin(tauri_plugin_opener::init())
         .setup(|app| {
             let app_dir = dirs::home_dir()
                 .expect("Failed to get home dir")
                 .join(".prot-skills");
-            
+
             std::fs::create_dir_all(&app_dir)?;
-            
+
             let db_path = app_dir.join("metadata.db");
             let db = Database::new(db_path).expect("Failed to initialize database");
 

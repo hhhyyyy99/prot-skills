@@ -13,6 +13,7 @@ coverage/
 
 # Tauri / Rust build output
 src-tauri/target/
+src-tauri/gen/
 
 # Environment and local config
 .env
