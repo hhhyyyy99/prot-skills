@@ -78,8 +78,11 @@ describe('MySkillsPage', () => {
 
   it('renders skill name and row-level management actions', async () => {
     vi.mocked(getSkills).mockResolvedValue([mockSkill]);
-    const { findByRole, findByText } = renderPage();
+    const { findByRole, findByText, queryByRole, queryByText } = renderPage();
     expect(await findByText('Test Skill')).toBeInTheDocument();
+    expect(await findByText('1.0.0 · A test skill')).toBeInTheDocument();
+    expect(queryByText('local')).not.toBeInTheDocument();
+    expect(queryByRole('tablist', { name: 'Installed skill filters' })).not.toBeInTheDocument();
     expect(await findByRole('button', { name: 'Open Test Skill folder' })).toBeInTheDocument();
     expect(await findByRole('button', { name: 'Uninstall Test Skill' })).toBeInTheDocument();
     expect(await findByRole('button', { name: 'Sync targets for Test Skill' })).toBeInTheDocument();

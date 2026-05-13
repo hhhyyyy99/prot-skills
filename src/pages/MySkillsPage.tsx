@@ -28,6 +28,11 @@ import type { AITool, Skill, SkillLink } from '../types';
 type LinkFilter = 'all' | 'linked' | 'unlinked' | 'pinned';
 
 const PINNED_TOOL_IDS = new Set(['claude', 'codex', 'gemini', 'opencode']);
+const LOCAL_SOURCE = 'local';
+
+function isLocalSource(sourceType: string) {
+  return sourceType.trim().toLowerCase() === LOCAL_SOURCE;
+}
 
 export function MySkillsPage() {
   const { t } = useI18n();
@@ -93,9 +98,10 @@ export function MySkillsPage() {
   const syncSkill = useMemo(() => skills.find(skill => skill.id === syncSkillId) ?? null, [skills, syncSkillId]);
 
   const sourceOptions = useMemo(() => {
-    const types = [...new Set(skills.map(s => s.source_type))];
+    const types = [...new Set(skills.map(s => s.source_type).filter(type => !isLocalSource(type)))];
     return [{ value: 'all', label: t('mySkills.filters.all') }, ...types.map(type => ({ value: type, label: type }))];
   }, [skills, t]);
+  const showSourceFilters = sourceOptions.length > 1;
 
   const toolById = useMemo(() => new Map(tools.map(tool => [tool.id, tool])), [tools]);
 
@@ -229,6 +235,18 @@ export function MySkillsPage() {
     );
   };
 
+  const renderSkillSubtitle = (skill: Skill) => {
+    const parts = [
+      isLocalSource(skill.source_type) ? null : skill.source_type,
+      skill.metadata?.version,
+      skill.metadata?.description,
+    ].filter(Boolean);
+
+    return parts.length > 0
+      ? <span className="text-12 text-text-tertiary truncate">{parts.join(' · ')}</span>
+      : undefined;
+  };
+
   const renderBody = () => {
     if (error) return <div className="compact-card"><InlineError title={t('mySkills.error.load')} details={error} onRetry={refresh} /></div>;
     if (loading && !skills.length) return <ul>{Array.from({ length: 8 }).map((_, i) => <ListRow key={i} id={`skeleton-${i}`} primary="" loading />)}</ul>;
@@ -242,10 +260,8 @@ export function MySkillsPage() {
               id={skill.id}
               leading={<Switch checked={skill.is_enabled} onChange={(v) => toggleSkillHandler(skill.id, v)} aria-label={t('mySkills.aria.toggle', { name: skill.name })} />}
               primary={<span className="text-14 text-text-primary">{skill.name}</span>}
-              secondary={skill.metadata?.description ? <span className="text-12 text-text-secondary truncate">{skill.metadata.description}</span> : undefined}
+              secondary={renderSkillSubtitle(skill)}
               meta={[
-                <Badge key="src" variant="neutral">{skill.source_type}</Badge>,
-                skill.metadata?.version ? <span key="v" className="text-12 text-text-tertiary">{skill.metadata.version}</span> : null,
                 <span key="links" className="hidden min-w-0 items-center md:flex">{renderLinkSummary(skill)}</span>,
               ].filter(Boolean) as readonly React.ReactNode[]}
               trailing={
@@ -353,7 +369,7 @@ export function MySkillsPage() {
             { label: t('discovery.stats.tools'), value: enabledTools.length },
           ]}
         />
-        <FilterPills options={sourceOptions} value={sourceType} onChange={setSourceType} ariaLabel={t('mySkills.filters.aria')} />
+        {showSourceFilters && <FilterPills options={sourceOptions} value={sourceType} onChange={setSourceType} ariaLabel={t('mySkills.filters.aria')} />}
         <div className="section-kicker">{t('mySkills.section.all', { count: skills.length })}</div>
         {renderBody()}
       </main>

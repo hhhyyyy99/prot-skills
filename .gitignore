@@ -7,6 +7,9 @@ dist-ssr/
 build/
 coverage/
 
+# Playwright CLI
+.playwright-cli/
+
 # Vite / frontend caches
 .vite/
 *.tsbuildinfo
@@ -38,6 +41,7 @@ Thumbs.db
 .vscode/
 *.swp
 *.swo
+
 
 # Local AI/tooling state
 .kiro/
