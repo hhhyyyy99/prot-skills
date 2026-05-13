@@ -100,18 +100,67 @@ impl LinkService {
         }
     }
 
+    pub fn get_links_for_skill(db: &Database, skill_id: &str) -> AppResult<Vec<SkillLink>> {
+        let conn = db.get_connection();
+        let mut stmt = conn.prepare(
+            "SELECT id, skill_id, tool_id, link_path, is_active, created_at
+             FROM skill_links WHERE skill_id = ?1 ORDER BY tool_id",
+        )?;
+
+        let links = stmt
+            .query_map([skill_id], |row| {
+                Ok(SkillLink {
+                    id: row.get(0)?,
+                    skill_id: row.get(1)?,
+                    tool_id: row.get(2)?,
+                    link_path: row.get(3)?,
+                    is_active: row.get(4)?,
+                    created_at: row.get(5)?,
+                })
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
+
+        Ok(links)
+    }
+
+    pub fn set_link_active(
+        db: &Database,
+        skill_id: &str,
+        tool_id: &str,
+        active: bool,
+    ) -> AppResult<Option<SkillLink>> {
+        if !active {
+            Self::remove_link(db, skill_id, tool_id)?;
+            return Ok(None);
+        }
+
+        let skill = SkillService::get_skill_by_id(db, skill_id)?
+            .ok_or_else(|| AppError::NotFound(format!("skill {}", skill_id)))?;
+
+        if !skill.is_enabled {
+            return Err(AppError::Path(format!("skill {} is disabled", skill_id)));
+        }
+
+        let tool = ToolService::get_all_tools(db)?
+            .into_iter()
+            .find(|tool| tool.id == tool_id)
+            .ok_or_else(|| AppError::NotFound(format!("tool {}", tool_id)))?;
+
+        if !tool.is_enabled || !tool.is_detected {
+            return Err(AppError::Path(format!(
+                "{} is not enabled or detected",
+                tool.name
+            )));
+        }
+
+        Self::create_link(db, &skill, &tool).map(Some)
+    }
+
     pub fn sync_skill_links(db: &Database, skill_id: &str) -> AppResult<()> {
         let skill = SkillService::get_skill_by_id(db, skill_id)?
             .ok_or_else(|| AppError::NotFound(format!("skill {}", skill_id)))?;
 
-        let tools = ToolService::get_all_tools(db)?;
-        let enabled_tools: Vec<_> = tools.into_iter().filter(|t| t.is_enabled).collect();
-
-        if skill.is_enabled {
-            for tool in enabled_tools {
-                Self::create_link(db, &skill, &tool)?;
-            }
-        } else {
+        if !skill.is_enabled {
             let conn = db.get_connection();
             let mut stmt = conn.prepare("SELECT tool_id FROM skill_links WHERE skill_id = ?1")?;
             let tool_ids: Vec<String> = stmt
@@ -160,13 +209,6 @@ impl LinkService {
                 "config path does not exist: {}",
                 config_root.display()
             )));
-        }
-
-        let skills = SkillService::get_all_skills(db)?;
-        let enabled_skills: Vec<_> = skills.into_iter().filter(|s| s.is_enabled).collect();
-
-        for skill in enabled_skills {
-            Self::create_link(db, &skill, &tool)?;
         }
 
         Ok(())

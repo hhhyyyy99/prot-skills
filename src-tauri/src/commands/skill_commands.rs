@@ -1,5 +1,5 @@
 use crate::db::Database;
-use crate::models::{Skill, LocalSkill};
+use crate::models::{Skill, LocalSkill, SkillLink};
 use crate::services::{SkillService, LinkService, DiscoveryService};
 use crate::utils::{get_skills_dir, is_in_manager_dir, is_symlink, resolve_symlink};
 use std::fs;
@@ -64,6 +64,28 @@ pub fn uninstall_skill(
 ) -> Result<(), String> {
     let db = db.lock().map_err(|e| e.to_string())?;
     SkillService::uninstall_skill(&db, &skill_id)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn get_skill_links(
+    db: State<std::sync::Mutex<Database>>,
+    skill_id: String,
+) -> Result<Vec<SkillLink>, String> {
+    let db = db.lock().map_err(|e| e.to_string())?;
+    LinkService::get_links_for_skill(&db, &skill_id)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn set_skill_tool_link(
+    db: State<std::sync::Mutex<Database>>,
+    skill_id: String,
+    tool_id: String,
+    active: bool,
+) -> Result<Option<SkillLink>, String> {
+    let db = db.lock().map_err(|e| e.to_string())?;
+    LinkService::set_link_active(&db, &skill_id, &tool_id, active)
         .map_err(|e| e.to_string())
 }
 

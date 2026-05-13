@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
-import type { Skill, LocalSkill, AITool } from '../types';
+import type { Skill, LocalSkill, AITool, SkillLink } from '../types';
 
 // Skill APIs
 export const getSkills = (): Promise<Skill[]> => {
@@ -24,6 +24,18 @@ export const toggleSkill = (skillId: string, enabled: boolean): Promise<void> =>
 
 export const uninstallSkill = (skillId: string): Promise<void> => {
   return invoke('uninstall_skill', { skillId });
+};
+
+export const getSkillLinks = (skillId: string): Promise<SkillLink[]> => {
+  return invoke('get_skill_links', { skillId });
+};
+
+export const setSkillToolLink = (
+  skillId: string,
+  toolId: string,
+  active: boolean
+): Promise<SkillLink | null> => {
+  return invoke('set_skill_tool_link', { skillId, toolId, active });
 };
 
 export const scanLocalSkills = (toolId: string): Promise<LocalSkill[]> => {
