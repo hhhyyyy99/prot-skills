@@ -8,6 +8,7 @@ import type { AITool, LocalSkill } from '../../types';
 vi.mock('../../api', () => ({
   getTools: vi.fn(),
   scanLocalSkills: vi.fn(),
+  scanAllLocalSkills: vi.fn(),
   migrateLocalSkill: vi.fn(),
 }));
 

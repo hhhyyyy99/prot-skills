@@ -2,11 +2,13 @@ import { type ReactNode, useEffect, useState } from 'react';
 import { FolderOpen } from 'lucide-react';
 import { WorkspaceHeader } from '../shell/WorkspaceHeader';
 import { useTheme } from '../shell/ThemeProvider';
+import { useI18n } from '../shell/LanguageProvider';
 import { useToast } from '../hooks/useToast';
 import { Button } from '../components/primitives/Button';
 import { Select } from '../components/primitives/Select';
 import { Badge } from '../components/primitives/Badge';
 import { getSkillsDirPath, openFolder } from '../api';
+import { languageOptions, type Language } from '../lib/i18n';
 import type { ThemePreference } from '../lib/theme';
 
 interface SettingRowProps {
@@ -35,6 +37,7 @@ function SettingRow({ label, control, helper, action, badge }: SettingRowProps) 
 
 export function SettingsPage() {
   const { preference, setPreference } = useTheme();
+  const { language, setLanguage, t } = useI18n();
   const { toast } = useToast();
   const [skillsPath, setSkillsPath] = useState<string>('');
   const [pathError, setPathError] = useState<string | null>(null);
@@ -60,7 +63,7 @@ export function SettingsPage() {
     } catch (e) {
       toast({
         variant: 'error',
-        title: 'Failed to open folder',
+        title: t('settings.openFolder.error'),
         description: String((e as { message?: string })?.message ?? e),
       });
     }
@@ -68,13 +71,13 @@ export function SettingsPage() {
 
   return (
     <>
-      <WorkspaceHeader title="Settings" />
+      <WorkspaceHeader title={t('nav.settings')} />
       <main className="app-content">
         <section className="settings-group">
-          <div className="settings-group-title">Appearance</div>
+          <div className="settings-group-title">{t('settings.appearance')}</div>
           <SettingRow
-            label="Theme"
-            helper="Follow system, or force a theme"
+            label={t('settings.theme')}
+            helper={t('settings.theme.helper')}
             control={
               <div className="flex gap-1.5">
                 {(['light', 'dark', 'system'] as const).map(option => (
@@ -89,7 +92,7 @@ export function SettingsPage() {
                     ].join(' ')}
                     onClick={() => setPreference(option as ThemePreference)}
                   >
-                    {option[0].toUpperCase() + option.slice(1)}
+                    {t(`theme.${option}`)}
                   </button>
                 ))}
               </div>
@@ -98,33 +101,32 @@ export function SettingsPage() {
         </section>
 
         <section className="settings-group">
-          <div className="settings-group-title">General</div>
+          <div className="settings-group-title">{t('settings.general')}</div>
             <SettingRow
-              label="Language"
-              control={<Select options={[{ value: 'en', label: 'English' }]} value="en" disabled onChange={() => {}} />}
-              badge={<Badge>coming soon</Badge>}
+              label={t('settings.language')}
+              control={<Select<Language> options={languageOptions} value={language} onChange={setLanguage} />}
             />
         </section>
 
         <section className="settings-group">
-          <div className="settings-group-title">Sources</div>
+          <div className="settings-group-title">{t('settings.sources')}</div>
             <SettingRow
-              label="Skill sources"
+              label={t('settings.skillSources')}
               control={<input disabled className="h-[30px] rounded-sm border border-border-subtle bg-surface-raised px-2 text-13" />}
-              badge={<Badge>coming soon</Badge>}
+              badge={<Badge>{t('settings.comingSoon')}</Badge>}
             />
         </section>
 
         <section className="settings-group">
-          <div className="settings-group-title">Storage</div>
+          <div className="settings-group-title">{t('settings.storage')}</div>
             <SettingRow
-              label="Skills folder"
+              label={t('settings.skillsFolder')}
               control={
                 <code className="block max-w-[220px] truncate font-mono text-12 text-text-tertiary">
-                  {pathError ? '—' : skillsPath || 'Loading…'}
+                  {pathError ? '—' : skillsPath || t('common.loading')}
                 </code>
               }
-              helper={pathError ? `Failed to read path: ${pathError}` : 'Managed by the app. Skills you install or migrate are stored here.'}
+              helper={pathError ? t('settings.skillsFolder.error', { error: pathError }) : t('settings.skillsFolder.helper')}
               action={
                 <Button
                   variant="secondary"
@@ -133,13 +135,13 @@ export function SettingsPage() {
                   onClick={handleOpenFolder}
                   disabled={!skillsPath || !!pathError}
                 >
-                  Open folder
+                  {t('common.openFolder')}
                 </Button>
               }
             />
             <SettingRow
-              label="Metadata DB"
-              helper="Local application metadata"
+              label={t('settings.metadataDb')}
+              helper={t('settings.metadataDb.helper')}
               control={
                 <code className="block max-w-[220px] truncate font-mono text-12 text-text-tertiary">
                   ~/.prot-skills/metadata.db
@@ -149,10 +151,10 @@ export function SettingsPage() {
         </section>
 
         <section className="settings-group">
-          <div className="settings-group-title">About</div>
-          <a href="#github" className="settings-row text-14 text-text-primary hover:bg-surface-raised">GitHub</a>
-          <a href="#docs" className="settings-row text-14 text-text-primary hover:bg-surface-raised">Documentation</a>
-          <a href="#licenses" className="settings-row text-14 text-text-primary hover:bg-surface-raised">Licenses</a>
+          <div className="settings-group-title">{t('settings.about')}</div>
+          <a href="#github" className="settings-row text-14 text-text-primary hover:bg-surface-raised">{t('settings.github')}</a>
+          <a href="#docs" className="settings-row text-14 text-text-primary hover:bg-surface-raised">{t('settings.documentation')}</a>
+          <a href="#licenses" className="settings-row text-14 text-text-primary hover:bg-surface-raised">{t('settings.licenses')}</a>
         </section>
 
         <div className="compact-card mb-4 flex items-center gap-3">
@@ -161,7 +163,7 @@ export function SettingsPage() {
           </div>
           <div>
             <p className="text-15 font-bold text-text-primary">Prot Skills</p>
-            <p className="mt-0.5 text-12 text-text-tertiary">Version 0.1.0 · Build {import.meta.env.VITE_BUILD_TIME ?? 'dev'}</p>
+            <p className="mt-0.5 text-12 text-text-tertiary">{t('settings.version', { build: import.meta.env.VITE_BUILD_TIME ?? 'dev' })}</p>
           </div>
         </div>
       </main>

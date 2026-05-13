@@ -1,4 +1,5 @@
 import { useRef, useCallback, type ComponentType, type KeyboardEvent } from 'react';
+import { useI18n } from './LanguageProvider';
 import { Tooltip } from '../components/primitives/Tooltip';
 import type { PageId } from './types';
 
@@ -19,6 +20,7 @@ export interface PrimaryNavProps {
 
 export function PrimaryNav({ items, activeId, collapsed, onNavigate }: PrimaryNavProps) {
   const listRef = useRef<HTMLUListElement>(null);
+  const { t } = useI18n();
 
   const handleKeyDown = useCallback((e: KeyboardEvent<HTMLButtonElement>, index: number) => {
     let nextIndex: number | null = null;
@@ -35,7 +37,7 @@ export function PrimaryNav({ items, activeId, collapsed, onNavigate }: PrimaryNa
   }, [items.length]);
 
   return (
-    <nav aria-label="Primary" className="primary-nav">
+    <nav aria-label={t('app.aria.primaryNav')} className="primary-nav">
       <ul ref={listRef} className="flex items-center gap-0.5">
         {items.map((item, index) => {
           const isActive = item.id === activeId;

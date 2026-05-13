@@ -1,6 +1,7 @@
 import { render, waitFor } from '@testing-library/react';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { ThemeProvider } from '../../shell/ThemeProvider';
+import { LanguageProvider } from '../../shell/LanguageProvider';
 import { ToastProvider } from '../../shell/ToastProvider';
 import { SettingsPage } from '../SettingsPage';
 
@@ -12,7 +13,9 @@ vi.mock('../../api', () => ({
 function Wrapper({ children }: { children: React.ReactNode }) {
   return (
     <ThemeProvider>
-      <ToastProvider>{children}</ToastProvider>
+      <LanguageProvider>
+        <ToastProvider>{children}</ToastProvider>
+      </LanguageProvider>
     </ThemeProvider>
   );
 }

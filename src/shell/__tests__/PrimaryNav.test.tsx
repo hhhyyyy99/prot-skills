@@ -1,6 +1,7 @@
 import { render, fireEvent } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
 import { PrimaryNav, type PrimaryNavItem } from '../PrimaryNav';
+import { LanguageProvider } from '../LanguageProvider';
 
 function MockIcon({ size }: { size?: number }) {
   return <svg data-testid="icon" width={size} height={size} />;
@@ -17,7 +18,8 @@ const items: PrimaryNavItem[] = [
 describe('PrimaryNav', () => {
   it('sets aria-current=page on active item only', () => {
     const { getAllByRole } = render(
-      <PrimaryNav items={items} activeId="my-skills" collapsed={false} onNavigate={() => {}} />
+      <PrimaryNav items={items} activeId="my-skills" collapsed={false} onNavigate={() => {}} />,
+      { wrapper: LanguageProvider },
     );
     const buttons = getAllByRole('button');
     expect(buttons[1]).toHaveAttribute('aria-current', 'page');
@@ -28,7 +30,8 @@ describe('PrimaryNav', () => {
   it('calls onNavigate with correct id on click', () => {
     const onNavigate = vi.fn();
     const { getAllByRole } = render(
-      <PrimaryNav items={items} activeId="discovery" collapsed={false} onNavigate={onNavigate} />
+      <PrimaryNav items={items} activeId="discovery" collapsed={false} onNavigate={onNavigate} />,
+      { wrapper: LanguageProvider },
     );
     const buttons = getAllByRole('button');
     fireEvent.click(buttons[2]);
@@ -37,7 +40,8 @@ describe('PrimaryNav', () => {
 
   it('ArrowDown moves focus to next button', () => {
     const { getAllByRole } = render(
-      <PrimaryNav items={items} activeId="discovery" collapsed={false} onNavigate={() => {}} />
+      <PrimaryNav items={items} activeId="discovery" collapsed={false} onNavigate={() => {}} />,
+      { wrapper: LanguageProvider },
     );
     const buttons = getAllByRole('button');
     buttons[0].focus();
@@ -49,7 +53,8 @@ describe('PrimaryNav', () => {
 
   it('ArrowUp from first wraps to last', () => {
     const { getAllByRole } = render(
-      <PrimaryNav items={items} activeId="discovery" collapsed={false} onNavigate={() => {}} />
+      <PrimaryNav items={items} activeId="discovery" collapsed={false} onNavigate={() => {}} />,
+      { wrapper: LanguageProvider },
     );
     const buttons = getAllByRole('button');
     buttons[0].focus();

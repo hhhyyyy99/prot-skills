@@ -1,6 +1,7 @@
 import { render, screen, act } from '@testing-library/react';
 import { describe, it, expect } from 'vitest';
 import { ThemeProvider } from '../ThemeProvider';
+import { LanguageProvider } from '../LanguageProvider';
 import { CommandBarProvider, useCommandBar } from '../CommandBarProvider';
 
 function TestConsumer() {
@@ -16,9 +17,11 @@ function TestConsumer() {
 function renderWithProviders() {
   return render(
     <ThemeProvider>
-      <CommandBarProvider>
-        <TestConsumer />
-      </CommandBarProvider>
+      <LanguageProvider>
+        <CommandBarProvider>
+          <TestConsumer />
+        </CommandBarProvider>
+      </LanguageProvider>
     </ThemeProvider>,
   );
 }

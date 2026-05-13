@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Search } from 'lucide-react';
 import { WorkspaceHeader } from '../shell/WorkspaceHeader';
+import { useI18n } from '../shell/LanguageProvider';
 import { TextField } from '../components/primitives/TextField';
 import { Badge } from '../components/primitives/Badge';
 import { Button } from '../components/primitives/Button';
@@ -62,6 +63,7 @@ const FILTERS = [
 ] as const;
 
 export function DiscoveryPage() {
+  const { t } = useI18n();
   const [q, setQ] = useState('');
   const [source, setSource] = useState<(typeof FILTERS)[number]['value']>('all');
   const [imported, setImported] = useState<string | null>(null);
@@ -80,22 +82,22 @@ export function DiscoveryPage() {
   return (
     <>
       <WorkspaceHeader
-        title="Discovery"
-        meta="Browse and import community Skills"
-        search={<div className="w-[240px]"><TextField type="search" size="sm" leadingIcon={<Search size={14} />} value={q} onChange={setQ} placeholder="Search Skills" /></div>}
+        title={t('nav.discovery')}
+        meta={t('discovery.meta')}
+        search={<div className="w-[240px]"><TextField type="search" size="sm" leadingIcon={<Search size={14} />} value={q} onChange={setQ} placeholder={t('discovery.searchPlaceholder')} /></div>}
       />
       <main className="app-content">
         <StatsStrip
           items={[
-            { label: 'skills', value: 47 },
-            { label: 'tools', value: 12, accent: true },
-            { label: 'in library', value: 8 },
+            { label: t('discovery.stats.skills'), value: 47 },
+            { label: t('discovery.stats.tools'), value: 12, accent: true },
+            { label: t('discovery.stats.inLibrary'), value: 8 },
           ]}
         />
 
-        <FilterPills options={FILTERS} value={source} onChange={setSource} ariaLabel="Discovery source filters" />
+        <FilterPills options={FILTERS} value={source} onChange={setSource} ariaLabel={t('discovery.filters.aria')} />
 
-        <div className="section-kicker">Available Skills</div>
+        <div className="section-kicker">{t('discovery.section.availableSkills')}</div>
 
         {visible.length > 0 ? (
           <div>
@@ -114,7 +116,7 @@ export function DiscoveryPage() {
                     onClick={() => handleImport(skill.name)}
                     className={imported === skill.name ? 'bg-accent text-accent-fg hover:bg-accent-hover' : 'bg-text-primary text-surface hover:bg-text-secondary'}
                   >
-                    {imported === skill.name ? 'Imported' : 'Import'}
+                    {imported === skill.name ? t('common.imported') : t('common.import')}
                   </Button>
                 </div>
               </article>
@@ -122,25 +124,25 @@ export function DiscoveryPage() {
             {!q && source === 'all' && (
               <div className="compact-card mt-4">
                 <EmptyState
-                  title="No Skills yet"
-                  description="Discovery is ready for imports. Browse community Skills on skills.sh in the meantime."
-                  secondaryAction={{ label: 'Open skills.sh', href: 'https://skills.sh', external: true }}
+                  title={t('discovery.empty.title')}
+                  description={t('discovery.empty.ready')}
+                  secondaryAction={{ label: t('discovery.empty.openSkills'), href: 'https://skills.sh', external: true }}
                 />
               </div>
             )}
           </div>
         ) : q ? (
           <EmptyState
-            title={`No results for "${q}"`}
-            description="Try another keyword or source filter."
-            primaryAction={{ label: 'Clear search', onClick: () => setQ('') }}
-            secondaryAction={{ label: 'Open skills.sh', href: 'https://skills.sh', external: true }}
+            title={t('discovery.noResults.title', { query: q })}
+            description={t('discovery.noResults.description')}
+            primaryAction={{ label: t('discovery.noResults.clear'), onClick: () => setQ('') }}
+            secondaryAction={{ label: t('discovery.empty.openSkills'), href: 'https://skills.sh', external: true }}
           />
         ) : (
           <EmptyState
-            title="No Skills yet"
-            description="Discovery is under construction. Browse community Skills on skills.sh in the meantime."
-            secondaryAction={{ label: 'Open skills.sh', href: 'https://skills.sh', external: true }}
+            title={t('discovery.empty.title')}
+            description={t('discovery.empty.construction')}
+            secondaryAction={{ label: t('discovery.empty.openSkills'), href: 'https://skills.sh', external: true }}
           />
         )}
       </main>

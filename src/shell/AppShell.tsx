@@ -5,6 +5,7 @@ import { PerfMark } from './PerfMark';
 import { useBreakpoint } from '../hooks/useBreakpoint';
 import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
 import { useCommandBar } from './CommandBarProvider';
+import { useI18n } from './LanguageProvider';
 import { SettingsPage } from '../pages/SettingsPage';
 import { ToolsPage } from '../pages/ToolsPage';
 import { MySkillsPage } from '../pages/MySkillsPage';
@@ -13,11 +14,11 @@ import { DiscoveryPage } from '../pages/DiscoveryPage';
 import type { PageId } from './types';
 
 const PRIMARY_NAV_ITEMS: readonly PrimaryNavItem[] = [
-  { id: 'discovery', label: 'Discovery', icon: Package as PrimaryNavItem['icon'], shortcut: '⌘1' },
-  { id: 'my-skills', label: 'My Skills', icon: Folder as PrimaryNavItem['icon'], shortcut: '⌘2' },
-  { id: 'tools', label: 'Tools', icon: Wrench as PrimaryNavItem['icon'], shortcut: '⌘3' },
-  { id: 'migrate', label: 'Migrate', icon: Search as PrimaryNavItem['icon'], shortcut: '⌘4' },
-  { id: 'settings', label: 'Settings', icon: Settings as PrimaryNavItem['icon'], shortcut: '⌘5' },
+  { id: 'discovery', label: 'nav.discovery', icon: Package as PrimaryNavItem['icon'], shortcut: '⌘1' },
+  { id: 'my-skills', label: 'nav.mySkills', icon: Folder as PrimaryNavItem['icon'], shortcut: '⌘2' },
+  { id: 'tools', label: 'nav.tools', icon: Wrench as PrimaryNavItem['icon'], shortcut: '⌘3' },
+  { id: 'migrate', label: 'nav.migrate', icon: Search as PrimaryNavItem['icon'], shortcut: '⌘4' },
+  { id: 'settings', label: 'nav.settings', icon: Settings as PrimaryNavItem['icon'], shortcut: '⌘5' },
 ];
 
 const PAGE_IDS: readonly PageId[] = ['discovery', 'my-skills', 'tools', 'migrate', 'settings'];
@@ -27,11 +28,13 @@ export function AppShell() {
   const [, setDetailOpen] = useState(false);
   const bp = useBreakpoint();
   const { openBar, setNavigateHandler } = useCommandBar();
+  const { t } = useI18n();
 
   useEffect(() => { setNavigateHandler(setActivePage); }, [setNavigateHandler]);
 
   const navCollapsed = bp !== 'regular';
-  const activeTitle = PRIMARY_NAV_ITEMS.find(item => item.id === activePage)?.label ?? 'Discovery';
+  const navItems = useMemo(() => PRIMARY_NAV_ITEMS.map(item => ({ ...item, label: t(item.label) })), [t]);
+  const activeTitle = navItems.find(item => item.id === activePage)?.label ?? t('nav.discovery');
 
   const platform = useMemo(() => {
     const ua = navigator.userAgent;
@@ -55,7 +58,7 @@ export function AppShell() {
   return (
     <div className="app-shell h-screen flex flex-col bg-canvas text-text-primary" data-platform={platform}>
       <header
-        aria-label="Application"
+        aria-label={t('app.aria.application')}
         className="flex h-[var(--topbar-height)] shrink-0 items-center gap-3 border-b border-border-subtle bg-surface px-4"
       >
         <div className="flex min-w-0 flex-1 items-center gap-2">
@@ -64,7 +67,7 @@ export function AppShell() {
           </span>
           <div className="truncate text-14 font-semibold text-text-primary">{activeTitle}</div>
         </div>
-        <PrimaryNav items={PRIMARY_NAV_ITEMS} activeId={activePage} collapsed={navCollapsed} onNavigate={navigateTo} />
+        <PrimaryNav items={navItems} activeId={activePage} collapsed={navCollapsed} onNavigate={navigateTo} />
       </header>
       <div className="flex-1 flex flex-col min-h-0 min-w-0">
         {activePage === 'settings' ? (

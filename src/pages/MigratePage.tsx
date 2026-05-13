@@ -3,6 +3,7 @@ import { Search, ArrowRight, RefreshCw, Filter } from 'lucide-react';
 import { getTools, scanLocalSkills, scanAllLocalSkills, migrateLocalSkill } from '../api';
 import { useToast } from '../hooks/useToast';
 import { WorkspaceHeader } from '../shell/WorkspaceHeader';
+import { useI18n } from '../shell/LanguageProvider';
 import { Button } from '../components/primitives/Button';
 import { Checkbox } from '../components/primitives/Checkbox';
 import { Badge } from '../components/primitives/Badge';
@@ -25,6 +26,7 @@ interface ScanResult {
 }
 
 export function MigratePage() {
+  const { t } = useI18n();
   const [allTools, setAllTools] = useState<AITool[]>([]);
   const [scanning, setScanning] = useState(false);
   const [scanResults, setScanResults] = useState<ScanResult[]>([]);
@@ -114,7 +116,7 @@ export function MigratePage() {
         return { ...cleaned, ...status };
       });
     } catch (e) {
-      toast({ variant: 'error', title: `Scan failed for ${tool.name}`, description: String((e as Error).message ?? e) });
+      toast({ variant: 'error', title: t('migrate.toast.scanFailed', { name: tool.name }), description: String((e as Error).message ?? e) });
     } finally {
       setScanning(false);
     }
@@ -180,7 +182,7 @@ export function MigratePage() {
         setRowStatus({ ...nextStatus });
       }
     }
-    toast({ variant: fail === 0 ? 'success' : 'info', title: `Migrated ${success}, failed ${fail}`, durationMs: 6000 });
+    toast({ variant: fail === 0 ? 'success' : 'info', title: t('migrate.toast.summary', { success, fail }), durationMs: 6000 });
     setProgress(null);
     setMigrating(false);
     if (success > 0) smartScan(allTools);
@@ -192,10 +194,10 @@ export function MigratePage() {
     try {
       await migrateLocalSkill(path, skillId);
       setRowStatus(prev => ({ ...prev, [path]: 'success' }));
-      toast({ variant: 'success', title: `Migrated ${s!.name}`, durationMs: 6000 });
+      toast({ variant: 'success', title: t('migrate.toast.success', { name: s!.name }), durationMs: 6000 });
     } catch {
       setRowStatus(prev => ({ ...prev, [path]: 'error' }));
-      toast({ variant: 'error', title: `Failed to migrate ${s!.name}` });
+      toast({ variant: 'error', title: t('migrate.toast.failed', { name: s!.name }) });
     }
   };
 
@@ -208,20 +210,20 @@ export function MigratePage() {
   };
 
   const filterOptions = useMemo(() => {
-    const opts: { value: string; label: string }[] = [{ value: ALL_TOOLS_FILTER, label: `All tools (${detectedTools.length})` }];
+    const opts: { value: string; label: string }[] = [{ value: ALL_TOOLS_FILTER, label: t('migrate.filter.allTools', { count: detectedTools.length }) }];
     for (const tool of detectedTools) {
       opts.push({ value: tool.id, label: tool.name });
     }
     return opts;
-  }, [detectedTools]);
+  }, [detectedTools, t]);
 
   return (
     <>
       <WorkspaceHeader
-        title="Migrate"
+        title={t('nav.migrate')}
         meta={hasScannedOnce
-          ? `${totalSkillCount} skills found across ${toolsWithSkills.length} tools`
-          : 'Scanning local skills from detected tools…'
+          ? t('migrate.meta.found', { count: totalSkillCount, tools: toolsWithSkills.length })
+          : t('migrate.meta.scanning')
         }
         primaryActions={[
           <Button
@@ -232,16 +234,16 @@ export function MigratePage() {
             loading={scanning}
             onClick={() => smartScan(allTools)}
           >
-            Rescan All
+            {t('migrate.rescanAll')}
           </Button>,
         ]}
       />
       <main className="app-content">
         <StatsStrip
           items={[
-            { label: 'found', value: totalSkillCount, accent: true },
-            { label: 'tools', value: toolsWithSkills.length },
-            { label: 'selected', value: selected.size },
+            { label: t('migrate.stats.found'), value: totalSkillCount, accent: true },
+            { label: t('migrate.stats.tools'), value: toolsWithSkills.length },
+            { label: t('migrate.stats.selected'), value: selected.size },
           ]}
         />
 
@@ -249,13 +251,13 @@ export function MigratePage() {
         <div className="mb-4">
           <div className="mb-2 flex items-center gap-2 text-12 font-medium text-text-tertiary">
             <Filter size={14} />
-            <span>Filter by tool</span>
+            <span>{t('migrate.filter.label')}</span>
           </div>
           <FilterPills
             options={filterOptions}
             value={filter}
             onChange={setFilter}
-            ariaLabel="Migration tool filters"
+            ariaLabel={t('migrate.filter.aria')}
           />
         </div>
 
@@ -268,10 +270,10 @@ export function MigratePage() {
             disabled={detectedTools.length === 0}
             onClick={handleScanAction}
           >
-            {filter === ALL_TOOLS_FILTER && detectedTools.length !== 1 ? 'Scan All' : 'Scan'}
+            {filter === ALL_TOOLS_FILTER && detectedTools.length !== 1 ? t('migrate.scanAll') : t('migrate.scan')}
           </Button>
           {detectedTools.length === 0 && (
-            <span className="text-13 text-text-tertiary">No enabled tools detected. Go to Tools to detect and enable.</span>
+            <span className="text-13 text-text-tertiary">{t('migrate.noTools')}</span>
           )}
         </div>
 
@@ -280,7 +282,7 @@ export function MigratePage() {
           <div key={r.toolId} className="mb-2 px-3 py-2 rounded-md bg-danger/10 border border-danger/20 text-13 text-danger flex items-center gap-2">
             <span className="font-medium">{r.toolName}:</span>
             <span>{r.error}</span>
-            <Button variant="ghost" size="sm" onClick={() => scanSingle(r.toolId)} className="ml-auto">Retry</Button>
+            <Button variant="ghost" size="sm" onClick={() => scanSingle(r.toolId)} className="ml-auto">{t('common.retry')}</Button>
           </div>
         ))}
 
@@ -290,29 +292,29 @@ export function MigratePage() {
             <Checkbox
               checked={selected.size === filteredSkills.length ? true : (selected.size === 0 ? false : 'indeterminate')}
               onChange={toggleAll}
-              label="Select all"
+              label={t('migrate.selectAll')}
             />
             <span className="text-13 text-text-secondary">
-              {selected.size > 0 ? `Selected ${selected.size}` : `${filteredSkills.length} skills`}
+              {selected.size > 0 ? t('migrate.selectedCount', { count: selected.size }) : t('migrate.skillCount', { count: filteredSkills.length })}
             </span>
             {selected.size > 0 && (
               <div className="ml-auto flex gap-2">
                 <Button variant="primary" size="sm" leadingIcon={<ArrowRight size={14} />} loading={migrating} onClick={migrateSelected}>
-                  Migrate selected ({selected.size})
+                  {t('migrate.migrateSelected', { count: selected.size })}
                 </Button>
-                <Button variant="ghost" size="sm" onClick={() => setSelected(new Set())}>Clear</Button>
+                <Button variant="ghost" size="sm" onClick={() => setSelected(new Set())}>{t('common.clear')}</Button>
               </div>
             )}
           </div>
         )}
 
-        {progress && <div className="text-13 text-text-secondary mb-2">Migrating {progress.done}/{progress.total}…</div>}
+        {progress && <div className="text-13 text-text-secondary mb-2">{t('migrate.progress', { done: progress.done, total: progress.total })}</div>}
 
         {/* Loading state */}
         {scanning && !hasScannedOnce && (
           <div className="compact-card flex flex-col items-center justify-center gap-3 py-12">
             <RefreshCw size={24} className="text-text-tertiary animate-spin" />
-            <p className="text-14 text-text-secondary">Scanning all detected tools…</p>
+            <p className="text-14 text-text-secondary">{t('migrate.scanningAll')}</p>
           </div>
         )}
 
@@ -320,12 +322,12 @@ export function MigratePage() {
         {!scanning && hasScannedOnce && filteredSkills.length === 0 && (
           <div className="compact-card">
             <EmptyState
-              title="No local Skills found"
+              title={t('migrate.empty.title')}
               description={filter === ALL_TOOLS_FILTER
-                ? 'No skills found in any detected tool folder'
-                : 'No skills found in this tool\'s folder'
+                ? t('migrate.empty.all')
+                : t('migrate.empty.tool')
               }
-              primaryAction={{ label: 'Rescan', onClick: handleScanAction }}
+              primaryAction={{ label: t('migrate.rescan'), onClick: handleScanAction }}
             />
           </div>
         )}
@@ -336,7 +338,7 @@ export function MigratePage() {
             {toolsWithSkills.map(result => (
               <section key={result.toolId}>
                 <div className="flex items-center gap-2 mb-2">
-                  <h3 className="section-kicker mb-0">{result.toolName} skills</h3>
+                  <h3 className="section-kicker mb-0">{t('migrate.groupTitle', { name: result.toolName })}</h3>
                   <Badge variant="accent">{result.skills.length}</Badge>
                   <Button
                     variant="ghost"
@@ -345,7 +347,7 @@ export function MigratePage() {
                     onClick={() => scanSingle(result.toolId)}
                   className="ml-auto"
                   >
-                    Rescan
+                    {t('migrate.rescan')}
                   </Button>
                 </div>
                 <ul role="rowgroup">
@@ -353,15 +355,15 @@ export function MigratePage() {
                     <ListRow
                       key={s.path}
                       id={s.path}
-                      leading={<Checkbox checked={selected.has(s.path)} onChange={() => toggleSelected(s.path)} aria-label={`Select ${s.name}`} />}
+                      leading={<Checkbox checked={selected.has(s.path)} onChange={() => toggleSelected(s.path)} aria-label={t('migrate.aria.select', { name: s.name })} />}
                       primary={<span className="text-14 text-text-primary">{s.name}</span>}
                       meta={[
                         <code key="p" className="font-mono text-12 text-text-secondary">{middleEllipsis(s.path, 48)}</code>,
-                        s.is_symlink ? <Badge key="sym" variant="warning">Symlink</Badge> : null,
-                        rowStatus[s.path] === 'success' ? <Badge key="ok" variant="success">Done</Badge> : null,
-                        rowStatus[s.path] === 'error' ? <Badge key="err" variant="danger">Failed</Badge> : null,
+                        s.is_symlink ? <Badge key="sym" variant="warning">{t('migrate.badge.symlink')}</Badge> : null,
+                        rowStatus[s.path] === 'success' ? <Badge key="ok" variant="success">{t('migrate.badge.done')}</Badge> : null,
+                        rowStatus[s.path] === 'error' ? <Badge key="err" variant="danger">{t('migrate.badge.failed')}</Badge> : null,
                       ].filter(Boolean) as React.ReactNode[]}
-                      trailing={rowStatus[s.path] === 'error' ? <Button variant="ghost" size="sm" onClick={() => retry(s.path)}>Retry</Button> : undefined}
+                      trailing={rowStatus[s.path] === 'error' ? <Button variant="ghost" size="sm" onClick={() => retry(s.path)}>{t('common.retry')}</Button> : undefined}
                     />
                   ))}
                 </ul>
@@ -377,16 +379,16 @@ export function MigratePage() {
               <ListRow
                 key={s.path}
                 id={s.path}
-                leading={<Checkbox checked={selected.has(s.path)} onChange={() => toggleSelected(s.path)} aria-label={`Select ${s.name}`} />}
+                leading={<Checkbox checked={selected.has(s.path)} onChange={() => toggleSelected(s.path)} aria-label={t('migrate.aria.select', { name: s.name })} />}
                 primary={<span className="text-14 text-text-primary">{s.name}</span>}
                 meta={[
                   <code key="p" className="font-mono text-12 text-text-secondary">{middleEllipsis(s.path, 48)}</code>,
-                  s.tool_name && filter === ALL_TOOLS_FILTER ? <Badge key="tool" variant="accent">{s.tool_name} source</Badge> : null,
-                  s.is_symlink ? <Badge key="sym" variant="warning">Symlink</Badge> : null,
-                  rowStatus[s.path] === 'success' ? <Badge key="ok" variant="success">Done</Badge> : null,
-                  rowStatus[s.path] === 'error' ? <Badge key="err" variant="danger">Failed</Badge> : null,
+                  s.tool_name && filter === ALL_TOOLS_FILTER ? <Badge key="tool" variant="accent">{t('migrate.badge.source', { name: s.tool_name })}</Badge> : null,
+                  s.is_symlink ? <Badge key="sym" variant="warning">{t('migrate.badge.symlink')}</Badge> : null,
+                  rowStatus[s.path] === 'success' ? <Badge key="ok" variant="success">{t('migrate.badge.done')}</Badge> : null,
+                  rowStatus[s.path] === 'error' ? <Badge key="err" variant="danger">{t('migrate.badge.failed')}</Badge> : null,
                 ].filter(Boolean) as React.ReactNode[]}
-                trailing={rowStatus[s.path] === 'error' ? <Button variant="ghost" size="sm" onClick={() => retry(s.path)}>Retry</Button> : undefined}
+                trailing={rowStatus[s.path] === 'error' ? <Button variant="ghost" size="sm" onClick={() => retry(s.path)}>{t('common.retry')}</Button> : undefined}
               />
             ))}
           </ul>
