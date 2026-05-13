@@ -24,12 +24,12 @@ export function WorkspaceHeader({ title, meta, leading, search, filters, primary
 
   return (
     <>
-      <header className="flex items-start justify-between gap-4 px-8 pt-6">
+      <header className="flex items-start justify-between gap-4 px-4 pt-5">
         {leading}
-        <h1 className="text-20 font-semibold text-text-primary flex-1">{title}</h1>
+        <h1 className="sr-only">{title}</h1>
         <div className="flex gap-2">{visibleActions}</div>
       </header>
-      <div className="flex items-center justify-between gap-4 px-8 pt-2 pb-4 border-b border-border-subtle">
+      <div className="flex items-center justify-between gap-4 px-4 pt-2 pb-4">
         <span className="text-13 text-text-secondary truncate">{meta}</span>
         <div className="flex items-center gap-2">{search}{filters}</div>
       </div>

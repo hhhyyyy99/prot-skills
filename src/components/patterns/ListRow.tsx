@@ -32,15 +32,15 @@ function ListRow({
   onKeyNav,
   href,
 }: ListRowProps) {
-  const height = density === 'compact' ? 'h-9' : 'h-12';
+  const height = density === 'compact' ? 'min-h-11' : 'min-h-[62px]';
   const borderClass = selected
-    ? 'border-l-2 border-accent bg-surface-raised'
-    : 'border-l-2 border-transparent';
+    ? 'border-accent bg-success-bg'
+    : 'border-border-subtle bg-surface';
 
   if (loading) {
     return (
       <div
-        className={`grid items-center gap-2 px-3 ${height}`}
+        className={`mb-2 grid items-center gap-2 rounded-lg border border-border-subtle bg-surface px-4 ${height}`}
         style={{ gridTemplateColumns: 'auto 1fr auto' }}
       >
         <Skeleton width={16} height={16} />
@@ -66,30 +66,30 @@ function ListRow({
   const content = (
     <>
       {leading && <span className="flex items-center">{leading}</span>}
-      <span className="flex items-center gap-2 min-w-0">
-        <span className="truncate text-13 text-text-primary">{primary}</span>
+      <span className="flex min-w-0 flex-col justify-center gap-0.5">
+        <span className="truncate text-14 font-semibold text-text-primary">{primary}</span>
         {secondary && (
-          <span className="text-12 text-text-secondary opacity-0 transition-opacity duration-fast ease-out-quart group-hover:opacity-100 group-focus-within:opacity-100">
+          <span className="truncate text-12 text-text-tertiary">
             {secondary}
           </span>
         )}
       </span>
       {meta && meta.length > 0 && (
-        <span className="flex items-center gap-2 text-12 text-text-tertiary">
+        <span className="flex min-w-0 items-center gap-2 text-12 text-text-tertiary">
           {meta.map((m, i) => <span key={i}>{m}</span>)}
         </span>
       )}
-      <span className="flex items-center opacity-0 transition-opacity duration-fast ease-out-quart group-hover:opacity-100 group-focus-within:opacity-100">
+      <span className="flex items-center">
         {trailing}
       </span>
     </>
   );
 
   const className = [
-    'group grid items-center gap-2 px-3 outline-none',
+    'group mb-2 grid items-center gap-3 rounded-lg border px-4 py-3 outline-none shadow-card transition-colors duration-fast',
     height,
     borderClass,
-    disabled ? 'opacity-50 pointer-events-none' : 'hover:bg-surface-raised',
+    disabled ? 'opacity-50 pointer-events-none' : 'hover:border-border-default',
   ].join(' ');
 
   const style = { gridTemplateColumns: 'auto 1fr auto auto' };

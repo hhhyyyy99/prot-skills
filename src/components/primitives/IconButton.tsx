@@ -11,7 +11,7 @@ interface IconButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 
 
 const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(
   ({ icon, size = 'md', variant = 'ghost', loading, className, disabled, ...rest }, ref) => {
-    const btnSize = size === 'sm' ? 'w-7 h-7' : 'w-8 h-8';
+    const btnSize = size === 'sm' ? 'w-[30px] h-[30px]' : 'w-8 h-8';
     const iconSize = size === 'sm' ? 16 : 20;
     const hoverClass = variant === 'subtle' ? 'hover:bg-surface-raised' : '';
 
@@ -21,7 +21,7 @@ const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(
         disabled={disabled || loading}
         aria-busy={loading || undefined}
         className={[
-          'inline-flex items-center justify-center rounded-md',
+          'inline-flex items-center justify-center rounded-sm text-text-secondary transition-colors duration-fast hover:text-text-primary',
           'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas',
           'disabled:opacity-50 disabled:pointer-events-none',
           btnSize,

@@ -12,6 +12,7 @@
     background-color: var(--color-canvas);
     color: var(--color-text-primary);
     font-family: var(--font-sans);
+    overflow: hidden;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
@@ -28,8 +29,95 @@
   }
 }
 
+@layer components {
+  .section-kicker {
+    @apply mb-2 text-[11px] font-semibold uppercase tracking-[0.07em] text-text-tertiary;
+  }
+
+  .app-content {
+    @apply flex-1 min-h-0 overflow-y-auto px-4 py-5;
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-border-subtle) transparent;
+  }
+
+  .app-content::-webkit-scrollbar {
+    width: 4px;
+  }
+
+  .app-content::-webkit-scrollbar-thumb {
+    background: var(--color-border-subtle);
+    border-radius: 4px;
+  }
+
+  .stats-strip {
+    @apply mb-5 grid rounded-lg border border-border-subtle bg-surface shadow-card;
+  }
+
+  .stat-cell {
+    @apply min-w-0 px-3 py-3 text-center;
+  }
+
+  .stat-cell + .stat-cell {
+    @apply border-l border-border-subtle;
+  }
+
+  .stat-number {
+    @apply text-[22px] font-bold leading-none text-text-primary;
+  }
+
+  .stat-label {
+    @apply mt-1 text-[10px] font-medium text-text-tertiary;
+  }
+
+  .filter-row {
+    @apply mb-4 flex gap-1.5 overflow-x-auto pb-0.5;
+    scrollbar-width: none;
+  }
+
+  .filter-row::-webkit-scrollbar {
+    display: none;
+  }
+
+  .filter-pill {
+    @apply inline-flex h-[30px] shrink-0 items-center gap-1.5 rounded-full border border-border-subtle bg-surface px-3 text-12 font-medium text-text-secondary transition-colors duration-fast;
+  }
+
+  .filter-pill:hover {
+    @apply border-border-default;
+  }
+
+  .filter-pill-active {
+    @apply border-text-primary bg-text-primary text-surface;
+  }
+
+  .compact-card {
+    @apply rounded-lg border border-border-subtle bg-surface px-4 py-3 shadow-card transition-colors duration-fast;
+  }
+
+  .compact-card:hover {
+    @apply border-border-default;
+  }
+
+  .settings-group {
+    @apply mb-3 overflow-hidden rounded-lg border border-border-subtle bg-surface shadow-card;
+  }
+
+  .settings-group-title {
+    @apply px-4 pb-2 pt-3 text-[11px] font-semibold uppercase tracking-[0.07em] text-text-tertiary;
+  }
+
+  .settings-row {
+    @apply flex items-center justify-between gap-4 border-t border-border-subtle px-4 py-3;
+  }
+
+  .bottom-action-bar {
+    @apply sticky bottom-0 z-10 mt-4 flex items-center gap-3 border-t border-border-subtle bg-canvas px-4 py-3;
+  }
+}
+
 @supports (-webkit-backdrop-filter: blur(0)) {
-  .app-shell[data-platform="macos"] nav[aria-label="Primary"] {
+  .app-shell[data-platform="macos"] header[aria-label="Application"] {
     padding-top: 28px;
+    height: calc(var(--topbar-height) + 28px);
   }
 }

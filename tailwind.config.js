@@ -19,6 +19,10 @@ export default {
         success: "var(--color-success)",
         warning: "var(--color-warning)",
         danger: "var(--color-danger)",
+        info: "var(--color-info)",
+        "info-bg": "var(--color-info-bg)",
+        "success-bg": "var(--color-success-bg)",
+        "warning-bg": "var(--color-warning-bg)",
       },
       fontFamily: {
         sans: "var(--font-sans)",
@@ -51,6 +55,7 @@ export default {
       },
       boxShadow: {
         none: "var(--shadow-none)",
+        card: "var(--shadow-card)",
         overlay: "var(--shadow-overlay)",
       },
       transitionDuration: {

@@ -35,8 +35,8 @@ export function PrimaryNav({ items, activeId, collapsed, onNavigate }: PrimaryNa
   }, [items.length]);
 
   return (
-    <nav aria-label="Primary" className={`primary-nav flex flex-col ${collapsed ? 'w-14' : 'w-56'}`}>
-      <ul ref={listRef} className="flex flex-col gap-0.5">
+    <nav aria-label="Primary" className="primary-nav">
+      <ul ref={listRef} className="flex items-center gap-0.5">
         {items.map((item, index) => {
           const isActive = item.id === activeId;
           const Icon = item.icon;
@@ -49,10 +49,10 @@ export function PrimaryNav({ items, activeId, collapsed, onNavigate }: PrimaryNa
               onClick={() => onNavigate(item.id)}
               onKeyDown={(e) => handleKeyDown(e, index)}
               className={`
-                h-9 px-3 flex items-center gap-3 text-13 border-l-2 w-full
+                h-[34px] min-w-[34px] rounded-sm px-2.5 flex items-center justify-center gap-2 text-13 transition-colors duration-fast
                 ${isActive
-                  ? 'border-accent text-accent'
-                  : 'border-transparent text-text-secondary hover:text-text-primary hover:bg-surface-raised'}
+                  ? 'bg-surface-raised text-text-primary'
+                  : 'text-text-secondary hover:text-text-primary hover:bg-surface-raised'}
                 ${collapsed ? 'justify-center' : ''}
               `}
             >
@@ -64,7 +64,7 @@ export function PrimaryNav({ items, activeId, collapsed, onNavigate }: PrimaryNa
               </span>
               {!collapsed && (
                 <>
-                  <span className="truncate">{item.label}</span>
+                  <span className="hidden truncate sm:inline">{item.label}</span>
                   {item.hasUnread && (
                     <span className="w-2 h-2 rounded-full bg-accent flex-shrink-0" />
                   )}

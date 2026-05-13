@@ -9,9 +9,9 @@ interface SwitchProps {
 }
 
 function Switch({ checked, onChange, disabled, 'aria-label': ariaLabel, size = 'md' }: SwitchProps) {
-  const trackSize = size === 'sm' ? 'w-5 h-3' : 'w-6 h-3.5';
-  const thumbSize = size === 'sm' ? 'w-2 h-2' : 'w-2.5 h-2.5';
-  const thumbTranslate = size === 'sm' ? 'data-[state=checked]:translate-x-2' : 'data-[state=checked]:translate-x-2.5';
+  const trackSize = size === 'sm' ? 'w-8 h-5' : 'w-10 h-6';
+  const thumbSize = size === 'sm' ? 'w-4 h-4' : 'w-[18px] h-[18px]';
+  const thumbTranslate = size === 'sm' ? 'data-[state=checked]:translate-x-3' : 'data-[state=checked]:translate-x-4';
 
   return (
     <SwitchPrimitive.Root
@@ -28,10 +28,10 @@ function Switch({ checked, onChange, disabled, 'aria-label': ariaLabel, size = '
     >
       <SwitchPrimitive.Thumb
         className={[
-          'block rounded-full bg-white transition-transform duration-fast',
+          'block rounded-full bg-white shadow-sm transition-transform duration-fast ease-out-quart',
           thumbSize,
           thumbTranslate,
-          'translate-x-0.5',
+          'translate-x-[3px]',
         ].join(' ')}
       />
     </SwitchPrimitive.Root>

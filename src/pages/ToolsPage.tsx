@@ -11,6 +11,7 @@ import { IconButton } from '../components/primitives/IconButton';
 import { ListRow } from '../components/patterns/ListRow';
 import { InlineError } from '../components/patterns/InlineError';
 import { EmptyState } from '../components/patterns/EmptyState';
+import { StatsStrip } from '../components/patterns/StatsStrip';
 import { middleEllipsis } from '../lib/truncate';
 import type { AITool } from '../types';
 
@@ -119,21 +120,31 @@ export function ToolsPage() {
           <Button key="redetect" variant="primary" size="sm" leadingIcon={<ScanLine size={14} />} loading={detecting} onClick={redetect}>Scan tools</Button>,
         ]}
       />
-      <main className="px-8 py-4 overflow-y-auto flex-1">
-        {error && <div className="mb-4"><InlineError title="Failed to load tools" details={error} onRetry={refresh} /></div>}
+      <main className="app-content">
+        <StatsStrip
+          items={[
+            { label: 'detected', value: detectedCount, accent: true },
+            { label: 'enabled', value: enabledCount },
+            { label: 'total', value: tools.length },
+          ]}
+        />
+
+        <div className="section-kicker">Detected Tools · {tools.length}</div>
+
+        {error && <div className="compact-card mb-4"><InlineError title="Failed to load tools" details={error} onRetry={refresh} /></div>}
 
         {showAdd && (
-          <div className="mb-4 p-4 border border-border-subtle rounded-lg bg-surface-secondary flex flex-col gap-3">
+          <div className="compact-card mb-4 flex flex-col gap-3">
             <p className="text-14 font-medium text-text-primary">Add New Tool</p>
             <div className="flex gap-3">
               <input
-                className="flex-1 px-3 py-1.5 text-14 rounded border border-border-subtle bg-surface-primary text-text-primary placeholder:text-text-tertiary focus:outline-none focus:ring-1 focus:ring-accent-primary"
+                className="flex-1 rounded-sm border border-border-subtle bg-surface px-3 py-1.5 text-14 text-text-primary placeholder:text-text-tertiary focus:outline-none focus:ring-2 focus:ring-accent"
                 placeholder="Name (e.g. MyTool)"
                 value={newName}
                 onChange={e => setNewName(e.target.value)}
               />
               <input
-                className="flex-[2] px-3 py-1.5 text-14 rounded border border-border-subtle bg-surface-primary text-text-primary placeholder:text-text-tertiary focus:outline-none focus:ring-1 focus:ring-accent-primary font-mono"
+                className="flex-[2] rounded-sm border border-border-subtle bg-surface px-3 py-1.5 font-mono text-14 text-text-primary placeholder:text-text-tertiary focus:outline-none focus:ring-2 focus:ring-accent"
                 placeholder="Config path (e.g. ~/.mytool)"
                 value={newPath}
                 onChange={e => setNewPath(e.target.value)}
@@ -150,10 +161,10 @@ export function ToolsPage() {
           <ul>{Array.from({ length: 4 }).map((_, i) => <ListRow key={i} id={`skeleton-${i}`} primary="" loading />)}</ul>
         )}
         {!loading && !tools.length && !error && (
-          <EmptyState title="No agent tools detected" description="Scan this device for installed agent tools or add a custom tool" primaryAction={{ label: 'Scan tools', onClick: redetect }} />
+          <div className="compact-card"><EmptyState title="No agent tools detected" description="Scan this device for installed agent tools or add a custom tool" primaryAction={{ label: 'Scan tools', onClick: redetect }} /></div>
         )}
         {tools.length > 0 && (
-          <ul role="rowgroup" className="divide-y divide-border-subtle border-t border-border-subtle">
+          <ul role="rowgroup">
             {tools.map(t => (
               <ListRow
                 key={t.id}

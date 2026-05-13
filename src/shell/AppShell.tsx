@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback, useEffect } from 'react';
-import { Package, Folder, Wrench, Search, Settings } from 'lucide-react';
+import { Package, Folder, Wrench, Search, Settings, Sparkles } from 'lucide-react';
 import { PrimaryNav, type PrimaryNavItem } from './PrimaryNav';
 import { PerfMark } from './PerfMark';
 import { useBreakpoint } from '../hooks/useBreakpoint';
@@ -31,6 +31,7 @@ export function AppShell() {
   useEffect(() => { setNavigateHandler(setActivePage); }, [setNavigateHandler]);
 
   const navCollapsed = bp !== 'regular';
+  const activeTitle = PRIMARY_NAV_ITEMS.find(item => item.id === activePage)?.label ?? 'Discovery';
 
   const platform = useMemo(() => {
     const ua = navigator.userAgent;
@@ -52,9 +53,20 @@ export function AppShell() {
   });
 
   return (
-    <div className="app-shell h-screen flex bg-canvas text-text-primary" data-platform={platform}>
-      <PrimaryNav items={PRIMARY_NAV_ITEMS} activeId={activePage} collapsed={navCollapsed} onNavigate={navigateTo} />
-      <div className="flex-1 flex flex-col min-w-0">
+    <div className="app-shell h-screen flex flex-col bg-canvas text-text-primary" data-platform={platform}>
+      <header
+        aria-label="Application"
+        className="flex h-[var(--topbar-height)] shrink-0 items-center gap-3 border-b border-border-subtle bg-surface px-4"
+      >
+        <div className="flex min-w-0 flex-1 items-center gap-2">
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-text-primary text-surface">
+            <Sparkles size={17} />
+          </span>
+          <div className="truncate text-14 font-semibold text-text-primary">{activeTitle}</div>
+        </div>
+        <PrimaryNav items={PRIMARY_NAV_ITEMS} activeId={activePage} collapsed={navCollapsed} onNavigate={navigateTo} />
+      </header>
+      <div className="flex-1 flex flex-col min-h-0 min-w-0">
         {activePage === 'settings' ? (
           <SettingsPage />
         ) : activePage === 'tools' ? (

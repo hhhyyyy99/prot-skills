@@ -6,7 +6,6 @@ import { useToast } from '../hooks/useToast';
 import { WorkspaceHeader } from '../shell/WorkspaceHeader';
 import { DetailPanel } from '../shell/DetailPanel';
 import { TextField } from '../components/primitives/TextField';
-import { Select } from '../components/primitives/Select';
 import { Switch } from '../components/primitives/Switch';
 import { Badge } from '../components/primitives/Badge';
 import { Button } from '../components/primitives/Button';
@@ -14,6 +13,8 @@ import { IconButton } from '../components/primitives/IconButton';
 import { ListRow } from '../components/patterns/ListRow';
 import { InlineError } from '../components/patterns/InlineError';
 import { EmptyState } from '../components/patterns/EmptyState';
+import { FilterPills } from '../components/patterns/FilterPills';
+import { StatsStrip } from '../components/patterns/StatsStrip';
 import type { Skill } from '../types';
 
 export function MySkillsPage() {
@@ -45,7 +46,7 @@ export function MySkillsPage() {
 
   const sourceOptions = useMemo(() => {
     const types = [...new Set(skills.map(s => s.source_type))];
-    return [{ value: 'all', label: 'All sources' }, ...types.map(t => ({ value: t, label: t }))];
+    return [{ value: 'all', label: 'All' }, ...types.map(t => ({ value: t, label: t }))];
   }, [skills]);
 
   const toggleSkillHandler = useCallback((id: string, next: boolean) => {
@@ -81,12 +82,12 @@ export function MySkillsPage() {
   useEffect(() => { setConfirmMode(false); }, [selectedId]);
 
   const renderBody = () => {
-    if (error) return <div className="p-4"><InlineError title="Failed to load Skills" details={error} onRetry={refresh} /></div>;
+    if (error) return <div className="compact-card"><InlineError title="Failed to load Skills" details={error} onRetry={refresh} /></div>;
     if (loading && !skills.length) return <ul>{Array.from({ length: 8 }).map((_, i) => <ListRow key={i} id={`skeleton-${i}`} primary="" loading />)}</ul>;
-    if (!loading && skills.length === 0) return <EmptyState title="No Skills installed" description="Install from Discovery or migrate from a local tool" />;
-    if (!loading && skills.length > 0 && visible.length === 0) return <EmptyState title="No matches" description="Try a different keyword or clear filters" primaryAction={{ label: 'Clear filters', onClick: () => { setQ(''); setSourceType('all'); } }} />;
+    if (!loading && skills.length === 0) return <div className="compact-card"><EmptyState title="No Skills installed" description="Install from Discovery or migrate from a local tool" /></div>;
+    if (!loading && skills.length > 0 && visible.length === 0) return <div className="compact-card"><EmptyState title="No matches" description="Try a different keyword or clear filters" primaryAction={{ label: 'Clear filters', onClick: () => { setQ(''); setSourceType('all'); } }} /></div>;
     return (
-      <ul role="rowgroup" className="divide-y divide-border-subtle border-t border-border-subtle">
+      <ul role="rowgroup">
         {visible.map(skill => (
           <li key={skill.id} onClick={() => setSelectedId(skill.id)} className="cursor-pointer">
             <ListRow
@@ -114,11 +115,19 @@ export function MySkillsPage() {
         title="My Skills"
         meta={`${visible.length} of ${skills.length} · ${enabledCount} enabled`}
         search={<div className="w-[240px]"><TextField type="search" size="sm" leadingIcon={<Search size={14} />} value={q} onChange={setQ} placeholder="Search skills" /></div>}
-        filters={<Select size="sm" value={sourceType} options={sourceOptions} onChange={setSourceType} />}
         primaryActions={[<IconButton key="r" icon={<RefreshCw size={16} />} aria-label="Refresh" onClick={() => setRefreshTick(t => t + 1)} variant="subtle" size="sm" />]}
       />
       <div className="flex flex-1 min-h-0">
-        <main className="flex-1 overflow-y-auto">
+        <main className="app-content">
+          <StatsStrip
+            items={[
+              { label: 'enabled', value: enabledCount, accent: true },
+              { label: 'disabled', value: Math.max(skills.length - enabledCount, 0) },
+              { label: 'sources', value: Math.max(sourceOptions.length - 1, 0) },
+            ]}
+          />
+          <FilterPills options={sourceOptions} value={sourceType} onChange={setSourceType} ariaLabel="Installed skill filters" />
+          <div className="section-kicker">All Skills · {skills.length}</div>
           {renderBody()}
         </main>
         {selectedSkill && (

@@ -8,18 +8,18 @@ interface BadgeProps {
 }
 
 const variantClasses: Record<BadgeVariant, string> = {
-  neutral: 'border-border-default text-text-secondary',
-  accent: 'border-accent text-accent',
-  success: 'border-success text-success',
-  warning: 'border-warning text-warning',
-  danger: 'border-danger text-danger',
+  neutral: 'border-border-default bg-surface-raised text-text-secondary',
+  accent: 'border-accent bg-info-bg text-accent',
+  success: 'border-success bg-success-bg text-success',
+  warning: 'border-warning bg-warning-bg text-warning',
+  danger: 'border-danger bg-danger/10 text-danger',
 };
 
 function Badge({ variant = 'neutral', children }: BadgeProps) {
   return (
     <span
       className={[
-        'inline-flex items-center h-[18px] px-1.5 rounded-sm border text-12',
+        'inline-flex items-center h-[20px] px-2 rounded-full border text-[10px] font-semibold',
         variantClasses[variant],
       ].join(' ')}
     >

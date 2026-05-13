@@ -4,11 +4,12 @@ import { getTools, scanLocalSkills, scanAllLocalSkills, migrateLocalSkill } from
 import { useToast } from '../hooks/useToast';
 import { WorkspaceHeader } from '../shell/WorkspaceHeader';
 import { Button } from '../components/primitives/Button';
-import { Select } from '../components/primitives/Select';
 import { Checkbox } from '../components/primitives/Checkbox';
 import { Badge } from '../components/primitives/Badge';
 import { ListRow } from '../components/patterns/ListRow';
 import { EmptyState } from '../components/patterns/EmptyState';
+import { FilterPills } from '../components/patterns/FilterPills';
+import { StatsStrip } from '../components/patterns/StatsStrip';
 import { middleEllipsis } from '../lib/truncate';
 import type { AITool, LocalSkill } from '../types';
 
@@ -209,11 +210,10 @@ export function MigratePage() {
   const filterOptions = useMemo(() => {
     const opts: { value: string; label: string }[] = [{ value: ALL_TOOLS_FILTER, label: `All tools (${detectedTools.length})` }];
     for (const tool of detectedTools) {
-      const count = scanResults.find(r => r.toolId === tool.id)?.skills.length ?? 0;
-      opts.push({ value: tool.id, label: `${tool.name}${count > 0 ? ` (${count})` : ''}` });
+      opts.push({ value: tool.id, label: tool.name });
     }
     return opts;
-  }, [detectedTools, scanResults]);
+  }, [detectedTools]);
 
   return (
     <>
@@ -236,18 +236,30 @@ export function MigratePage() {
           </Button>,
         ]}
       />
-      <main className="px-8 py-4 overflow-y-auto flex-1">
+      <main className="app-content">
+        <StatsStrip
+          items={[
+            { label: 'found', value: totalSkillCount, accent: true },
+            { label: 'tools', value: toolsWithSkills.length },
+            { label: 'selected', value: selected.size },
+          ]}
+        />
+
         {/* Filter bar */}
-        <div className="flex items-center gap-3 pb-4">
-          <Filter size={14} className="text-text-tertiary" />
-          <Select
-            size="sm"
-            value={filter}
+        <div className="mb-4">
+          <div className="mb-2 flex items-center gap-2 text-12 font-medium text-text-tertiary">
+            <Filter size={14} />
+            <span>Filter by tool</span>
+          </div>
+          <FilterPills
             options={filterOptions}
+            value={filter}
             onChange={setFilter}
-            placeholder="Filter by tool"
-            disabled={detectedTools.length === 0}
+            ariaLabel="Migration tool filters"
           />
+        </div>
+
+        <div className="mb-4 flex items-center gap-3">
           <Button
             variant="secondary"
             size="sm"
@@ -256,7 +268,7 @@ export function MigratePage() {
             disabled={detectedTools.length === 0}
             onClick={handleScanAction}
           >
-            {filter === ALL_TOOLS_FILTER ? 'Scan All' : 'Scan'}
+            {filter === ALL_TOOLS_FILTER && detectedTools.length !== 1 ? 'Scan All' : 'Scan'}
           </Button>
           {detectedTools.length === 0 && (
             <span className="text-13 text-text-tertiary">No enabled tools detected. Go to Tools to detect and enable.</span>
@@ -274,7 +286,7 @@ export function MigratePage() {
 
         {/* Batch action bar */}
         {filteredSkills.length > 0 && (
-          <div className="sticky top-0 z-10 bg-canvas/80 backdrop-blur-sm py-2 mb-2 flex items-center gap-3 border-b border-border-subtle">
+          <div className="bottom-action-bar mb-4 mt-0 rounded-lg border border-border-subtle bg-surface">
             <Checkbox
               checked={selected.size === filteredSkills.length ? true : (selected.size === 0 ? false : 'indeterminate')}
               onChange={toggleAll}
@@ -298,7 +310,7 @@ export function MigratePage() {
 
         {/* Loading state */}
         {scanning && !hasScannedOnce && (
-          <div className="flex flex-col items-center justify-center py-16 gap-3">
+          <div className="compact-card flex flex-col items-center justify-center gap-3 py-12">
             <RefreshCw size={24} className="text-text-tertiary animate-spin" />
             <p className="text-14 text-text-secondary">Scanning all detected tools…</p>
           </div>
@@ -306,14 +318,16 @@ export function MigratePage() {
 
         {/* Empty state */}
         {!scanning && hasScannedOnce && filteredSkills.length === 0 && (
-          <EmptyState
-            title="No local Skills found"
-            description={filter === ALL_TOOLS_FILTER
-              ? 'No skills found in any detected tool folder'
-              : 'No skills found in this tool\'s folder'
-            }
-            primaryAction={{ label: 'Rescan', onClick: handleScanAction }}
-          />
+          <div className="compact-card">
+            <EmptyState
+              title="No local Skills found"
+              description={filter === ALL_TOOLS_FILTER
+                ? 'No skills found in any detected tool folder'
+                : 'No skills found in this tool\'s folder'
+              }
+              primaryAction={{ label: 'Rescan', onClick: handleScanAction }}
+            />
+          </div>
         )}
 
         {/* Results grouped by tool */}
@@ -322,19 +336,19 @@ export function MigratePage() {
             {toolsWithSkills.map(result => (
               <section key={result.toolId}>
                 <div className="flex items-center gap-2 mb-2">
-                  <h3 className="text-13 font-medium text-text-secondary">{result.toolName}</h3>
+                  <h3 className="section-kicker mb-0">{result.toolName} skills</h3>
                   <Badge variant="accent">{result.skills.length}</Badge>
                   <Button
                     variant="ghost"
                     size="sm"
                     leadingIcon={<Search size={12} />}
                     onClick={() => scanSingle(result.toolId)}
-                    className="ml-auto"
+                  className="ml-auto"
                   >
                     Rescan
                   </Button>
                 </div>
-                <ul role="rowgroup" className="divide-y divide-border-subtle border-t border-border-subtle">
+                <ul role="rowgroup">
                   {result.skills.map(s => (
                     <ListRow
                       key={s.path}
@@ -358,7 +372,7 @@ export function MigratePage() {
 
         {/* Flat list when filtering single tool or only one tool has results */}
         {filteredSkills.length > 0 && (filter !== ALL_TOOLS_FILTER || toolsWithSkills.length <= 1) && (
-          <ul role="rowgroup" className="divide-y divide-border-subtle border-t border-border-subtle">
+          <ul role="rowgroup">
             {filteredSkills.map(s => (
               <ListRow
                 key={s.path}
@@ -367,7 +381,7 @@ export function MigratePage() {
                 primary={<span className="text-14 text-text-primary">{s.name}</span>}
                 meta={[
                   <code key="p" className="font-mono text-12 text-text-secondary">{middleEllipsis(s.path, 48)}</code>,
-                  s.tool_name && filter === ALL_TOOLS_FILTER ? <Badge key="tool" variant="accent">{s.tool_name}</Badge> : null,
+                  s.tool_name && filter === ALL_TOOLS_FILTER ? <Badge key="tool" variant="accent">{s.tool_name} source</Badge> : null,
                   s.is_symlink ? <Badge key="sym" variant="warning">Symlink</Badge> : null,
                   rowStatus[s.path] === 'success' ? <Badge key="ok" variant="success">Done</Badge> : null,
                   rowStatus[s.path] === 'error' ? <Badge key="err" variant="danger">Failed</Badge> : null,

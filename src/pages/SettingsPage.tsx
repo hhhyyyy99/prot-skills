@@ -19,13 +19,13 @@ interface SettingRowProps {
 
 function SettingRow({ label, control, helper, action, badge }: SettingRowProps) {
   return (
-    <div className="grid grid-cols-[200px_1fr_auto] gap-4 items-start py-3 border-b border-border-subtle">
-      <span className="text-13 text-text-primary">{label}</span>
-      <div>
-        {control}
-        {helper && <p className="text-12 text-text-tertiary mt-1">{helper}</p>}
+    <div className="settings-row">
+      <div className="min-w-0">
+        <div className="text-14 text-text-primary">{label}</div>
+        {helper && <p className="mt-0.5 max-w-[320px] truncate text-12 text-text-tertiary">{helper}</p>}
       </div>
-      <div className="inline-flex gap-2 items-center">
+      <div className="inline-flex shrink-0 items-center gap-2">
+        {control}
         {action}
         {badge}
       </div>
@@ -69,36 +69,58 @@ export function SettingsPage() {
   return (
     <>
       <WorkspaceHeader title="Settings" />
-      <div className="px-8 py-6 space-y-8">
-        <section>
-          <h2 className="text-16 font-semibold text-text-primary mb-2">General</h2>
-          <div className="divide-y divide-border-subtle border-t border-border-subtle">
+      <main className="app-content">
+        <section className="settings-group">
+          <div className="settings-group-title">Appearance</div>
+          <SettingRow
+            label="Theme"
+            helper="Follow system, or force a theme"
+            control={
+              <div className="flex gap-1.5">
+                {(['light', 'dark', 'system'] as const).map(option => (
+                  <button
+                    key={option}
+                    type="button"
+                    className={[
+                      'h-[30px] rounded-sm border px-3 text-12 font-medium transition-colors duration-fast',
+                      preference === option
+                        ? 'border-text-primary bg-text-primary text-surface'
+                        : 'border-border-subtle text-text-secondary hover:border-border-default hover:text-text-primary',
+                    ].join(' ')}
+                    onClick={() => setPreference(option as ThemePreference)}
+                  >
+                    {option[0].toUpperCase() + option.slice(1)}
+                  </button>
+                ))}
+              </div>
+            }
+          />
+        </section>
+
+        <section className="settings-group">
+          <div className="settings-group-title">General</div>
             <SettingRow
               label="Language"
               control={<Select options={[{ value: 'en', label: 'English' }]} value="en" disabled onChange={() => {}} />}
               badge={<Badge>coming soon</Badge>}
             />
-          </div>
         </section>
 
-        <section>
-          <h2 className="text-16 font-semibold text-text-primary mb-2">Sources</h2>
-          <div className="divide-y divide-border-subtle border-t border-border-subtle">
+        <section className="settings-group">
+          <div className="settings-group-title">Sources</div>
             <SettingRow
               label="Skill sources"
-              control={<input disabled className="h-7 rounded-md border border-border-default px-2 text-13 bg-surface-raised" />}
+              control={<input disabled className="h-[30px] rounded-sm border border-border-subtle bg-surface-raised px-2 text-13" />}
               badge={<Badge>coming soon</Badge>}
             />
-          </div>
         </section>
 
-        <section>
-          <h2 className="text-16 font-semibold text-text-primary mb-2">Storage</h2>
-          <div className="divide-y divide-border-subtle border-t border-border-subtle">
+        <section className="settings-group">
+          <div className="settings-group-title">Storage</div>
             <SettingRow
               label="Skills folder"
               control={
-                <code className="font-mono text-13 text-text-primary break-all">
+                <code className="block max-w-[220px] truncate font-mono text-12 text-text-tertiary">
                   {pathError ? '—' : skillsPath || 'Loading…'}
                 </code>
               }
@@ -115,40 +137,34 @@ export function SettingsPage() {
                 </Button>
               }
             />
-          </div>
-        </section>
-
-        <section>
-          <h2 className="text-16 font-semibold text-text-primary mb-2">Appearance</h2>
-          <div className="divide-y divide-border-subtle border-t border-border-subtle">
             <SettingRow
-              label="Theme"
+              label="Metadata DB"
+              helper="Local application metadata"
               control={
-                <Select
-                  options={[
-                    { value: 'system', label: 'System' },
-                    { value: 'light', label: 'Light' },
-                    { value: 'dark', label: 'Dark' },
-                  ]}
-                  value={preference}
-                  onChange={(v) => setPreference(v as ThemePreference)}
-                />
+                <code className="block max-w-[220px] truncate font-mono text-12 text-text-tertiary">
+                  ~/.prot-skills/metadata.db
+                </code>
               }
-              helper="Follow system, or force a theme"
             />
-          </div>
         </section>
 
-        <section>
-          <h2 className="text-16 font-semibold text-text-primary mb-2">About</h2>
-          <div className="border-t border-border-subtle pt-3 space-y-1 text-13 text-text-secondary">
-            <p>Prot Skills</p>
-            <p>Version 0.1.0</p>
-            <p>Build: {import.meta.env.VITE_BUILD_TIME ?? 'dev'}</p>
-            <p><a href="#licenses" className="text-accent underline-offset-2 hover:underline">Licenses</a></p>
-          </div>
+        <section className="settings-group">
+          <div className="settings-group-title">About</div>
+          <a href="#github" className="settings-row text-14 text-text-primary hover:bg-surface-raised">GitHub</a>
+          <a href="#docs" className="settings-row text-14 text-text-primary hover:bg-surface-raised">Documentation</a>
+          <a href="#licenses" className="settings-row text-14 text-text-primary hover:bg-surface-raised">Licenses</a>
         </section>
-      </div>
+
+        <div className="compact-card mb-4 flex items-center gap-3">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-text-primary text-surface">
+            PS
+          </div>
+          <div>
+            <p className="text-15 font-bold text-text-primary">Prot Skills</p>
+            <p className="mt-0.5 text-12 text-text-tertiary">Version 0.1.0 · Build {import.meta.env.VITE_BUILD_TIME ?? 'dev'}</p>
+          </div>
+        </div>
+      </main>
     </>
   );
 }
