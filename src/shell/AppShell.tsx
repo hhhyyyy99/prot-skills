@@ -1,6 +1,5 @@
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import { Folder, Wrench, Search, Settings } from 'lucide-react';
-import appIcon from '../../assets/icon.png';
 import { PrimaryNav, type PrimaryNavItem } from './PrimaryNav';
 import { PerfMark } from './PerfMark';
 import { useBreakpoint } from '../hooks/useBreakpoint';
@@ -21,6 +20,7 @@ const PRIMARY_NAV_ITEMS: readonly PrimaryNavItem[] = [
 ];
 
 const PAGE_IDS: readonly PageId[] = ['my-skills', 'tools', 'migrate', 'settings'];
+const APP_NAME = 'Prot Skills';
 
 export function AppShell() {
   const [activePage, setActivePage] = useState<PageId>('my-skills');
@@ -33,7 +33,6 @@ export function AppShell() {
 
   const navCollapsed = bp !== 'regular';
   const navItems = useMemo(() => PRIMARY_NAV_ITEMS.map(item => ({ ...item, label: t(item.label) })), [t]);
-  const activeTitle = navItems.find(item => item.id === activePage)?.label ?? t('nav.mySkills');
 
   const platform = useMemo(() => {
     const ua = navigator.userAgent;
@@ -57,11 +56,10 @@ export function AppShell() {
     <div className="app-shell h-screen flex flex-col bg-canvas text-text-primary" data-platform={platform}>
       <header
         aria-label={t('app.aria.application')}
-        className="flex h-[var(--topbar-height)] shrink-0 items-center gap-3 border-b border-border-subtle bg-surface px-4"
+        className="app-titlebar flex h-[var(--topbar-height)] shrink-0 items-center gap-3 border-b border-border-subtle bg-canvas pl-[76px] pr-4"
       >
-        <div className="flex min-w-0 flex-1 items-center gap-2">
-          <img src={appIcon} alt="Prot Skills" className="h-8 w-8 shrink-0 rounded-md" />
-          <div className="truncate text-14 font-semibold text-text-primary">{activeTitle}</div>
+        <div className="flex min-w-0 flex-1 items-center">
+          <div className="truncate text-14 font-bold text-text-primary">{APP_NAME}</div>
         </div>
         <PrimaryNav items={navItems} activeId={activePage} collapsed={navCollapsed} onNavigate={navigateTo} />
       </header>

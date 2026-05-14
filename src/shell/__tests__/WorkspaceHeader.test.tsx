@@ -7,6 +7,7 @@ describe('WorkspaceHeader', () => {
     const { getByRole } = render(<WorkspaceHeader title="My Title" />);
     const h1 = getByRole('heading', { level: 1 });
     expect(h1).toHaveTextContent('My Title');
+    expect(h1).toBeVisible();
   });
 
   it('renders only first 2 primaryActions and calls console.error when given 3', () => {

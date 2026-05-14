@@ -25,8 +25,10 @@ export function WorkspaceHeader({ title, meta, leading, search, filters, primary
   return (
     <>
       <header className="flex items-start justify-between gap-4 px-4 pt-5">
-        {leading}
-        <h1 className="sr-only">{title}</h1>
+        <div className="flex min-w-0 items-center gap-3">
+          {leading}
+          <h1 className="truncate text-20 font-bold leading-7 text-text-primary">{title}</h1>
+        </div>
         <div className="flex gap-2">{visibleActions}</div>
       </header>
       <div className="flex items-center justify-between gap-4 px-4 pt-2 pb-4">

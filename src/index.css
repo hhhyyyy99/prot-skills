@@ -49,6 +49,15 @@
     border-radius: 4px;
   }
 
+  .app-titlebar {
+    -webkit-app-region: drag;
+  }
+
+  .app-titlebar .primary-nav,
+  .app-titlebar button {
+    -webkit-app-region: no-drag;
+  }
+
   .stats-strip {
     @apply mb-5 grid rounded-lg border border-border-subtle bg-surface shadow-card;
   }
@@ -112,12 +121,5 @@
 
   .bottom-action-bar {
     @apply sticky bottom-0 z-10 mt-4 flex items-center gap-3 border-t border-border-subtle bg-canvas px-4 py-3;
-  }
-}
-
-@supports (-webkit-backdrop-filter: blur(0)) {
-  .app-shell[data-platform="macos"] header[aria-label="Application"] {
-    padding-top: 28px;
-    height: calc(var(--topbar-height) + 28px);
   }
 }

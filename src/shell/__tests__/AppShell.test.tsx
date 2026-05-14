@@ -1,4 +1,4 @@
-import { render, act } from '@testing-library/react';
+import { render, act, within } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { AppShell } from '../AppShell';
 import { AppProviders } from '../AppProviders';
@@ -33,6 +33,14 @@ describe('AppShell', () => {
     const { getByRole, queryByRole } = renderShell();
     expect(getByRole('heading', { name: 'My Skills' })).toBeInTheDocument();
     expect(queryByRole('button', { name: 'Discovery' })).not.toBeInTheDocument();
+  });
+
+  it('renders the app name in the window chrome', () => {
+    const { getByRole } = renderShell();
+    const chrome = getByRole('banner', { name: 'Application' });
+
+    expect(within(chrome).getByText('Prot Skills')).toBeInTheDocument();
+    expect(chrome).toHaveClass('bg-canvas');
   });
 
   it('switches to Tools on Mod+2 keydown', () => {
