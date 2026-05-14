@@ -1,6 +1,9 @@
 # Dependencies
 node_modules/
 
+#Docs
+docs/superpowers/*
+
 # Build output
 dist/
 dist-ssr/
