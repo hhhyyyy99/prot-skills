@@ -57,13 +57,12 @@ impl SkillService {
         let mut stmt = conn.prepare(
             "SELECT id, name, source_type, source_url, local_path, 
                     installed_at, updated_at, is_enabled, metadata 
-             FROM skills ORDER BY installed_at DESC"
+             FROM skills ORDER BY installed_at DESC",
         )?;
 
         let skills = stmt.query_map([], |row| {
             let metadata_str: Option<String> = row.get(8)?;
-            let metadata = metadata_str
-                .and_then(|s| serde_json::from_str(&s).ok());
+            let metadata = metadata_str.and_then(|s| serde_json::from_str(&s).ok());
 
             Ok(Skill {
                 id: row.get(0)?,
@@ -93,14 +92,12 @@ impl SkillService {
         let target_path = skills_dir.join(skill_id);
 
         // Create skills directory if not exists
-        fs::create_dir_all(&skills_dir).map_err(|e| {
-            rusqlite::Error::ToSqlConversionFailure(Box::new(e))
-        })?;
+        fs::create_dir_all(&skills_dir)
+            .map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(e)))?;
 
         // Copy skill folder to manager directory
-        copy_dir_all(source_path, &target_path).map_err(|e| {
-            rusqlite::Error::ToSqlConversionFailure(Box::new(e))
-        })?;
+        copy_dir_all(source_path, &target_path)
+            .map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(e)))?;
 
         let metadata = SkillMetadata {
             author: None,
@@ -130,8 +127,7 @@ impl SkillService {
             ],
         )?;
 
-        Self::get_skill_by_id(db, skill_id)
-            .map(|s| s.expect("Skill should exist after insertion"))
+        Self::get_skill_by_id(db, skill_id).map(|s| s.expect("Skill should exist after insertion"))
     }
 
     pub fn get_skill_by_id(db: &Database, skill_id: &str) -> Result<Option<Skill>> {
@@ -139,13 +135,12 @@ impl SkillService {
         let mut stmt = conn.prepare(
             "SELECT id, name, source_type, source_url, local_path, 
                     installed_at, updated_at, is_enabled, metadata 
-             FROM skills WHERE id = ?1"
+             FROM skills WHERE id = ?1",
         )?;
 
         let mut skills = stmt.query_map([skill_id], |row| {
             let metadata_str: Option<String> = row.get(8)?;
-            let metadata = metadata_str
-                .and_then(|s| serde_json::from_str(&s).ok());
+            let metadata = metadata_str.and_then(|s| serde_json::from_str(&s).ok());
 
             Ok(Skill {
                 id: row.get(0)?,

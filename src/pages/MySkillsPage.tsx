@@ -5,8 +5,8 @@ import {
   getSkills,
   getTools,
   openFolder,
+  setAllSkillToolLinks,
   setSkillToolLink,
-  toggleSkill,
   uninstallSkill,
 } from '../api';
 import { filterSkills } from '../lib/filter';
@@ -25,9 +25,8 @@ import { FilterPills } from '../components/patterns/FilterPills';
 import { StatsStrip } from '../components/patterns/StatsStrip';
 import type { AITool, Skill, SkillLink } from '../types';
 
-type LinkFilter = 'all' | 'linked' | 'unlinked' | 'pinned';
+type LinkFilter = 'all' | 'linked' | 'unlinked';
 
-const PINNED_TOOL_IDS = new Set(['claude', 'codex', 'gemini', 'opencode']);
 const LOCAL_SOURCE = 'local';
 
 function isLocalSource(sourceType: string) {
@@ -103,8 +102,6 @@ export function MySkillsPage() {
   }, [skills, t]);
   const showSourceFilters = sourceOptions.length > 1;
 
-  const toolById = useMemo(() => new Map(tools.map(tool => [tool.id, tool])), [tools]);
-
   const getActiveLinks = useCallback((skillId: string) => {
     return (linksBySkill[skillId] ?? []).filter(link => link.is_active);
   }, [linksBySkill]);
@@ -113,19 +110,9 @@ export function MySkillsPage() {
     return getActiveLinks(skillId).some(link => link.tool_id === toolId);
   }, [getActiveLinks]);
 
-  const toggleSkillHandler = useCallback((id: string, next: boolean) => {
-    const prevSkills = skills.map(s => ({ ...s }));
-    const prevLinks = linksBySkill;
-    setSkills(ss => ss.map(s => (s.id === id ? { ...s, is_enabled: next } : s)));
-    if (!next) {
-      setLinksBySkill(current => ({ ...current, [id]: [] }));
-    }
-    toggleSkill(id, next).catch((e: unknown) => {
-      setSkills(prevSkills);
-      setLinksBySkill(prevLinks);
-      toast({ variant: 'error', title: t('mySkills.error.toggle'), description: String((e as Error).message ?? e) });
-    });
-  }, [skills, linksBySkill, toast, t]);
+  const isLinkedToAllEnabledTools = useCallback((skillId: string) => {
+    return enabledTools.length > 0 && enabledTools.every(tool => isToolLinked(skillId, tool.id));
+  }, [enabledTools, isToolLinked]);
 
   const handleOpenFolder = useCallback((skill: Skill) => {
     openFolder(skill.local_path).catch((e: unknown) => {
@@ -216,24 +203,38 @@ export function MySkillsPage() {
       });
   }, [linksBySkill, toast, t]);
 
-  const renderLinkSummary = (skill: Skill) => {
-    const links = getActiveLinks(skill.id);
-    if (links.length === 0) {
-      return <Badge variant="neutral">{t('mySkills.links.none')}</Badge>;
-    }
+  const setAllToolLinks = useCallback((skill: Skill, active: boolean) => {
+    const prev = linksBySkill;
+    const optimisticLinks = active
+      ? enabledTools.map((tool, index): SkillLink => ({
+        id: Date.now() + index,
+        skill_id: skill.id,
+        tool_id: tool.id,
+        link_path: `${tool.config_path}/${tool.skills_subdir}/${skill.id}`,
+        is_active: true,
+        created_at: new Date().toISOString(),
+      }))
+      : [];
 
-    const linkedTools = links
-      .map(link => toolById.get(link.tool_id)?.name ?? link.tool_id)
-      .slice(0, 3);
-    const extra = Math.max(links.length - linkedTools.length, 0);
+    setLinksBySkill(current => ({ ...current, [skill.id]: optimisticLinks }));
 
-    return (
-      <span className="flex items-center justify-end gap-1.5">
-        {linkedTools.map(name => <Badge key={name} variant="success">{name}</Badge>)}
-        {extra > 0 && <Badge variant="neutral">{t('mySkills.links.more', { count: extra })}</Badge>}
-      </span>
-    );
-  };
+    setAllSkillToolLinks(skill.id, active)
+      .then((links) => {
+        setLinksBySkill(current => ({ ...current, [skill.id]: links }));
+        toast({
+          variant: 'success',
+          title: active ? t('mySkills.toast.linkedAll') : t('mySkills.toast.unlinkedAll'),
+        });
+      })
+      .catch((e: unknown) => {
+        setLinksBySkill(prev);
+        toast({
+          variant: 'error',
+          title: t('mySkills.error.linkUpdate'),
+          description: String((e as Error).message ?? e),
+        });
+      });
+  }, [enabledTools, linksBySkill, toast, t]);
 
   const renderSkillSubtitle = (skill: Skill) => {
     const parts = [
@@ -258,14 +259,10 @@ export function MySkillsPage() {
           <li key={skill.id}>
             <ListRow
               id={skill.id}
-              leading={<Switch checked={skill.is_enabled} onChange={(v) => toggleSkillHandler(skill.id, v)} aria-label={t('mySkills.aria.toggle', { name: skill.name })} />}
               primary={<span className="text-14 text-text-primary">{skill.name}</span>}
               secondary={renderSkillSubtitle(skill)}
-              meta={[
-                <span key="links" className="hidden min-w-0 items-center md:flex">{renderLinkSummary(skill)}</span>,
-              ].filter(Boolean) as readonly React.ReactNode[]}
               trailing={
-                <span className="flex items-center gap-1">
+                <span className="flex items-center gap-2">
                   <IconButton
                     icon={<FolderOpen size={16} />}
                     aria-label={t('mySkills.aria.openFolder', { name: skill.name })}
@@ -290,6 +287,12 @@ export function MySkillsPage() {
                   >
                     {t('mySkills.syncTargets')}
                   </Button>
+                  <Switch
+                    checked={isLinkedToAllEnabledTools(skill.id)}
+                    onChange={(next) => setAllToolLinks(skill, next)}
+                    aria-label={t('mySkills.aria.syncAllTargets', { name: skill.name })}
+                    disabled={enabledTools.length === 0 || !skill.is_enabled}
+                  />
                 </span>
               }
               selected={syncSkillId === skill.id}
@@ -304,7 +307,6 @@ export function MySkillsPage() {
     { value: 'all', label: t('mySkills.sync.allTools') },
     { value: 'linked', label: t('mySkills.sync.linked') },
     { value: 'unlinked', label: t('mySkills.sync.unlinked') },
-    { value: 'pinned', label: t('mySkills.sync.pinned') },
   ];
 
   const modalTools = useMemo(() => {
@@ -315,19 +317,15 @@ export function MySkillsPage() {
         const linked = isToolLinked(syncSkill.id, tool.id);
         if (linkFilter === 'linked' && !linked) return false;
         if (linkFilter === 'unlinked' && linked) return false;
-        if (linkFilter === 'pinned' && !PINNED_TOOL_IDS.has(tool.id)) return false;
         if (!query) return true;
         return `${tool.name} ${tool.id} ${tool.config_path}`.toLowerCase().includes(query);
       })
-      .sort((a, b) => Number(PINNED_TOOL_IDS.has(b.id)) - Number(PINNED_TOOL_IDS.has(a.id)) || a.name.localeCompare(b.name));
+      .sort((a, b) => a.name.localeCompare(b.name));
   }, [enabledTools, isToolLinked, linkFilter, syncSkill, toolQuery]);
 
-  const pinnedTools = modalTools.filter(tool => PINNED_TOOL_IDS.has(tool.id));
-  const otherTools = modalTools.filter(tool => !PINNED_TOOL_IDS.has(tool.id));
-
-  const renderToolRows = (groupTools: AITool[]) => {
+  const renderToolRows = () => {
     if (!syncSkill) return null;
-    return groupTools.map(tool => {
+    return modalTools.map(tool => {
       const linked = isToolLinked(syncSkill.id, tool.id);
       return (
         <div key={tool.id} className="grid min-h-[58px] grid-cols-[auto_1fr_auto] items-center gap-3 border-t border-border-subtle px-3 py-2 first:border-t-0">
@@ -350,8 +348,6 @@ export function MySkillsPage() {
       );
     });
   };
-
-  const syncLinkedCount = syncSkill ? getActiveLinks(syncSkill.id).length : 0;
 
   return (
     <>
@@ -390,43 +386,25 @@ export function MySkillsPage() {
               </div>
               <IconButton icon={<X size={16} />} aria-label={t('common.close')} onClick={closeSyncDialog} />
             </header>
-            <div className="flex items-center justify-between gap-3 border-b border-border-subtle bg-surface-raised/70 p-4">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border-subtle bg-surface-raised/70 p-4">
               <FilterPills options={filterOptions} value={linkFilter} onChange={(value) => setLinkFilter(value as LinkFilter)} ariaLabel={t('mySkills.sync.allTools')} />
-              <div className="w-[240px]">
+              <div className="w-[240px] max-w-full">
                 <TextField type="search" size="sm" leadingIcon={<Search size={14} />} value={toolQuery} onChange={setToolQuery} placeholder={t('mySkills.sync.searchTools')} />
               </div>
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto p-5">
-              {pinnedTools.length > 0 && (
-                <section className="mb-5">
-                  <div className="mb-2 flex items-center justify-between text-11 font-semibold uppercase tracking-[0.07em] text-text-tertiary">
-                    <span>{t('mySkills.sync.pinnedTools')}</span>
-                    <span>{t('mySkills.sync.linkedCount', { count: pinnedTools.filter(tool => isToolLinked(syncSkill.id, tool.id)).length })}</span>
-                  </div>
-                  <div className="overflow-hidden rounded-lg border border-border-subtle bg-surface">
-                    {renderToolRows(pinnedTools)}
-                  </div>
-                </section>
-              )}
               <section>
                 <div className="mb-2 flex items-center justify-between text-11 font-semibold uppercase tracking-[0.07em] text-text-tertiary">
-                  <span>{t('mySkills.sync.otherTools')}</span>
-                  <span>{t('mySkills.sync.totalTools', { count: otherTools.length })}</span>
+                  <span>{t('mySkills.sync.enabledTools')}</span>
+                  <span>{t('mySkills.sync.totalTools', { count: modalTools.length })}</span>
                 </div>
                 <div className="overflow-hidden rounded-lg border border-border-subtle bg-surface">
-                  {otherTools.length > 0
-                    ? renderToolRows(otherTools)
+                  {modalTools.length > 0
+                    ? renderToolRows()
                     : <div className="p-6 text-center text-13 text-text-tertiary">{t('mySkills.empty.matches')}</div>}
                 </div>
               </section>
             </div>
-            <footer className="flex items-center justify-between gap-4 border-t border-border-subtle p-4">
-              <span className="text-12 text-text-tertiary">{t('mySkills.sync.note')} · {t('mySkills.sync.linkedCount', { count: syncLinkedCount })}</span>
-              <div className="flex items-center gap-2">
-                <Button variant="ghost" size="sm" onClick={closeSyncDialog}>{t('common.cancel')}</Button>
-                <Button variant="primary" size="sm" onClick={closeSyncDialog}>{t('mySkills.sync.save')}</Button>
-              </div>
-            </footer>
           </section>
         </div>
       )}

@@ -1,7 +1,7 @@
 import { render, waitFor, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { getSkillLinks, getSkills, getTools, openFolder, setSkillToolLink, toggleSkill, uninstallSkill } from '../../api';
+import { getSkillLinks, getSkills, getTools, openFolder, setAllSkillToolLinks, setSkillToolLink, uninstallSkill } from '../../api';
 import { AppProviders } from '../../shell/AppProviders';
 import { MySkillsPage } from '../MySkillsPage';
 import type { AITool, Skill, SkillLink } from '../../types';
@@ -11,8 +11,8 @@ vi.mock('../../api', () => ({
   getSkills: vi.fn(),
   getTools: vi.fn(),
   openFolder: vi.fn(),
+  setAllSkillToolLinks: vi.fn(),
   setSkillToolLink: vi.fn(),
-  toggleSkill: vi.fn(),
   uninstallSkill: vi.fn(),
 }));
 
@@ -65,8 +65,8 @@ describe('MySkillsPage', () => {
     vi.mocked(getTools).mockResolvedValue([]);
     vi.mocked(getSkillLinks).mockResolvedValue([]);
     vi.mocked(openFolder).mockResolvedValue();
+    vi.mocked(setAllSkillToolLinks).mockResolvedValue([]);
     vi.mocked(setSkillToolLink).mockResolvedValue(null);
-    vi.mocked(toggleSkill).mockResolvedValue();
     vi.mocked(uninstallSkill).mockResolvedValue();
   });
 
@@ -78,23 +78,33 @@ describe('MySkillsPage', () => {
 
   it('renders skill name and row-level management actions', async () => {
     vi.mocked(getSkills).mockResolvedValue([mockSkill]);
+    vi.mocked(getTools).mockResolvedValue(mockTools);
+    vi.mocked(getSkillLinks).mockResolvedValue([mockLink]);
     const { findByRole, findByText, queryByRole, queryByText } = renderPage();
     expect(await findByText('Test Skill')).toBeInTheDocument();
     expect(await findByText('1.0.0 · A test skill')).toBeInTheDocument();
     expect(queryByText('local')).not.toBeInTheDocument();
+    expect(queryByText('Claude')).not.toBeInTheDocument();
     expect(queryByRole('tablist', { name: 'Installed skill filters' })).not.toBeInTheDocument();
+    const syncAll = await findByRole('switch', { name: 'Sync Test Skill to all tools' });
+    const syncTargets = await findByRole('button', { name: 'Sync targets for Test Skill' });
+    expect(syncAll).toBeChecked();
     expect(await findByRole('button', { name: 'Open Test Skill folder' })).toBeInTheDocument();
     expect(await findByRole('button', { name: 'Uninstall Test Skill' })).toBeInTheDocument();
-    expect(await findByRole('button', { name: 'Sync targets for Test Skill' })).toBeInTheDocument();
+    expect(syncTargets).toBeInTheDocument();
+    expect(syncTargets.compareDocumentPosition(syncAll) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
-  it('rolls back UI when toggleSkill rejects', async () => {
-    vi.mocked(getSkills).mockResolvedValue([{ ...mockSkill, is_enabled: true }]);
-    vi.mocked(toggleSkill).mockRejectedValue(new Error('fail'));
+  it('rolls back sync-all switch when bulk link update rejects', async () => {
+    vi.mocked(getSkills).mockResolvedValue([mockSkill]);
+    vi.mocked(getTools).mockResolvedValue(mockTools);
+    vi.mocked(getSkillLinks).mockResolvedValue([mockLink]);
+    vi.mocked(setAllSkillToolLinks).mockRejectedValue(new Error('fail'));
     const { findByLabelText } = renderPage();
-    const toggle = await findByLabelText('Toggle Test Skill');
+    const toggle = await findByLabelText('Sync Test Skill to all tools');
     fireEvent.click(toggle);
     await waitFor(() => {
+      expect(setAllSkillToolLinks).toHaveBeenCalledWith('skill-1', false);
       expect(toggle).toBeChecked();
     });
   });
@@ -125,11 +135,16 @@ describe('MySkillsPage', () => {
     vi.mocked(getTools).mockResolvedValue(mockTools);
     vi.mocked(getSkillLinks).mockResolvedValue([mockLink]);
     const user = userEvent.setup();
-    const { findByRole } = renderPage();
+    const { findByRole, findByText, queryByRole } = renderPage();
 
     await user.click(await findByRole('button', { name: 'Sync targets for Test Skill' }));
 
     expect(await findByRole('dialog', { name: 'Sync Test Skill' })).toBeInTheDocument();
+    expect(await findByRole('tab', { name: 'All tools' })).toBeInTheDocument();
+    expect(await findByText('Enabled tools')).toBeInTheDocument();
+    expect(queryByRole('tab', { name: 'Pinned' })).not.toBeInTheDocument();
+    expect(queryByRole('button', { name: 'Link all' })).not.toBeInTheDocument();
+    expect(queryByRole('button', { name: 'Unlink all' })).not.toBeInTheDocument();
     const claudeLink = await findByRole('switch', { name: 'Link Test Skill to Claude' });
     expect(claudeLink).toBeChecked();
 
@@ -137,6 +152,42 @@ describe('MySkillsPage', () => {
 
     await waitFor(() => {
       expect(setSkillToolLink).toHaveBeenCalledWith('skill-1', 'claude', false);
+    });
+  });
+
+  it('can link and unlink all enabled tools from the row switch', async () => {
+    const allLinks: SkillLink[] = [
+      mockLink,
+      {
+        id: 2,
+        skill_id: 'skill-1',
+        tool_id: 'codex',
+        link_path: '/home/user/.codex/skills/skill-1',
+        is_active: true,
+        created_at: '2024-01-01',
+      },
+    ];
+    vi.mocked(getSkills).mockResolvedValue([mockSkill]);
+    vi.mocked(getTools).mockResolvedValue(mockTools.map(tool => ({ ...tool, is_enabled: true })));
+    vi.mocked(getSkillLinks).mockResolvedValue([]);
+    vi.mocked(setAllSkillToolLinks).mockResolvedValueOnce(allLinks).mockResolvedValueOnce([]);
+    const user = userEvent.setup();
+    const { findByRole } = renderPage();
+
+    const syncAll = await findByRole('switch', { name: 'Sync Test Skill to all tools' });
+    expect(syncAll).not.toBeChecked();
+
+    await user.click(syncAll);
+
+    await waitFor(() => {
+      expect(setAllSkillToolLinks).toHaveBeenCalledWith('skill-1', true);
+    });
+    expect(syncAll).toBeChecked();
+
+    await user.click(syncAll);
+
+    await waitFor(() => {
+      expect(setAllSkillToolLinks).toHaveBeenCalledWith('skill-1', false);
     });
   });
 });

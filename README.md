@@ -1,7 +1,7 @@
 # Prot Skills
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-![Tauri](https://img.shields.io/badge/Tauri-1.x-24C8DB)
+![Tauri](https://img.shields.io/badge/Tauri-2.x-24C8DB)
 ![React](https://img.shields.io/badge/React-18-61DAFB)
 ![Status](https://img.shields.io/badge/status-early%20development-orange)
 
@@ -46,6 +46,10 @@ Prot Skills aims to provide:
 - Scan enabled tools for local Skill folders containing `SKILL.md`.
 - Migrate selected Skills into `~/.prot-skills/skills`.
 - Replace migrated tool-local Skill folders with symlinks to the managed copy.
+- Automatically link newly installed or migrated Skills to every detected and
+  enabled tool by default.
+- Manage per-tool Skill links from My Skills, including a row-level switch for
+  syncing or unsyncing all enabled tools.
 - Enable, disable, and uninstall managed Skills.
 - View managed storage paths from Settings.
 - Switch between system, light, and dark themes.
@@ -95,6 +99,7 @@ When you migrate a Skill:
 3. Metadata is recorded in the local SQLite database.
 4. The original tool-local Skill folder is replaced with a symlink pointing to
    the managed copy.
+5. The managed Skill is linked to every detected and enabled tool by default.
 
 This keeps each tool compatible with its expected directory layout while giving
 Prot Skills a central library to manage.
@@ -105,22 +110,26 @@ symlink. Back up or commit important local Skills before migrating them.
 
 ## Tech Stack
 
-- Vite 5
-- React 18
-- TypeScript
-- Tailwind CSS
-- Radix UI primitives
-- Tauri 1.x
-- Rust
-- SQLite via `rusqlite`
-- Vitest and Testing Library
+- Vite 5 with `@vitejs/plugin-react`
+- React 18 and React Router 6
+- TypeScript 5
+- Tailwind CSS 3 and PostCSS/Autoprefixer
+- Radix UI primitives: Checkbox, Select, Switch, and Tooltip
+- `cmdk` for the command menu
+- `lucide-react` icons
+- Tauri 2 with `@tauri-apps/api`, `@tauri-apps/cli`,
+  `tauri-plugin-fs`, and `tauri-plugin-opener`
+- Rust 2021
+- SQLite via bundled `rusqlite`
+- `serde`/`serde_json`, `dirs`, `reqwest`, and `tokio` in the backend
+- Vitest, jsdom, Testing Library, and `fast-check`
 
 ## Requirements
 
 - Node.js 18 or newer
 - pnpm
 - Rust stable toolchain
-- Tauri 1.x platform prerequisites
+- Tauri 2 platform prerequisites
 
 For platform-specific Tauri requirements, refer to the Tauri setup guide for
 your operating system. macOS usually requires the Rust toolchain and Xcode
@@ -206,6 +215,7 @@ app can scan tools, copy Skills, and create symlinks.
 Review changes to the following areas carefully:
 
 - `src-tauri/tauri.conf.json`
+- `src-tauri/capabilities/default.json`
 - `src-tauri/src/commands/`
 - `src-tauri/src/services/`
 - `src-tauri/src/utils/path_utils.rs`

@@ -1,6 +1,6 @@
 use crate::db::Database;
 use crate::models::AITool;
-use crate::services::{ToolService, LinkService};
+use crate::services::{LinkService, ToolService};
 use crate::utils::expand_path;
 use tauri::State;
 
@@ -24,7 +24,10 @@ pub fn add_tool(
     let db = db.lock().map_err(|e| e.to_string())?;
     ToolService::add_tool(&db, &id, &name, &config_path).map_err(|e| e.to_string())?;
     let tools = ToolService::get_all_tools(&db).map_err(|e| e.to_string())?;
-    tools.into_iter().find(|t| t.id == id).ok_or("Tool not found after insert".into())
+    tools
+        .into_iter()
+        .find(|t| t.id == id)
+        .ok_or("Tool not found after insert".into())
 }
 
 #[tauri::command]
@@ -40,14 +43,12 @@ pub fn toggle_tool(
     enabled: bool,
 ) -> Result<(), String> {
     let db = db.lock().map_err(|e| e.to_string())?;
-    
-    ToolService::toggle_tool(&db, &tool_id, enabled)
-        .map_err(|e| e.to_string())?;
-    
+
+    ToolService::toggle_tool(&db, &tool_id, enabled).map_err(|e| e.to_string())?;
+
     // Sync links
-    LinkService::sync_tool_links(&db, &tool_id)
-        .map_err(|e| e.to_string())?;
-    
+    LinkService::sync_tool_links(&db, &tool_id).map_err(|e| e.to_string())?;
+
     Ok(())
 }
 
@@ -62,16 +63,11 @@ pub fn update_tool_path(
     }
 
     let db = db.lock().map_err(|e| e.to_string())?;
-    ToolService::update_tool_path(&db, &tool_id, &custom_path)
-        .map_err(|e| e.to_string())
+    ToolService::update_tool_path(&db, &tool_id, &custom_path).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-pub fn delete_tool(
-    db: State<std::sync::Mutex<Database>>,
-    tool_id: String,
-) -> Result<(), String> {
+pub fn delete_tool(db: State<std::sync::Mutex<Database>>, tool_id: String) -> Result<(), String> {
     let db = db.lock().map_err(|e| e.to_string())?;
-    ToolService::delete_tool(&db, &tool_id)
-        .map_err(|e| e.to_string())
+    ToolService::delete_tool(&db, &tool_id).map_err(|e| e.to_string())
 }

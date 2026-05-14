@@ -29,7 +29,8 @@ impl DiscoveryService {
                     continue;
                 }
 
-                let name = path.file_name()
+                let name = path
+                    .file_name()
                     .and_then(|n| n.to_str())
                     .unwrap_or("unknown")
                     .to_string();
@@ -58,7 +59,9 @@ impl DiscoveryService {
                 }
 
                 // Check if this skill is already managed in DB
-                let managed = managed_skills.iter().find(|s| s.name == name || s.id == name);
+                let managed = managed_skills
+                    .iter()
+                    .find(|s| s.name == name || s.id == name);
 
                 if let Some(skill) = managed {
                     let managed_path = Path::new(&skill.local_path);
@@ -71,9 +74,13 @@ impl DiscoveryService {
                         }
 
                         #[cfg(unix)]
-                        { std::os::unix::fs::symlink(managed_path, &path).ok(); }
+                        {
+                            std::os::unix::fs::symlink(managed_path, &path).ok();
+                        }
                         #[cfg(windows)]
-                        { std::os::windows::fs::symlink_dir(managed_path, &path).ok(); }
+                        {
+                            std::os::windows::fs::symlink_dir(managed_path, &path).ok();
+                        }
 
                         continue; // Replaced, no need to return as unmanaged
                     }
@@ -81,8 +88,8 @@ impl DiscoveryService {
 
                 // Unmanaged skill — return for display
                 let (is_symlink_flag, target_path) = if is_symlink(&path) {
-                    let target = resolve_symlink(&path)
-                        .map(|t| t.to_str().unwrap_or("").to_string());
+                    let target =
+                        resolve_symlink(&path).map(|t| t.to_str().unwrap_or("").to_string());
                     (true, target)
                 } else {
                     (false, None)
@@ -107,7 +114,9 @@ impl DiscoveryService {
         for dir in dirs {
             let skills = Self::scan_directory(dir, db);
             for skill in skills {
-                let key = skill.target_path.clone()
+                let key = skill
+                    .target_path
+                    .clone()
                     .unwrap_or_else(|| skill.path.clone());
 
                 if !seen_paths.contains(&key) {

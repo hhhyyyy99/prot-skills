@@ -36,6 +36,7 @@ pub fn run() {
             commands::uninstall_skill,
             commands::get_skill_links,
             commands::set_skill_tool_link,
+            commands::set_all_skill_tool_links,
             commands::scan_local_skills,
             commands::migrate_local_skill,
             commands::open_folder,

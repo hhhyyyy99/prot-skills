@@ -13,17 +13,72 @@ struct ToolScanRule {
 }
 
 const BUILTIN_TOOL_RULES: &[ToolScanRule] = &[
-    ToolScanRule { id: "cursor", name: "Cursor", config_dir: ".cursor", skills_subdir: "skills" },
-    ToolScanRule { id: "trae", name: "Trae", config_dir: ".trae", skills_subdir: "skills" },
-    ToolScanRule { id: "trae-cn", name: "Trae CN", config_dir: ".trae-cn", skills_subdir: "skills" },
-    ToolScanRule { id: "claude", name: "Claude", config_dir: ".claude", skills_subdir: "skills" },
-    ToolScanRule { id: "kiro", name: "Kiro", config_dir: ".kiro", skills_subdir: "skills" },
-    ToolScanRule { id: "codex", name: "Codex", config_dir: ".codex", skills_subdir: "skills" },
-    ToolScanRule { id: "opencode", name: "OpenCode", config_dir: ".opencode", skills_subdir: "skills" },
-    ToolScanRule { id: "windsurf", name: "Windsurf", config_dir: ".windsurf", skills_subdir: "skills" },
-    ToolScanRule { id: "aider", name: "Aider", config_dir: ".aider", skills_subdir: "skills" },
-    ToolScanRule { id: "continue", name: "Continue", config_dir: ".continue", skills_subdir: "skills" },
-    ToolScanRule { id: "codeium", name: "Codeium", config_dir: ".codeium", skills_subdir: "skills" },
+    ToolScanRule {
+        id: "cursor",
+        name: "Cursor",
+        config_dir: ".cursor",
+        skills_subdir: "skills",
+    },
+    ToolScanRule {
+        id: "trae",
+        name: "Trae",
+        config_dir: ".trae",
+        skills_subdir: "skills",
+    },
+    ToolScanRule {
+        id: "trae-cn",
+        name: "Trae CN",
+        config_dir: ".trae-cn",
+        skills_subdir: "skills",
+    },
+    ToolScanRule {
+        id: "claude",
+        name: "Claude",
+        config_dir: ".claude",
+        skills_subdir: "skills",
+    },
+    ToolScanRule {
+        id: "kiro",
+        name: "Kiro",
+        config_dir: ".kiro",
+        skills_subdir: "skills",
+    },
+    ToolScanRule {
+        id: "codex",
+        name: "Codex",
+        config_dir: ".codex",
+        skills_subdir: "skills",
+    },
+    ToolScanRule {
+        id: "opencode",
+        name: "OpenCode",
+        config_dir: ".opencode",
+        skills_subdir: "skills",
+    },
+    ToolScanRule {
+        id: "windsurf",
+        name: "Windsurf",
+        config_dir: ".windsurf",
+        skills_subdir: "skills",
+    },
+    ToolScanRule {
+        id: "aider",
+        name: "Aider",
+        config_dir: ".aider",
+        skills_subdir: "skills",
+    },
+    ToolScanRule {
+        id: "continue",
+        name: "Continue",
+        config_dir: ".continue",
+        skills_subdir: "skills",
+    },
+    ToolScanRule {
+        id: "codeium",
+        name: "Codeium",
+        config_dir: ".codeium",
+        skills_subdir: "skills",
+    },
 ];
 
 impl ToolService {
@@ -190,7 +245,10 @@ mod tests {
         assert_eq!(tools.len(), 1);
         assert_eq!(tools[0].id, "trae-cn");
         assert_eq!(tools[0].name, "Trae CN");
-        assert_eq!(tools[0].config_path, home.join(".trae-cn").to_string_lossy());
+        assert_eq!(
+            tools[0].config_path,
+            home.join(".trae-cn").to_string_lossy()
+        );
         assert_eq!(tools[0].skills_subdir, "skills");
     }
 
@@ -205,15 +263,25 @@ mod tests {
 
         ToolService::add_tool(&db, "cursor", "Cursor", "/old/cursor").expect("seed stale cursor");
         ToolService::add_tool(&db, "claude", "Claude", "/old/claude").expect("seed stale claude");
-        ToolService::add_tool(&db, "custom-agent", "Custom Agent", custom_path.to_str().expect("custom path")).expect("seed custom");
-        ToolService::add_tool(&db, "missing-custom", "Missing Custom", "/missing/custom").expect("seed missing custom");
+        ToolService::add_tool(
+            &db,
+            "custom-agent",
+            "Custom Agent",
+            custom_path.to_str().expect("custom path"),
+        )
+        .expect("seed custom");
+        ToolService::add_tool(&db, "missing-custom", "Missing Custom", "/missing/custom")
+            .expect("seed missing custom");
 
         let tools = ToolService::detect_tools_in_home(&db, &home).expect("detect tools");
         let mut ids: Vec<_> = tools.iter().map(|tool| tool.id.as_str()).collect();
         ids.sort_unstable();
 
         assert_eq!(ids, vec!["cursor", "custom-agent"]);
-        assert!(tools.iter().any(|tool| tool.id == "custom-agent" && tool.config_path == custom_path.to_string_lossy()));
+        assert!(tools
+            .iter()
+            .any(|tool| tool.id == "custom-agent"
+                && tool.config_path == custom_path.to_string_lossy()));
         assert!(!tools.iter().any(|tool| tool.id == "claude"));
         assert!(!tools.iter().any(|tool| tool.id == "missing-custom"));
     }

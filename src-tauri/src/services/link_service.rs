@@ -50,8 +50,9 @@ impl LinkService {
             rusqlite::params![skill.id, tool.id, link_path_str],
         )?;
 
-        Self::get_link(db, &skill.id, &tool.id)?
-            .ok_or_else(|| AppError::NotFound(format!("link for skill={} tool={}", skill.id, tool.id)))
+        Self::get_link(db, &skill.id, &tool.id)?.ok_or_else(|| {
+            AppError::NotFound(format!("link for skill={} tool={}", skill.id, tool.id))
+        })
     }
 
     pub fn remove_link(db: &Database, skill_id: &str, tool_id: &str) -> AppResult<()> {
@@ -156,6 +157,37 @@ impl LinkService {
         Self::create_link(db, &skill, &tool).map(Some)
     }
 
+    pub fn set_all_detected_tool_links(
+        db: &Database,
+        skill_id: &str,
+        active: bool,
+    ) -> AppResult<Vec<SkillLink>> {
+        let skill = SkillService::get_skill_by_id(db, skill_id)?
+            .ok_or_else(|| AppError::NotFound(format!("skill {}", skill_id)))?;
+
+        let tools: Vec<AITool> = ToolService::get_all_tools(db)?
+            .into_iter()
+            .filter(|tool| tool.is_detected && tool.is_enabled)
+            .collect();
+
+        if !active {
+            for tool in tools {
+                Self::remove_link(db, skill_id, &tool.id)?;
+            }
+            return Self::get_links_for_skill(db, skill_id);
+        }
+
+        if !skill.is_enabled {
+            return Err(AppError::Path(format!("skill {} is disabled", skill_id)));
+        }
+
+        for tool in tools {
+            Self::create_link(db, &skill, &tool).ok();
+        }
+
+        Self::get_links_for_skill(db, skill_id)
+    }
+
     pub fn sync_skill_links(db: &Database, skill_id: &str) -> AppResult<()> {
         let skill = SkillService::get_skill_by_id(db, skill_id)?
             .ok_or_else(|| AppError::NotFound(format!("skill {}", skill_id)))?;
@@ -212,5 +244,65 @@ impl LinkService {
         }
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::LinkService;
+    use crate::db::Database;
+    use crate::services::{SkillService, ToolService};
+    use std::fs;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    fn unique_test_dir(name: &str) -> std::path::PathBuf {
+        let nonce = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("system time before Unix epoch")
+            .as_nanos();
+        std::env::temp_dir().join(format!("prot-skills-{name}-{nonce}"))
+    }
+
+    #[test]
+    fn bulk_link_targets_all_detected_enabled_tools() {
+        let root = unique_test_dir("bulk-link");
+        let source = root.join("source-skill");
+        let claude = root.join("claude");
+        let codex = root.join("codex");
+        fs::create_dir_all(&source).expect("create source skill");
+        fs::write(source.join("SKILL.md"), "---\nname: Alpha\n---\n").expect("write skill file");
+        fs::create_dir_all(&claude).expect("create claude config");
+        fs::create_dir_all(&codex).expect("create codex config");
+        let db = Database::new(root.join("metadata.db")).expect("create test database");
+
+        let skill = SkillService::install_skill(&db, "alpha", "Alpha", "local", None, &source)
+            .expect("install skill");
+        ToolService::add_tool(
+            &db,
+            "claude",
+            "Claude",
+            claude.to_str().expect("claude path"),
+        )
+        .expect("add claude");
+        ToolService::add_tool(&db, "codex", "Codex", codex.to_str().expect("codex path"))
+            .expect("add codex");
+
+        let links =
+            LinkService::set_all_detected_tool_links(&db, &skill.id, true).expect("link all tools");
+        let mut ids: Vec<_> = links.iter().map(|link| link.tool_id.as_str()).collect();
+        ids.sort_unstable();
+
+        assert_eq!(ids, vec!["claude", "codex"]);
+        assert!(claude.join("skills").join("alpha").exists());
+        assert!(codex.join("skills").join("alpha").exists());
+
+        let links = LinkService::set_all_detected_tool_links(&db, &skill.id, false)
+            .expect("unlink all tools");
+
+        assert!(links.is_empty());
+        assert!(!claude.join("skills").join("alpha").exists());
+        assert!(!codex.join("skills").join("alpha").exists());
+
+        fs::remove_dir_all(root).ok();
     }
 }

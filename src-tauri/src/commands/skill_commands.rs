@@ -1,6 +1,6 @@
 use crate::db::Database;
-use crate::models::{Skill, LocalSkill, SkillLink};
-use crate::services::{SkillService, LinkService, DiscoveryService};
+use crate::models::{LocalSkill, Skill, SkillLink};
+use crate::services::{DiscoveryService, LinkService, SkillService};
 use crate::utils::{get_skills_dir, is_in_manager_dir, is_symlink, resolve_symlink};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -27,7 +27,7 @@ pub fn install_skill_from_local(
 ) -> Result<Skill, String> {
     let db = db.lock().map_err(|e| e.to_string())?;
     let path = Path::new(&source_path);
-    
+
     // If it's a symlink, resolve to target
     let source_path = if is_symlink(path) {
         resolve_symlink(path).unwrap_or_else(|| path.to_path_buf())
@@ -37,6 +37,11 @@ pub fn install_skill_from_local(
 
     SkillService::install_skill(&db, &skill_id, &name, "local", None, &source_path)
         .map_err(|e| e.to_string())
+        .and_then(|skill| {
+            LinkService::set_all_detected_tool_links(&db, &skill.id, true)
+                .map_err(|e| e.to_string())?;
+            Ok(skill)
+        })
 }
 
 #[tauri::command]
@@ -46,14 +51,12 @@ pub fn toggle_skill(
     enabled: bool,
 ) -> Result<(), String> {
     let db = db.lock().map_err(|e| e.to_string())?;
-    
-    SkillService::toggle_skill(&db, &skill_id, enabled)
-        .map_err(|e| e.to_string())?;
-    
+
+    SkillService::toggle_skill(&db, &skill_id, enabled).map_err(|e| e.to_string())?;
+
     // Sync links
-    LinkService::sync_skill_links(&db, &skill_id)
-        .map_err(|e| e.to_string())?;
-    
+    LinkService::sync_skill_links(&db, &skill_id).map_err(|e| e.to_string())?;
+
     Ok(())
 }
 
@@ -63,8 +66,7 @@ pub fn uninstall_skill(
     skill_id: String,
 ) -> Result<(), String> {
     let db = db.lock().map_err(|e| e.to_string())?;
-    SkillService::uninstall_skill(&db, &skill_id)
-        .map_err(|e| e.to_string())
+    SkillService::uninstall_skill(&db, &skill_id).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -73,8 +75,7 @@ pub fn get_skill_links(
     skill_id: String,
 ) -> Result<Vec<SkillLink>, String> {
     let db = db.lock().map_err(|e| e.to_string())?;
-    LinkService::get_links_for_skill(&db, &skill_id)
-        .map_err(|e| e.to_string())
+    LinkService::get_links_for_skill(&db, &skill_id).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -85,8 +86,17 @@ pub fn set_skill_tool_link(
     active: bool,
 ) -> Result<Option<SkillLink>, String> {
     let db = db.lock().map_err(|e| e.to_string())?;
-    LinkService::set_link_active(&db, &skill_id, &tool_id, active)
-        .map_err(|e| e.to_string())
+    LinkService::set_link_active(&db, &skill_id, &tool_id, active).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn set_all_skill_tool_links(
+    db: State<std::sync::Mutex<Database>>,
+    skill_id: String,
+    active: bool,
+) -> Result<Vec<SkillLink>, String> {
+    let db = db.lock().map_err(|e| e.to_string())?;
+    LinkService::set_all_detected_tool_links(&db, &skill_id, active).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -121,17 +131,17 @@ pub fn scan_local_skills(
     tool_id: String,
 ) -> Result<Vec<LocalSkill>, String> {
     let db = db.lock().map_err(|e| e.to_string())?;
-    
-    let tools = crate::services::ToolService::get_all_tools(&db)
-        .map_err(|e| e.to_string())?;
-    
-    let tool = tools.into_iter()
+
+    let tools = crate::services::ToolService::get_all_tools(&db).map_err(|e| e.to_string())?;
+
+    let tool = tools
+        .into_iter()
         .find(|t| t.id == tool_id)
         .ok_or("Tool not found")?;
 
     let skills_path = tool.skills_path();
     let skills = DiscoveryService::scan_directory(&skills_path, &db);
-    
+
     Ok(skills)
 }
 
@@ -146,8 +156,7 @@ pub fn migrate_local_skill(
 
     // Determine actual source and original location
     let (actual_source, original_location) = if is_symlink(path) {
-        let target = resolve_symlink(path)
-            .ok_or("Cannot resolve symlink")?;
+        let target = resolve_symlink(path).ok_or("Cannot resolve symlink")?;
         (target, path.to_path_buf())
     } else {
         (path.to_path_buf(), path.to_path_buf())
@@ -161,8 +170,7 @@ pub fn migrate_local_skill(
     //      points into the manager directory.
     //   2. The caller passed us a path that already resolves into the
     //      manager directory (e.g. an existing symlink from another agent).
-    let existing = SkillService::get_skill_by_id(&db, &skill_id)
-        .map_err(|e| e.to_string())?;
+    let existing = SkillService::get_skill_by_id(&db, &skill_id).map_err(|e| e.to_string())?;
 
     let already_managed = existing
         .as_ref()
@@ -189,15 +197,8 @@ pub fn migrate_local_skill(
             .unwrap_or(&skill_id)
             .to_string();
 
-        SkillService::install_skill(
-            &db,
-            &skill_id,
-            &name,
-            "local",
-            None,
-            &actual_source,
-        )
-        .map_err(|e| e.to_string())?
+        SkillService::install_skill(&db, &skill_id, &name, "local", None, &actual_source)
+            .map_err(|e| e.to_string())?
     };
 
     // Point the caller's agent directory at the managed copy via symlink.
@@ -205,9 +206,7 @@ pub fn migrate_local_skill(
     // (avoid deleting the thing we're about to link to).
     let managed_target = PathBuf::from(&skill.local_path);
     let needs_relink = match resolve_symlink(&original_location) {
-        Some(current) => {
-            current.canonicalize().ok() != managed_target.canonicalize().ok()
-        }
+        Some(current) => current.canonicalize().ok() != managed_target.canonicalize().ok(),
         None => original_location.exists() || !is_symlink(&original_location),
     };
 
@@ -235,6 +234,8 @@ pub fn migrate_local_skill(
                 .map_err(|e| format!("Failed to create symlink: {}", e))?;
         }
     }
+
+    LinkService::set_all_detected_tool_links(&db, &skill.id, true).map_err(|e| e.to_string())?;
 
     Ok(skill)
 }

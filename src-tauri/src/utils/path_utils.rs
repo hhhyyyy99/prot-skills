@@ -55,16 +55,25 @@ mod tests {
     fn uses_prot_skills_as_manager_directory() {
         let manager_dir = get_manager_dir();
 
-        assert_eq!(manager_dir.file_name().and_then(|name| name.to_str()), Some(".prot-skills"));
+        assert_eq!(
+            manager_dir.file_name().and_then(|name| name.to_str()),
+            Some(".prot-skills")
+        );
     }
 
     #[test]
     fn stores_skills_under_prot_skills_directory() {
         let skills_dir = get_skills_dir();
 
-        assert_eq!(skills_dir.file_name().and_then(|name| name.to_str()), Some("skills"));
         assert_eq!(
-            skills_dir.parent().and_then(|parent| parent.file_name()).and_then(|name| name.to_str()),
+            skills_dir.file_name().and_then(|name| name.to_str()),
+            Some("skills")
+        );
+        assert_eq!(
+            skills_dir
+                .parent()
+                .and_then(|parent| parent.file_name())
+                .and_then(|name| name.to_str()),
             Some(".prot-skills")
         );
     }

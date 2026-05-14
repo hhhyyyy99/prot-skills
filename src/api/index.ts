@@ -38,6 +38,13 @@ export const setSkillToolLink = (
   return invoke('set_skill_tool_link', { skillId, toolId, active });
 };
 
+export const setAllSkillToolLinks = (
+  skillId: string,
+  active: boolean
+): Promise<SkillLink[]> => {
+  return invoke('set_all_skill_tool_links', { skillId, active });
+};
+
 export const scanLocalSkills = (toolId: string): Promise<LocalSkill[]> => {
   return invoke('scan_local_skills', { toolId });
 };

@@ -79,9 +79,11 @@ function ListRow({
           {meta.map((m, i) => <span key={i}>{m}</span>)}
         </span>
       )}
-      <span className="flex items-center">
-        {trailing}
-      </span>
+      {trailing && (
+        <span className="flex items-center justify-end">
+          {trailing}
+        </span>
+      )}
     </>
   );
 
@@ -92,7 +94,13 @@ function ListRow({
     disabled ? 'opacity-50 pointer-events-none' : 'hover:border-border-default',
   ].join(' ');
 
-  const style = { gridTemplateColumns: 'auto 1fr auto auto' };
+  const columns = [
+    leading ? 'auto' : null,
+    'minmax(0, 1fr)',
+    meta && meta.length > 0 ? 'auto' : null,
+    trailing ? 'auto' : null,
+  ].filter(Boolean).join(' ');
+  const style = { gridTemplateColumns: columns };
 
   if (href) {
     return (
