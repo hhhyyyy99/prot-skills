@@ -1,8 +1,8 @@
 {
   "identifier": "com.protskills.app",
   "build": {
-    "beforeDevCommand": "npm run dev",
-    "beforeBuildCommand": "npm run build",
+    "beforeDevCommand": "pnpm dev",
+    "beforeBuildCommand": "pnpm build",
     "devUrl": "http://localhost:1420",
     "frontendDist": "../dist"
   },
@@ -33,5 +33,7 @@
         "minHeight": 600
       }
     ]
-  }
+  },
+  "productName": "Prot Skills",
+  "version": "0.1.0"
 }

@@ -40,6 +40,8 @@ export function SettingsPage() {
   const { preference, setPreference } = useTheme();
   const { language, setLanguage, t } = useI18n();
   const { toast } = useToast();
+  const appName = import.meta.env.VITE_APP_NAME;
+  const appVersion = import.meta.env.VITE_APP_VERSION;
   const [skillsPath, setSkillsPath] = useState<string>('');
   const [pathError, setPathError] = useState<string | null>(null);
 
@@ -159,10 +161,12 @@ export function SettingsPage() {
         </section>
 
         <div className="compact-card mb-4 flex items-center gap-3">
-          <img src={appIcon} alt="Prot Skills" className="h-10 w-10 shrink-0 rounded-md" />
+          <img src={appIcon} alt={appName} className="h-10 w-10 shrink-0 rounded-md" />
           <div>
-            <p className="text-15 font-bold text-text-primary">Prot Skills</p>
-            <p className="mt-0.5 text-12 text-text-tertiary">{t('settings.version', { build: import.meta.env.VITE_BUILD_TIME ?? 'dev' })}</p>
+            <p className="text-15 font-bold text-text-primary">{appName}</p>
+            <p className="mt-0.5 text-12 text-text-tertiary">
+              {t('settings.version', { version: appVersion, build: import.meta.env.VITE_BUILD_TIME ?? 'dev' })}
+            </p>
           </div>
         </div>
       </main>

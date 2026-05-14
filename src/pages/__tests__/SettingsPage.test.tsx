@@ -4,6 +4,9 @@ import { ThemeProvider } from '../../shell/ThemeProvider';
 import { LanguageProvider } from '../../shell/LanguageProvider';
 import { ToastProvider } from '../../shell/ToastProvider';
 import { SettingsPage } from '../SettingsPage';
+import packageJson from '../../../package.json';
+
+const appName = packageJson.productName ?? packageJson.name;
 
 vi.mock('../../api', () => ({
   getSkillsDirPath: vi.fn(() => Promise.resolve('/Users/test/.prot-skills/skills')),
@@ -40,7 +43,13 @@ describe('SettingsPage', () => {
 
   it('About section contains Prot Skills', async () => {
     const { getByText, findByText } = render(<SettingsPage />, { wrapper: Wrapper });
-    expect(getByText('Prot Skills')).toBeInTheDocument();
+    expect(getByText(appName)).toBeInTheDocument();
+    await findByText('/Users/test/.prot-skills/skills');
+  });
+
+  it('renders app version from package metadata', async () => {
+    const { getByText, findByText } = render(<SettingsPage />, { wrapper: Wrapper });
+    expect(getByText(`Version ${packageJson.version} · Build dev`)).toBeInTheDocument();
     await findByText('/Users/test/.prot-skills/skills');
   });
 
