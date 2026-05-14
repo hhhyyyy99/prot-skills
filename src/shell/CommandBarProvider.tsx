@@ -38,11 +38,10 @@ export function CommandBarProvider({ children }: { children: ReactNode }) {
 
   const commands = useMemo<CommandItem[]>(() => {
     const nav: CommandItem[] = [
-      { id: 'go-discovery', label: t('command.go.discovery'), group: 'Navigate', shortcut: '⌘1', perform: () => navigateRef.current?.('discovery') },
-      { id: 'go-my-skills', label: t('command.go.mySkills'), group: 'Navigate', shortcut: '⌘2', perform: () => navigateRef.current?.('my-skills') },
-      { id: 'go-tools', label: t('command.go.tools'), group: 'Navigate', shortcut: '⌘3', perform: () => navigateRef.current?.('tools') },
-      { id: 'go-migrate', label: t('command.go.migrate'), group: 'Navigate', shortcut: '⌘4', perform: () => navigateRef.current?.('migrate') },
-      { id: 'go-settings', label: t('command.go.settings'), group: 'Navigate', shortcut: '⌘5', perform: () => navigateRef.current?.('settings') },
+      { id: 'go-my-skills', label: t('command.go.mySkills'), group: 'Navigate', shortcut: '⌘1', perform: () => navigateRef.current?.('my-skills') },
+      { id: 'go-tools', label: t('command.go.tools'), group: 'Navigate', shortcut: '⌘2', perform: () => navigateRef.current?.('tools') },
+      { id: 'go-migrate', label: t('command.go.migrate'), group: 'Navigate', shortcut: '⌘3', perform: () => navigateRef.current?.('migrate') },
+      { id: 'go-settings', label: t('command.go.settings'), group: 'Navigate', shortcut: '⌘4', perform: () => navigateRef.current?.('settings') },
     ];
     const tools: CommandItem[] = redetectRef.current
       ? [{ id: 'redetect-tools', label: t('command.scanTools'), group: 'Tools', perform: () => redetectRef.current?.() }]

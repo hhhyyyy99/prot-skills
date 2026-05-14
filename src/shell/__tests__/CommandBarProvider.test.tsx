@@ -50,7 +50,8 @@ describe('CommandBarProvider', () => {
   it('renders navigate commands', () => {
     renderWithProviders();
     act(() => { screen.getByRole('button', { name: 'open' }).click(); });
-    expect(screen.getByText('Go to Discovery')).toBeInTheDocument();
+    expect(screen.queryByText('Go to Discovery')).not.toBeInTheDocument();
+    expect(screen.getByText('Go to My Skills')).toBeInTheDocument();
     expect(screen.getByText('Go to Settings')).toBeInTheDocument();
   });
 });

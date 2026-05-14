@@ -15,6 +15,9 @@ vi.mock('../../api', () => ({
   scanLocalSkills: vi.fn().mockResolvedValue([]),
   scanAllLocalSkills: vi.fn().mockResolvedValue([]),
   migrateLocalSkill: vi.fn().mockResolvedValue({}),
+  getSkillLinks: vi.fn().mockResolvedValue([]),
+  setAllSkillToolLinks: vi.fn().mockResolvedValue([]),
+  setSkillToolLink: vi.fn().mockResolvedValue(null),
 }));
 
 function renderShell() {
@@ -26,24 +29,25 @@ describe('AppShell', () => {
     localStorage.clear();
   });
 
-  it('shows Discovery page by default', () => {
-    const { getByRole } = renderShell();
-    expect(getByRole('heading', { name: 'Discovery' })).toBeInTheDocument();
+  it('shows My Skills page by default and removes Discovery from primary navigation', () => {
+    const { getByRole, queryByRole } = renderShell();
+    expect(getByRole('heading', { name: 'My Skills' })).toBeInTheDocument();
+    expect(queryByRole('button', { name: 'Discovery' })).not.toBeInTheDocument();
   });
 
-  it('switches to My Skills on Mod+2 keydown', () => {
+  it('switches to Tools on Mod+2 keydown', () => {
     const { getByRole } = renderShell();
     act(() => {
       document.dispatchEvent(new KeyboardEvent('keydown', { key: '2', metaKey: true, ctrlKey: true, bubbles: true }));
     });
-    expect(getByRole('heading', { name: 'My Skills' })).toBeInTheDocument();
+    expect(getByRole('heading', { name: 'Tools' })).toBeInTheDocument();
   });
 
   it('renders app chrome in Simplified Chinese when preference is saved', () => {
     localStorage.setItem('ui.language', 'zh-CN');
     const { getByRole, getAllByText } = renderShell();
 
-    expect(getAllByText('发现').length).toBeGreaterThan(0);
-    expect(getByRole('heading', { name: '发现' })).toBeInTheDocument();
+    expect(getAllByText('我的技能').length).toBeGreaterThan(0);
+    expect(getByRole('heading', { name: '我的技能' })).toBeInTheDocument();
   });
 });

@@ -362,7 +362,7 @@ export function MySkillsPage() {
           items={[
             { label: t('mySkills.stats.enabled'), value: enabledCount, accent: true },
             { label: t('mySkills.stats.links'), value: linkCount },
-            { label: t('discovery.stats.tools'), value: enabledTools.length },
+            { label: t('mySkills.stats.tools'), value: enabledTools.length },
           ]}
         />
         {showSourceFilters && <FilterPills options={sourceOptions} value={sourceType} onChange={setSourceType} ariaLabel={t('mySkills.filters.aria')} />}
