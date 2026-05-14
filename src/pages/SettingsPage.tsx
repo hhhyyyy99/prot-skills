@@ -9,6 +9,7 @@ import { Select } from '../components/primitives/Select';
 import { Badge } from '../components/primitives/Badge';
 import { getSkillsDirPath, openFolder } from '../api';
 import { languageOptions, type Language } from '../lib/i18n';
+import appIcon from '../../assets/icon.png';
 import type { ThemePreference } from '../lib/theme';
 
 interface SettingRowProps {
@@ -152,15 +153,13 @@ export function SettingsPage() {
 
         <section className="settings-group">
           <div className="settings-group-title">{t('settings.about')}</div>
-          <a href="#github" className="settings-row text-14 text-text-primary hover:bg-surface-raised">{t('settings.github')}</a>
-          <a href="#docs" className="settings-row text-14 text-text-primary hover:bg-surface-raised">{t('settings.documentation')}</a>
-          <a href="#licenses" className="settings-row text-14 text-text-primary hover:bg-surface-raised">{t('settings.licenses')}</a>
+          <a href="https://github.com/hhhyyyy99/prot-skills" target="_blank" rel="noopener noreferrer" className="settings-row text-14 text-text-primary hover:bg-surface-raised">{t('settings.github')}</a>
+          <a href="https://github.com/hhhyyyy99/prot-skills#readme" target="_blank" rel="noopener noreferrer" className="settings-row text-14 text-text-primary hover:bg-surface-raised">{t('settings.documentation')}</a>
+
         </section>
 
         <div className="compact-card mb-4 flex items-center gap-3">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-text-primary text-surface">
-            PS
-          </div>
+          <img src={appIcon} alt="Prot Skills" className="h-10 w-10 shrink-0 rounded-md" />
           <div>
             <p className="text-15 font-bold text-text-primary">Prot Skills</p>
             <p className="mt-0.5 text-12 text-text-tertiary">{t('settings.version', { build: import.meta.env.VITE_BUILD_TIME ?? 'dev' })}</p>

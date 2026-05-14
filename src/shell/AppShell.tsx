@@ -1,5 +1,6 @@
 import { useState, useMemo, useCallback, useEffect } from 'react';
-import { Folder, Wrench, Search, Settings, Sparkles } from 'lucide-react';
+import { Folder, Wrench, Search, Settings } from 'lucide-react';
+import appIcon from '../../assets/icon.png';
 import { PrimaryNav, type PrimaryNavItem } from './PrimaryNav';
 import { PerfMark } from './PerfMark';
 import { useBreakpoint } from '../hooks/useBreakpoint';
@@ -59,9 +60,7 @@ export function AppShell() {
         className="flex h-[var(--topbar-height)] shrink-0 items-center gap-3 border-b border-border-subtle bg-surface px-4"
       >
         <div className="flex min-w-0 flex-1 items-center gap-2">
-          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-text-primary text-surface">
-            <Sparkles size={17} />
-          </span>
+          <img src={appIcon} alt="Prot Skills" className="h-8 w-8 shrink-0 rounded-md" />
           <div className="truncate text-14 font-semibold text-text-primary">{activeTitle}</div>
         </div>
         <PrimaryNav items={navItems} activeId={activePage} collapsed={navCollapsed} onNavigate={navigateTo} />
