@@ -150,6 +150,22 @@ pnpm build
 pnpm tauri build
 ```
 
+### macOS 运行说明
+
+由于应用未经过签名，macOS 可能会拦截或显示"无法验证开发者"的警告。检查可执行文件是否带有 quarantine 属性：
+
+```sh
+xattr -l "/Applications/Prot Skills.app"
+```
+
+如果看到 `com.apple.quarantine` 属性，使用以下命令移除：
+
+```sh
+xattr -d com.apple.quarantine "/Applications/Prot Skills.app"
+```
+
+之后应用即可正常启动。
+
 ## 开发命令
 
 | 命令 | 说明 |

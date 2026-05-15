@@ -168,6 +168,22 @@ Build the desktop application:
 pnpm tauri build
 ```
 
+### Running on macOS
+
+Since the app is not signed, macOS may block it or show a "unidentified developer" warning. To check if the executable has the quarantine attribute:
+
+```sh
+xattr -l "/Applications/Prot Skills.app"
+```
+
+Look for the `com.apple.quarantine` attribute. If present, remove it with:
+
+```sh
+xattr -d com.apple.quarantine "/Applications/Prot Skills.app"
+```
+
+Then the app should launch normally.
+
 ## Development Commands
 
 | Command | Description |
