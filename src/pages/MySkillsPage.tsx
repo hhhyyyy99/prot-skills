@@ -18,6 +18,7 @@ import { Switch } from '../components/primitives/Switch';
 import { Badge } from '../components/primitives/Badge';
 import { Button } from '../components/primitives/Button';
 import { IconButton } from '../components/primitives/IconButton';
+import { ToolIcon } from '../components/primitives/ToolIcon';
 import { ListRow } from '../components/patterns/ListRow';
 import { InlineError } from '../components/patterns/InlineError';
 import { EmptyState } from '../components/patterns/EmptyState';
@@ -123,6 +124,11 @@ export function MySkillsPage() {
   const getActiveLinks = useCallback((skillId: string) => {
     return (linksBySkill[skillId] ?? []).filter(link => link.is_active);
   }, [linksBySkill]);
+
+  const getLinkedTools = useCallback((skillId: string) => {
+    const linkedToolIds = new Set(getActiveLinks(skillId).map((link) => link.tool_id));
+    return tools.filter((tool) => linkedToolIds.has(tool.id));
+  }, [getActiveLinks, tools]);
 
   const isToolLinked = useCallback((skillId: string, toolId: string) => {
     return getActiveLinks(skillId).some(link => link.tool_id === toolId);
@@ -297,6 +303,25 @@ export function MySkillsPage() {
       : undefined;
   };
 
+  const renderLinkedToolIcons = (skill: Skill) => {
+    const linkedTools = getLinkedTools(skill.id);
+    if (linkedTools.length === 0) return null;
+
+    return (
+      <span
+        className="flex items-center gap-1.5"
+        aria-label={t('mySkills.aria.linkedTools', { name: skill.name })}
+      >
+        {linkedTools.slice(0, 4).map((tool) => (
+          <ToolIcon key={tool.id} tool={tool} size="sm" />
+        ))}
+        {linkedTools.length > 4 && (
+          <span className="text-12 text-text-tertiary">+{linkedTools.length - 4}</span>
+        )}
+      </span>
+    );
+  };
+
   const renderBody = () => {
     if (error) return <div className="compact-card"><InlineError title={t('mySkills.error.load')} details={error} onRetry={refresh} /></div>;
     if (loading && !skills.length) return <ul>{Array.from({ length: 8 }).map((_, i) => <ListRow key={i} id={`skeleton-${i}`} primary="" loading />)}</ul>;
@@ -310,6 +335,11 @@ export function MySkillsPage() {
               id={skill.id}
               primary={<span className="text-14 text-text-primary">{skill.name}</span>}
               secondary={renderSkillSubtitle(skill)}
+              meta={[
+                <span key="linked-tools" className="flex items-center">
+                  {renderLinkedToolIcons(skill)}
+                </span>,
+              ]}
               trailing={
                 <span className="flex items-center gap-2">
                   <IconButton
@@ -344,7 +374,6 @@ export function MySkillsPage() {
                   />
                 </span>
               }
-              selected={syncSkillId === skill.id}
             />
           </li>
         ))}
@@ -378,9 +407,7 @@ export function MySkillsPage() {
       const linked = isToolLinked(syncSkill.id, tool.id);
       return (
         <div key={tool.id} className="grid min-h-[58px] grid-cols-[auto_1fr_auto] items-center gap-3 border-t border-border-subtle px-3 py-2 first:border-t-0">
-          <span className="flex h-8 w-8 items-center justify-center rounded-sm border border-border-subtle bg-surface-raised text-12 font-bold text-text-secondary">
-            {tool.name.slice(0, 1).toUpperCase()}
-          </span>
+          <ToolIcon tool={tool} size="md" />
           <span className="min-w-0">
             <span className="flex min-w-0 items-center gap-2">
               <span className="truncate text-13 font-semibold text-text-primary">{tool.name}</span>
