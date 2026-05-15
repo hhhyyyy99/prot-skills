@@ -45,3 +45,25 @@ export interface SkillLink {
   is_active: boolean;
   created_at: string;
 }
+
+export type SyncResultStatus = 'success' | 'partial' | 'failed';
+
+export interface SyncSuccessItem {
+  tool_id: string;
+  tool_name: string;
+}
+
+export interface SyncFailureItem {
+  tool_id: string;
+  tool_name: string;
+  reason_code: string;
+  reason: string;
+}
+
+export interface SyncSkillTargetsResult {
+  status: SyncResultStatus;
+  success_count: number;
+  failure_count: number;
+  success_tools: SyncSuccessItem[];
+  failed_tools: SyncFailureItem[];
+}

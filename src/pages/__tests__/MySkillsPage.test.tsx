@@ -4,7 +4,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { getSkillLinks, getSkills, getTools, openFolder, setAllSkillToolLinks, setSkillToolLink, uninstallSkill } from '../../api';
 import { AppProviders } from '../../shell/AppProviders';
 import { MySkillsPage } from '../MySkillsPage';
-import type { AITool, Skill, SkillLink } from '../../types';
+import type { AITool, Skill, SkillLink, SyncSkillTargetsResult } from '../../types';
 
 vi.mock('../../api', () => ({
   getSkillLinks: vi.fn(),
@@ -55,6 +55,14 @@ const mockLink: SkillLink = {
   created_at: '2024-01-01',
 };
 
+const mockSyncSuccess: SyncSkillTargetsResult = {
+  status: 'success',
+  success_count: 0,
+  failure_count: 0,
+  success_tools: [],
+  failed_tools: [],
+};
+
 function renderPage() {
   return render(<MySkillsPage />, { wrapper: AppProviders });
 }
@@ -65,7 +73,7 @@ describe('MySkillsPage', () => {
     vi.mocked(getTools).mockResolvedValue([]);
     vi.mocked(getSkillLinks).mockResolvedValue([]);
     vi.mocked(openFolder).mockResolvedValue();
-    vi.mocked(setAllSkillToolLinks).mockResolvedValue([]);
+    vi.mocked(setAllSkillToolLinks).mockResolvedValue(mockSyncSuccess);
     vi.mocked(setSkillToolLink).mockResolvedValue(null);
     vi.mocked(uninstallSkill).mockResolvedValue();
   });
@@ -167,10 +175,35 @@ describe('MySkillsPage', () => {
         created_at: '2024-01-01',
       },
     ];
+    const syncAllSuccess: SyncSkillTargetsResult = {
+      status: 'success',
+      success_count: 2,
+      failure_count: 0,
+      success_tools: [
+        { tool_id: 'claude', tool_name: 'Claude' },
+        { tool_id: 'codex', tool_name: 'Codex' },
+      ],
+      failed_tools: [],
+    };
+    const syncRemoveSuccess: SyncSkillTargetsResult = {
+      status: 'success',
+      success_count: 2,
+      failure_count: 0,
+      success_tools: [
+        { tool_id: 'claude', tool_name: 'Claude' },
+        { tool_id: 'codex', tool_name: 'Codex' },
+      ],
+      failed_tools: [],
+    };
     vi.mocked(getSkills).mockResolvedValue([mockSkill]);
     vi.mocked(getTools).mockResolvedValue(mockTools.map(tool => ({ ...tool, is_enabled: true })));
-    vi.mocked(getSkillLinks).mockResolvedValue([]);
-    vi.mocked(setAllSkillToolLinks).mockResolvedValueOnce(allLinks).mockResolvedValueOnce([]);
+    vi.mocked(getSkillLinks)
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce(allLinks)
+      .mockResolvedValueOnce([]);
+    vi.mocked(setAllSkillToolLinks)
+      .mockResolvedValueOnce(syncAllSuccess)
+      .mockResolvedValueOnce(syncRemoveSuccess);
     const user = userEvent.setup();
     const { findByRole } = renderPage();
 
@@ -188,6 +221,74 @@ describe('MySkillsPage', () => {
 
     await waitFor(() => {
       expect(setAllSkillToolLinks).toHaveBeenCalledWith('skill-1', false);
+    });
+  });
+
+  it('shows partial sync details when some tools fail during sync-all', async () => {
+    const partialResult: SyncSkillTargetsResult = {
+      status: 'partial',
+      success_count: 1,
+      failure_count: 1,
+      success_tools: [{ tool_id: 'claude', tool_name: 'Claude' }],
+      failed_tools: [{
+        tool_id: 'codex',
+        tool_name: 'Codex',
+        reason_code: 'permission_denied',
+        reason: 'No write permission',
+      }],
+    };
+    vi.mocked(getSkills).mockResolvedValue([mockSkill]);
+    vi.mocked(getTools).mockResolvedValue(mockTools.map(tool => ({ ...tool, is_enabled: true })));
+    vi.mocked(getSkillLinks)
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([mockLink]);
+    vi.mocked(setAllSkillToolLinks).mockResolvedValueOnce(partialResult);
+    const user = userEvent.setup();
+    const { findByRole, findByText } = renderPage();
+
+    await user.click(await findByRole('switch', { name: 'Sync Test Skill to all tools' }));
+
+    expect(await findByText('Linked to 1 tools, 1 failed')).toBeInTheDocument();
+    expect(await findByText('Codex (No write permission)')).toBeInTheDocument();
+  });
+
+  it('keeps sync-all switch off and shows failure details when all tools fail during sync-all', async () => {
+    const failedResult: SyncSkillTargetsResult = {
+      status: 'failed',
+      success_count: 0,
+      failure_count: 2,
+      success_tools: [],
+      failed_tools: [
+        {
+          tool_id: 'claude',
+          tool_name: 'Claude',
+          reason_code: 'permission_denied',
+          reason: 'No write permission',
+        },
+        {
+          tool_id: 'codex',
+          tool_name: 'Codex',
+          reason_code: 'permission_denied',
+          reason: 'No write permission',
+        },
+      ],
+    };
+    vi.mocked(getSkills).mockResolvedValue([mockSkill]);
+    vi.mocked(getTools).mockResolvedValue(mockTools.map(tool => ({ ...tool, is_enabled: true })));
+    vi.mocked(getSkillLinks)
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([]);
+    vi.mocked(setAllSkillToolLinks).mockResolvedValueOnce(failedResult);
+    const user = userEvent.setup();
+    const { findByRole, findByText } = renderPage();
+
+    const syncAll = await findByRole('switch', { name: 'Sync Test Skill to all tools' });
+    await user.click(syncAll);
+
+    expect(await findByText('Failed to link to enabled tools')).toBeInTheDocument();
+    expect(await findByText('Claude (No write permission), Codex (No write permission)')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(syncAll).not.toBeChecked();
     });
   });
 });

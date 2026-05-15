@@ -1,5 +1,5 @@
 use crate::db::Database;
-use crate::models::{LocalSkill, Skill, SkillLink};
+use crate::models::{LocalSkill, Skill, SkillLink, SyncSkillTargetsResult};
 use crate::services::{DiscoveryService, LinkService, SkillService};
 use crate::utils::{get_skills_dir, is_in_manager_dir, is_symlink, resolve_symlink};
 use std::fs;
@@ -95,9 +95,10 @@ pub fn set_all_skill_tool_links(
     db: State<std::sync::Mutex<Database>>,
     skill_id: String,
     active: bool,
-) -> Result<Vec<SkillLink>, String> {
+) -> Result<SyncSkillTargetsResult, String> {
     let db = db.lock().map_err(|e| e.to_string())?;
-    LinkService::set_all_detected_tool_links(&db, &skill_id, active).map_err(|e| e.to_string())
+    LinkService::set_all_detected_tool_links_result(&db, &skill_id, active)
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]

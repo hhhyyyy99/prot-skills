@@ -39,21 +39,34 @@ impl LinkService {
         Ok(())
     }
 
-    fn map_sync_error(error: &AppError) -> (&'static str, &'static str) {
+    fn map_sync_error(error: &AppError) -> (String, String) {
         match error {
             AppError::Io(io_error) if io_error.kind() == ErrorKind::PermissionDenied => {
-                ("permission_denied", "No write permission")
+                (
+                    "permission_denied".to_string(),
+                    "No write permission".to_string(),
+                )
             }
             AppError::Path(message) if message.contains("does not exist") => {
-                ("path_missing", "Tool directory does not exist")
+                (
+                    "path_missing".to_string(),
+                    "Tool directory does not exist".to_string(),
+                )
             }
             AppError::Path(message) if message.contains("disabled") => {
-                ("tool_disabled", "Tool is disabled")
+                ("tool_disabled".to_string(), "Tool is disabled".to_string())
             }
             AppError::Path(message) if message.contains("not detected") => {
-                ("tool_not_detected", "Tool is not detected")
+                (
+                    "tool_not_detected".to_string(),
+                    "Tool is not detected".to_string(),
+                )
             }
-            _ => ("unknown", "Unknown sync error"),
+            AppError::NotFound(message) => ("not_found".to_string(), message.clone()),
+            AppError::Path(message) => ("path_error".to_string(), message.clone()),
+            AppError::Other(message) => ("unknown".to_string(), message.clone()),
+            AppError::Db(db_error) => ("database_error".to_string(), db_error.to_string()),
+            AppError::Io(io_error) => ("filesystem_error".to_string(), io_error.to_string()),
         }
     }
 
@@ -63,8 +76,8 @@ impl LinkService {
         SyncFailureItem {
             tool_id: tool.id.to_string(),
             tool_name: tool.name.to_string(),
-            reason_code: reason_code.to_string(),
-            reason: reason.to_string(),
+            reason_code,
+            reason,
         }
     }
 
@@ -79,11 +92,11 @@ impl LinkService {
         // Remove existing target if present (stale symlink or real file/dir).
         if link_path.exists() || is_symlink(&link_path) {
             if is_symlink(&link_path) {
-                fs::remove_file(&link_path).ok();
+                fs::remove_file(&link_path)?;
             } else if link_path.is_dir() {
-                fs::remove_dir_all(&link_path).ok();
+                fs::remove_dir_all(&link_path)?;
             } else {
-                fs::remove_file(&link_path).ok();
+                fs::remove_file(&link_path)?;
             }
         }
 
@@ -522,6 +535,55 @@ mod tests {
             .all(|failure| failure.tool_name == "Claude" || failure.tool_name == "Codex"));
         assert!(!claude.join("skills").join("alpha").exists());
         assert!(!codex.join("skills").join("alpha").exists());
+
+        fs::remove_dir_all(root).ok();
+    }
+
+    #[test]
+    fn map_sync_error_preserves_unknown_error_message() {
+        let (reason_code, reason) =
+            LinkService::map_sync_error(&crate::error::AppError::Other("custom failure".into()));
+
+        assert_eq!(reason_code, "unknown");
+        assert_eq!(reason, "custom failure");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn bulk_sync_reports_permission_denied_when_existing_target_cannot_be_removed() {
+        let root = unique_test_dir("bulk-link-existing-target-permission");
+        let source = root.join("source-skill");
+        let continue_dir = root.join("continue");
+        let continue_skills = continue_dir.join("skills");
+        let existing_target = continue_skills.join("alpha");
+        fs::create_dir_all(&source).expect("create source skill");
+        fs::write(source.join("SKILL.md"), "---\nname: Alpha\n---\n").expect("write skill file");
+        fs::create_dir_all(&existing_target).expect("create existing target");
+        let db = Database::new(root.join("metadata.db")).expect("create test database");
+
+        let skill = SkillService::install_skill(&db, "alpha", "Alpha", "local", None, &source)
+            .expect("install skill");
+        ToolService::add_tool(
+            &db,
+            "continue",
+            "Continue",
+            continue_dir.to_str().expect("continue path"),
+        )
+        .expect("add continue");
+
+        set_dir_mode(&continue_skills, 0o555);
+
+        let result = LinkService::set_all_detected_tool_links_result(&db, &skill.id, true)
+            .expect("bulk sync result");
+
+        set_dir_mode(&continue_skills, 0o755);
+
+        assert_eq!(result.status, SyncResultStatus::Failed);
+        assert_eq!(result.failure_count, 1);
+        assert_eq!(result.failed_tools[0].tool_id, "continue");
+        assert_eq!(result.failed_tools[0].tool_name, "Continue");
+        assert_eq!(result.failed_tools[0].reason_code, "permission_denied");
+        assert_eq!(result.failed_tools[0].reason, "No write permission");
 
         fs::remove_dir_all(root).ok();
     }

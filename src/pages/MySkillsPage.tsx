@@ -23,7 +23,7 @@ import { InlineError } from '../components/patterns/InlineError';
 import { EmptyState } from '../components/patterns/EmptyState';
 import { FilterPills } from '../components/patterns/FilterPills';
 import { StatsStrip } from '../components/patterns/StatsStrip';
-import type { AITool, Skill, SkillLink } from '../types';
+import type { AITool, Skill, SkillLink, SyncFailureItem, SyncSkillTargetsResult } from '../types';
 
 type LinkFilter = 'all' | 'linked' | 'unlinked';
 
@@ -31,6 +31,24 @@ const LOCAL_SOURCE = 'local';
 
 function isLocalSource(sourceType: string) {
   return sourceType.trim().toLowerCase() === LOCAL_SOURCE;
+}
+
+function buildSyncFailureDescription(
+  failures: SyncFailureItem[],
+  t: (key: string, params?: Record<string, string | number>) => string
+) {
+  if (failures.length === 0) return undefined;
+
+  const visibleFailures = failures.slice(0, 3);
+  const items = visibleFailures
+    .map((failure) => `${failure.tool_name} (${failure.reason})`)
+    .join(', ');
+  const extraCount = failures.length - visibleFailures.length;
+  const more = extraCount > 0
+    ? t('mySkills.toast.syncFailuresMore', { count: extraCount })
+    : '';
+
+  return t('mySkills.toast.syncFailures', { items, more });
 }
 
 export function MySkillsPage() {
@@ -219,11 +237,42 @@ export function MySkillsPage() {
     setLinksBySkill(current => ({ ...current, [skill.id]: optimisticLinks }));
 
     setAllSkillToolLinks(skill.id, active)
-      .then((links) => {
+      .then(async (result: SyncSkillTargetsResult) => {
+        const links = await getSkillLinks(skill.id);
         setLinksBySkill(current => ({ ...current, [skill.id]: links }));
+
+        const failureDescription = buildSyncFailureDescription(result.failed_tools, t);
+        if (result.status === 'success') {
+          toast({
+            variant: 'success',
+            title: active ? t('mySkills.toast.linkedAll') : t('mySkills.toast.unlinkedAll'),
+          });
+          return;
+        }
+
+        if (result.status === 'partial') {
+          toast({
+            variant: 'warning',
+            title: active
+              ? t('mySkills.toast.linkedPartial', {
+                success: result.success_count,
+                failed: result.failure_count,
+              })
+              : t('mySkills.toast.unlinkedPartial', {
+                success: result.success_count,
+                failed: result.failure_count,
+              }),
+            description: failureDescription,
+            durationMs: 6000,
+          });
+          return;
+        }
+
         toast({
-          variant: 'success',
-          title: active ? t('mySkills.toast.linkedAll') : t('mySkills.toast.unlinkedAll'),
+          variant: 'error',
+          title: active ? t('mySkills.toast.linkedFailed') : t('mySkills.toast.unlinkedFailed'),
+          description: failureDescription,
+          durationMs: 6000,
         });
       })
       .catch((e: unknown) => {

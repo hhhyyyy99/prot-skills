@@ -1,5 +1,5 @@
 import { invoke as tauriInvoke } from '@tauri-apps/api/core';
-import type { Skill, LocalSkill, AITool, SkillLink } from '../types';
+import type { Skill, LocalSkill, AITool, SkillLink, SyncSkillTargetsResult } from '../types';
 
 type InvokeArgs = Record<string, unknown> | undefined;
 
@@ -60,7 +60,7 @@ export const setSkillToolLink = (
 export const setAllSkillToolLinks = (
   skillId: string,
   active: boolean
-): Promise<SkillLink[]> => {
+): Promise<SyncSkillTargetsResult> => {
   return invoke('set_all_skill_tool_links', { skillId, active });
 };
 
