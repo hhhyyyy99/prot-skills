@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useState, useMemo, useCallback, useEffect, type MouseEvent as ReactMouseEvent } from 'react';
 import { Folder, Wrench, Search, Settings } from 'lucide-react';
 import { PrimaryNav, type PrimaryNavItem } from './PrimaryNav';
 import { PerfMark } from './PerfMark';
@@ -43,6 +43,19 @@ export function AppShell() {
 
   const navigateTo = useCallback((id: PageId) => setActivePage(id), []);
 
+  const handleTitlebarMouseDown = useCallback(async (event: ReactMouseEvent<HTMLElement>) => {
+    if (event.button !== 0) {
+      return;
+    }
+
+    try {
+      const { getCurrentWindow } = await import('@tauri-apps/api/window');
+      await getCurrentWindow().startDragging();
+    } catch {
+      // Ignore when running in a plain browser context.
+    }
+  }, []);
+
   useKeyboardShortcuts({
     'mod+1': () => setActivePage(PAGE_IDS[0]),
     'mod+2': () => setActivePage(PAGE_IDS[1]),
@@ -57,6 +70,8 @@ export function AppShell() {
       <header
         aria-label={t('app.aria.application')}
         className="app-titlebar h-[var(--topbar-height)] shrink-0 bg-canvas"
+        data-tauri-drag-region
+        onMouseDown={handleTitlebarMouseDown}
       />
       <div className="flex shrink-0 items-center justify-between gap-4 px-4 pb-1 pt-3">
         <h1 className="inline-flex h-9 max-w-full items-center rounded-full border border-border-subtle bg-surface px-3.5 text-13 font-semibold text-text-primary shadow-card">

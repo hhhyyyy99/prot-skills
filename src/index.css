@@ -54,6 +54,7 @@
   }
 
   .app-titlebar .primary-nav,
+  .app-titlebar nav,
   .app-titlebar button {
     -webkit-app-region: no-drag;
   }

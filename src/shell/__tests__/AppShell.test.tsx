@@ -36,10 +36,11 @@ describe('AppShell', () => {
     expect(queryByRole('button', { name: 'Discovery' })).not.toBeInTheDocument();
   });
 
-  it('keeps the window chrome empty and shows app name below it', () => {
+  it('keeps the window chrome empty while exposing a draggable titlebar', () => {
     const { getByRole } = renderShell();
     const chrome = getByRole('banner', { name: 'Application' });
 
+    expect(chrome).toHaveAttribute('data-tauri-drag-region');
     expect(within(chrome).queryByText('Prot Skills')).not.toBeInTheDocument();
     expect(chrome).toHaveClass('bg-canvas');
     expect(getByRole('heading', { name: 'Prot Skills' })).toBeInTheDocument();
