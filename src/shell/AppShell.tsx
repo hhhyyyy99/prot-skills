@@ -1,5 +1,5 @@
-import { useState, useMemo, useCallback, useEffect } from 'react';
-import { Folder, Wrench, Search, Settings, Sparkles } from 'lucide-react';
+import { useState, useMemo, useCallback, useEffect, type MouseEvent as ReactMouseEvent } from 'react';
+import { Folder, Wrench, Search, Settings } from 'lucide-react';
 import { PrimaryNav, type PrimaryNavItem } from './PrimaryNav';
 import { PerfMark } from './PerfMark';
 import { useBreakpoint } from '../hooks/useBreakpoint';
@@ -20,6 +20,7 @@ const PRIMARY_NAV_ITEMS: readonly PrimaryNavItem[] = [
 ];
 
 const PAGE_IDS: readonly PageId[] = ['my-skills', 'tools', 'migrate', 'settings'];
+const APP_NAME = 'Prot Skills';
 
 export function AppShell() {
   const [activePage, setActivePage] = useState<PageId>('my-skills');
@@ -32,7 +33,6 @@ export function AppShell() {
 
   const navCollapsed = bp !== 'regular';
   const navItems = useMemo(() => PRIMARY_NAV_ITEMS.map(item => ({ ...item, label: t(item.label) })), [t]);
-  const activeTitle = navItems.find(item => item.id === activePage)?.label ?? t('nav.mySkills');
 
   const platform = useMemo(() => {
     const ua = navigator.userAgent;
@@ -42,6 +42,19 @@ export function AppShell() {
   }, []);
 
   const navigateTo = useCallback((id: PageId) => setActivePage(id), []);
+
+  const handleTitlebarMouseDown = useCallback(async (event: ReactMouseEvent<HTMLElement>) => {
+    if (event.button !== 0) {
+      return;
+    }
+
+    try {
+      const { getCurrentWindow } = await import('@tauri-apps/api/window');
+      await getCurrentWindow().startDragging();
+    } catch {
+      // Ignore when running in a plain browser context.
+    }
+  }, []);
 
   useKeyboardShortcuts({
     'mod+1': () => setActivePage(PAGE_IDS[0]),
@@ -56,16 +69,16 @@ export function AppShell() {
     <div className="app-shell h-screen flex flex-col bg-canvas text-text-primary" data-platform={platform}>
       <header
         aria-label={t('app.aria.application')}
-        className="flex h-[var(--topbar-height)] shrink-0 items-center gap-3 border-b border-border-subtle bg-surface px-4"
-      >
-        <div className="flex min-w-0 flex-1 items-center gap-2">
-          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-text-primary text-surface">
-            <Sparkles size={17} />
-          </span>
-          <div className="truncate text-14 font-semibold text-text-primary">{activeTitle}</div>
-        </div>
+        className="app-titlebar h-[var(--topbar-height)] shrink-0 bg-canvas"
+        data-tauri-drag-region
+        onMouseDown={handleTitlebarMouseDown}
+      />
+      <div className="flex shrink-0 items-center justify-between gap-4 px-4 pb-1 pt-3">
+        <h1 className="inline-flex h-9 max-w-full items-center rounded-full border border-border-subtle bg-surface px-3.5 text-13 font-semibold text-text-primary shadow-card">
+          <span className="truncate">{APP_NAME}</span>
+        </h1>
         <PrimaryNav items={navItems} activeId={activePage} collapsed={navCollapsed} onNavigate={navigateTo} />
-      </header>
+      </div>
       <div className="flex-1 flex flex-col min-h-0 min-w-0">
         {activePage === 'settings' ? (
           <SettingsPage />

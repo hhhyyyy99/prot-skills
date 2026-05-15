@@ -52,7 +52,7 @@ const en: Messages = {
   'settings.github': 'GitHub',
   'settings.documentation': 'Documentation',
   'settings.licenses': 'Licenses',
-  'settings.version': 'Version 0.1.0 · Build {build}',
+  'settings.version': 'Version {version} · Build {build}',
   'settings.openFolder.error': 'Failed to open folder',
 
   'mySkills.meta': '{visible} of {total} · {enabled} enabled',
@@ -232,7 +232,7 @@ const zhCN: Messages = {
   'settings.github': 'GitHub',
   'settings.documentation': '文档',
   'settings.licenses': '许可证',
-  'settings.version': '版本 0.1.0 · 构建 {build}',
+  'settings.version': '版本 {version} · 构建 {build}',
   'settings.openFolder.error': '打开文件夹失败',
 
   'mySkills.meta': '{visible} / {total} · 已启用 {enabled}',

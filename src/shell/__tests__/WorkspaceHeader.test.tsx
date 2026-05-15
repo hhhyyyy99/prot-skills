@@ -3,10 +3,11 @@ import { describe, it, expect, vi } from 'vitest';
 import { WorkspaceHeader } from '../WorkspaceHeader';
 
 describe('WorkspaceHeader', () => {
-  it('renders title as h1', () => {
+  it('preserves the page title metadata in a screen-reader heading', () => {
     const { getByRole } = render(<WorkspaceHeader title="My Title" />);
-    const h1 = getByRole('heading', { level: 1 });
-    expect(h1).toHaveTextContent('My Title');
+    const heading = getByRole('heading', { level: 2, hidden: true });
+    expect(heading).toHaveTextContent('My Title');
+    expect(heading).toHaveAttribute('data-page-title', 'My Title');
   });
 
   it('renders only first 2 primaryActions and calls console.error when given 3', () => {
