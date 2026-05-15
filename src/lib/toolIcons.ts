@@ -1,4 +1,5 @@
 import type { AITool } from '../types';
+import kiroIcon from '../assets/tool-icons/kiro.svg';
 
 type ToolIconDefinition = {
   slug: string;
@@ -14,6 +15,9 @@ type ResolvedToolIcon = {
 };
 
 const CDN_BASE = 'https://unpkg.com/@lobehub/icons-static-svg@latest/icons';
+const LOCAL_ICON_SOURCES: Record<string, string> = {
+  kiro: kiroIcon,
+};
 
 const TOOL_ICON_DEFINITIONS: ToolIconDefinition[] = [
   { slug: 'claude', aliases: ['claude', 'anthropic', 'claude-code', 'claudecode'] },
@@ -24,8 +28,21 @@ const TOOL_ICON_DEFINITIONS: ToolIconDefinition[] = [
   { slug: 'qwen', aliases: ['qwen', 'tongyi'] },
   { slug: 'trae', aliases: ['trae'] },
   { slug: 'kiro', aliases: ['kiro'] },
+  { slug: 'opencode', aliases: ['opencode', 'open-code'] },
   { slug: 'openrouter', aliases: ['openrouter', 'open-router'] },
 ];
+
+const CDN_ICON_SLUGS = new Set([
+  'claude',
+  'openai',
+  'gemini',
+  'cursor',
+  'windsurf',
+  'qwen',
+  'trae',
+  'opencode',
+  'openrouter',
+]);
 
 function normalizeText(value: string) {
   return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, '');
@@ -47,10 +64,12 @@ export function resolveToolIcon(tool: Pick<AITool, 'id' | 'name'>): ResolvedTool
   ));
 
   if (!match) return null;
+  const localSrc = LOCAL_ICON_SOURCES[match.slug];
+  if (!localSrc && !CDN_ICON_SLUGS.has(match.slug)) return null;
 
   return {
     slug: match.slug,
-    src: `${CDN_BASE}/${match.slug}.svg`,
+    src: localSrc ?? `${CDN_BASE}/${match.slug}.svg`,
     invertInDark: Boolean(match.invertInDark),
     label: tool.name,
   };
