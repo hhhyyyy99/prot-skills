@@ -182,7 +182,7 @@ xattr -d com.apple.quarantine "/Applications/Prot Skills.app"
 
 ## 发布流程
 
-桌面版本通过 git tag 发布，并从仓库内的版本说明文件生成 GitHub draft
+桌面版本通过 git tag 发布，并从仓库内的版本说明文件生成 GitHub
 release。
 
 ```sh
@@ -194,7 +194,7 @@ cd src-tauri && cargo test
 pnpm release:tag vX.Y.Z
 ```
 
-发布工作流会读取 `docs/releases/vX.Y.Z.md` 并写入对应 tag 的 draft
+发布工作流会读取 `docs/releases/vX.Y.Z.md` 并创建对应 tag 的
 release。完整清单见
 [`docs/releasing.md`](docs/releasing.md)。发布产物会使用更偏产品化的文件名，
 例如 `Prot-Skills-v0.0.4-macos-aarch64.dmg`。

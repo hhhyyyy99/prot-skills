@@ -212,8 +212,8 @@ cd src-tauri && cargo test
 pnpm release:tag vX.Y.Z
 ```
 
-The release workflow reads `docs/releases/vX.Y.Z.md` and publishes it into the
-draft GitHub Release for that tag. For the full checklist, see
+The release workflow reads `docs/releases/vX.Y.Z.md` and publishes it as a
+GitHub Release for that tag. For the full checklist, see
 [`docs/releasing.md`](docs/releasing.md). Release assets are uploaded with a
 product-style filename pattern such as
 `Prot-Skills-v0.0.4-macos-aarch64.dmg`.
