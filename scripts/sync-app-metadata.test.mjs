@@ -118,4 +118,31 @@ describe('syncAppMetadata', () => {
     expect(cargoToml).toContain('name = "sample-app"');
     expect(cargoToml).toContain('version = "2.3.4"');
   });
+
+  it('supports Cargo.toml files with CRLF line endings', async () => {
+    const rootDir = await mkdtemp(path.join(tmpdir(), 'sync-app-metadata-'));
+    await writeFixture(rootDir);
+    await writeFile(
+      path.join(rootDir, 'src-tauri', 'Cargo.toml'),
+      [
+        '[package]',
+        'name = "old-name"',
+        'version = "0.0.1"',
+        'edition = "2021"',
+        '',
+        '[dependencies]',
+        'tauri = "2"',
+        '',
+      ].join('\r\n'),
+    );
+
+    const result = await syncAppMetadata({ rootDir });
+
+    expect(result.changed).toContain('src-tauri/Cargo.toml');
+
+    const cargoToml = await readFile(path.join(rootDir, 'src-tauri', 'Cargo.toml'), 'utf8');
+    expect(cargoToml).toContain('[package]\r\n');
+    expect(cargoToml).toContain('name = "sample-app"\r\n');
+    expect(cargoToml).toContain('version = "2.3.4"\r\n');
+  });
 });

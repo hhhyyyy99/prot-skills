@@ -16,19 +16,25 @@ function serializeJson(value) {
   return `${JSON.stringify(value, null, 2)}\n`;
 }
 
+function detectLineEnding(content) {
+  return content.includes('\r\n') ? '\r\n' : '\n';
+}
+
 function replacePackageField(content, field, value) {
-  const header = '[package]\n';
-  const headerStart = content.indexOf(header);
-  if (headerStart === -1) {
+  const lineEnding = detectLineEnding(content);
+  const headerMatch = content.match(/\[package\]\r?\n/);
+  if (!headerMatch || headerMatch.index === undefined) {
     throw new Error('Cargo.toml is missing a [package] section');
   }
 
+  const header = headerMatch[0];
+  const headerStart = headerMatch.index;
   const bodyStart = headerStart + header.length;
-  const nextSectionOffset = content.slice(bodyStart).search(/\n\[/);
-  const bodyEnd = nextSectionOffset === -1 ? content.length : bodyStart + nextSectionOffset + 1;
+  const nextSectionOffset = content.slice(bodyStart).search(/\r?\n\[/);
+  const bodyEnd = nextSectionOffset === -1 ? content.length : bodyStart + nextSectionOffset + lineEnding.length;
   const body = content.slice(bodyStart, bodyEnd);
   const fieldPattern = new RegExp(`^${field}\\s*=\\s*".*"$`);
-  const lines = body.split('\n');
+  const lines = body.split(/\r?\n/);
   let replaced = false;
   const nextLines = [];
 
@@ -43,7 +49,9 @@ function replacePackageField(content, field, value) {
     nextLines.push(line);
   }
 
-  const nextBody = replaced ? nextLines.join('\n') : `${field} = ${JSON.stringify(value)}\n${body}`;
+  const nextBody = replaced
+    ? nextLines.join(lineEnding)
+    : `${field} = ${JSON.stringify(value)}${lineEnding}${body}`;
 
   return `${content.slice(0, headerStart)}${header}${nextBody}${content.slice(bodyEnd)}`;
 }
