@@ -1,5 +1,5 @@
-import { type ReactNode, useEffect, useState } from 'react';
-import { FolderOpen } from 'lucide-react';
+import { type MouseEvent, type PointerEvent, type ReactNode, useEffect, useRef, useState } from 'react';
+import { FolderOpen, Moon, Monitor, Sun } from 'lucide-react';
 import { WorkspaceHeader } from '../shell/WorkspaceHeader';
 import { useTheme } from '../shell/ThemeProvider';
 import { useI18n } from '../shell/LanguageProvider';
@@ -44,6 +44,13 @@ export function SettingsPage() {
   const appVersion = import.meta.env.VITE_APP_VERSION;
   const [skillsPath, setSkillsPath] = useState<string>('');
   const [pathError, setPathError] = useState<string | null>(null);
+  const pointerOriginRef = useRef<{ x: number; y: number } | null>(null);
+
+  const themeOptions: { value: ThemePreference; label: string; icon: ReactNode }[] = [
+    { value: 'light', label: t('theme.light'), icon: <Sun size={15} /> },
+    { value: 'dark', label: t('theme.dark'), icon: <Moon size={15} /> },
+    { value: 'system', label: t('theme.system'), icon: <Monitor size={15} /> },
+  ];
 
   useEffect(() => {
     let cancelled = false;
@@ -72,6 +79,26 @@ export function SettingsPage() {
     }
   };
 
+  const handleThemePointerDown = (event: PointerEvent<HTMLButtonElement>) => {
+    pointerOriginRef.current = {
+      x: event.clientX,
+      y: event.clientY,
+    };
+  };
+
+  const handleThemeClick = (event: MouseEvent<HTMLButtonElement>, value: ThemePreference) => {
+    const rect = event.currentTarget.getBoundingClientRect();
+    const origin = pointerOriginRef.current ?? {
+      x: rect.left + rect.width / 2,
+      y: rect.top + rect.height / 2,
+    };
+
+    setPreference(value, {
+      origin,
+    });
+    pointerOriginRef.current = null;
+  };
+
   return (
     <>
       <WorkspaceHeader title={t('nav.settings')} />
@@ -83,19 +110,22 @@ export function SettingsPage() {
             helper={t('settings.theme.helper')}
             control={
               <div className="flex gap-1.5">
-                {(['light', 'dark', 'system'] as const).map(option => (
+                {themeOptions.map((option) => (
                   <button
-                    key={option}
+                    key={option.value}
                     type="button"
+                    aria-label={option.label}
+                    title={option.label}
                     className={[
-                      'h-[30px] rounded-sm border px-3 text-12 font-medium transition-colors duration-fast',
-                      preference === option
+                      'inline-flex h-[30px] w-[30px] items-center justify-center rounded-sm border transition-colors duration-fast',
+                      preference === option.value
                         ? 'border-text-primary bg-text-primary text-surface'
                         : 'border-border-subtle text-text-secondary hover:border-border-default hover:text-text-primary',
                     ].join(' ')}
-                    onClick={() => setPreference(option as ThemePreference)}
+                    onPointerDown={handleThemePointerDown}
+                    onClick={(event) => handleThemeClick(event, option.value)}
                   >
-                    {t(`theme.${option}`)}
+                    {option.icon}
                   </button>
                 ))}
               </div>
@@ -140,15 +170,6 @@ export function SettingsPage() {
                 >
                   {t('common.openFolder')}
                 </Button>
-              }
-            />
-            <SettingRow
-              label={t('settings.metadataDb')}
-              helper={t('settings.metadataDb.helper')}
-              control={
-                <code className="block max-w-[220px] truncate font-mono text-12 text-text-tertiary">
-                  ~/.prot-skills/metadata.db
-                </code>
               }
             />
         </section>

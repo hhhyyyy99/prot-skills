@@ -28,9 +28,11 @@ describe('SettingsPage', () => {
     localStorage.clear();
   });
 
-  it('renders Theme select with System as default', async () => {
-    const { getByText, findByText } = render(<SettingsPage />, { wrapper: Wrapper });
-    expect(getByText('System')).toBeInTheDocument();
+  it('renders theme icon controls with System as default', async () => {
+    const { getByRole, findByText } = render(<SettingsPage />, { wrapper: Wrapper });
+    expect(getByRole('button', { name: 'System' })).toBeInTheDocument();
+    expect(getByRole('button', { name: 'Light' })).toBeInTheDocument();
+    expect(getByRole('button', { name: 'Dark' })).toBeInTheDocument();
     await findByText('/Users/test/.prot-skills/skills');
   });
 

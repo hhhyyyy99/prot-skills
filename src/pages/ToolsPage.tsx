@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ScanLine, FolderOpen, Plus, Pencil, Check, X, Trash2 } from 'lucide-react';
 import { getTools, detectTools, toggleTool, openFolder, updateToolPath, addTool, deleteTool } from '../api';
 import { useToast } from '../hooks/useToast';
@@ -24,11 +24,21 @@ export function ToolsPage() {
   const [error, setError] = useState<string | null>(null);
   const [, setPendingToggleId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [editPath, setEditPath] = useState('');
   const [showAdd, setShowAdd] = useState(false);
   const [newName, setNewName] = useState('');
   const [newPath, setNewPath] = useState('');
+  const confirmDeleteTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { toast } = useToast();
+
+  useEffect(() => {
+    return () => {
+      if (confirmDeleteTimer.current) {
+        clearTimeout(confirmDeleteTimer.current);
+      }
+    };
+  }, []);
 
   const refresh = () => {
     setLoading(true);
@@ -93,6 +103,23 @@ export function ToolsPage() {
         toast({ variant: 'success', title: t('tools.toast.deleted', { name: tool.name }) });
       })
       .catch((e: unknown) => toast({ variant: 'error', title: t('tools.error.delete'), description: String((e as Error).message ?? e) }));
+  };
+
+  const confirmDelete = (tool: AITool) => {
+    if (confirmDeleteId !== tool.id) {
+      setConfirmDeleteId(tool.id);
+      if (confirmDeleteTimer.current) {
+        clearTimeout(confirmDeleteTimer.current);
+      }
+      confirmDeleteTimer.current = setTimeout(() => setConfirmDeleteId(null), 3000);
+      return;
+    }
+
+    if (confirmDeleteTimer.current) {
+      clearTimeout(confirmDeleteTimer.current);
+    }
+    setConfirmDeleteId(null);
+    handleDelete(tool);
   };
 
   const handleAdd = () => {
@@ -194,8 +221,16 @@ export function ToolsPage() {
                   ) : (
                     <span className="flex items-center gap-1">
                       <IconButton icon={<Pencil size={14} />} aria-label={t('tools.aria.editPath')} variant="subtle" size="sm" onClick={() => startEdit(tool)} />
-                      <IconButton icon={<FolderOpen size={16} />} aria-label={t('tools.aria.openPath')} variant="subtle" size="sm" onClick={() => handleOpenFolder(tool.config_path)} />
-                      <IconButton icon={<Trash2 size={14} />} aria-label={t('tools.aria.deleteTool')} variant="subtle" size="sm" onClick={() => handleDelete(tool)} />
+                      <IconButton icon={<FolderOpen size={16} />} aria-label={t('tools.aria.openPath')} variant="subtle" size="sm" onClick={() => handleOpenFolder(tool.custom_path || tool.config_path)} />
+                      <IconButton
+                        icon={<Trash2 size={14} />}
+                        aria-label={t('tools.aria.deleteTool')}
+                        title={confirmDeleteId === tool.id ? t('tools.confirmDelete') : t('tools.delete')}
+                        variant="subtle"
+                        size="sm"
+                        className={confirmDeleteId === tool.id ? 'text-danger hover:text-danger' : undefined}
+                        onClick={() => confirmDelete(tool)}
+                      />
                     </span>
                   )
                 }
