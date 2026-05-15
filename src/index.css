@@ -35,7 +35,7 @@
   }
 
   .app-content {
-    @apply flex-1 min-h-0 overflow-y-auto px-4 py-5;
+    @apply flex-1 min-h-0 overflow-y-auto px-4 pb-5 pt-3;
     scrollbar-width: thin;
     scrollbar-color: var(--color-border-subtle) transparent;
   }
@@ -60,7 +60,7 @@
   }
 
   .stats-strip {
-    @apply mb-5 grid rounded-lg border border-border-subtle bg-surface shadow-card;
+    @apply mb-3 grid rounded-lg border border-border-subtle bg-surface shadow-card;
   }
 
   .stat-cell {

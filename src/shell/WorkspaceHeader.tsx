@@ -21,24 +21,36 @@ export function WorkspaceHeader({ title, meta, leading, search, filters, primary
   }
 
   const visibleActions = primaryActions.length > 2 ? primaryActions.slice(0, 2) : primaryActions;
-  const showHeaderRow = Boolean(leading) || visibleActions.length > 0;
+  const hasLeadingRow = Boolean(leading);
+  const showControls = visibleActions.length > 0 || Boolean(search) || Boolean(filters);
   const showMetaRow = Boolean(meta) || Boolean(search) || Boolean(filters);
+  const shouldUseCompactToolbar = !hasLeadingRow && (Boolean(meta) || showControls);
 
   return (
     <>
       <h2 className="sr-only" data-page-title={title}>{title}</h2>
-      {showHeaderRow && (
+      {hasLeadingRow && (
         <header className="flex items-start justify-between gap-4 px-4 pt-1">
           <div className="flex min-w-0 items-center gap-3">
             {leading}
           </div>
-          <div className="flex gap-2">{visibleActions}</div>
+          <div className="flex shrink-0 gap-2">{visibleActions}</div>
         </header>
       )}
-      {showMetaRow && (
-        <div className={`flex items-center justify-between gap-4 px-4 pb-4 ${showHeaderRow ? 'pt-2' : 'pt-1'}`}>
-          <span className="text-13 text-text-secondary truncate">{meta}</span>
-          <div className="flex items-center gap-2">{search}{filters}</div>
+      {shouldUseCompactToolbar && (
+        <div className="flex items-center justify-between gap-4 px-4 pb-2 pt-1">
+          <span className="min-w-0 truncate text-13 text-text-secondary">{meta}</span>
+          <div className="flex shrink-0 items-center gap-2">
+            {visibleActions}
+            {search}
+            {filters}
+          </div>
+        </div>
+      )}
+      {!shouldUseCompactToolbar && showMetaRow && (
+        <div className={`flex items-center justify-between gap-4 px-4 pb-2 ${hasLeadingRow ? 'pt-2' : 'pt-1'}`}>
+          <span className="min-w-0 truncate text-13 text-text-secondary">{meta}</span>
+          <div className="flex shrink-0 items-center gap-2">{search}{filters}</div>
         </div>
       )}
     </>
