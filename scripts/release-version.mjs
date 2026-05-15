@@ -4,13 +4,27 @@ import { promisify } from 'node:util';
 
 const execFilePromise = promisify(execFileCallback);
 const validReleaseLevels = new Set(['patch', 'minor', 'major']);
+const versionFiles = [
+  'package.json',
+  'src-tauri/Cargo.toml',
+  'src-tauri/tauri.conf.json',
+  'src-tauri/Cargo.lock',
+];
 
 function normalizeVersionOutput(stdout) {
   return stdout.trim().replace(/^v/, '');
 }
 
+async function runCommand(execFile, command, args) {
+  return execFile(command, args);
+}
+
 async function runPnpm(execFile, args) {
-  return execFile('pnpm', args);
+  return runCommand(execFile, 'pnpm', args);
+}
+
+async function runGit(execFile, args) {
+  return runCommand(execFile, 'git', args);
 }
 
 export async function releaseVersion({
@@ -34,17 +48,23 @@ export async function releaseVersion({
   ]);
 
   await runPnpm(execFile, ['app:sync']);
+  const nextVersion = normalizeVersionOutput(stdout);
 
-  return normalizeVersionOutput(stdout);
+  await runGit(execFile, ['add', ...versionFiles]);
+  await runGit(execFile, [
+    'commit',
+    '-m',
+    `chore(release): bump version to ${nextVersion}`,
+  ]);
+
+  return nextVersion;
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   try {
     const nextVersion = await releaseVersion();
-    console.log(`Version bumped to ${nextVersion}.`);
-    console.log(`Next: git add package.json src-tauri/Cargo.toml src-tauri/tauri.conf.json src-tauri/Cargo.lock`);
-    console.log(`Then: git commit -m "chore(release): bump version to ${nextVersion}"`);
-    console.log(`Finally: pnpm release:tag v${nextVersion}`);
+    console.log(`Version bumped and committed as ${nextVersion}.`);
+    console.log(`Next: pnpm release:tag v${nextVersion}`);
   } catch (error) {
     console.error(error instanceof Error ? error.message : String(error));
     process.exitCode = 1;

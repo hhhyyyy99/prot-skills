@@ -74,11 +74,9 @@ pnpm build
 cd src-tauri && cargo test
 ```
 
-5. Commit and push the version bump
+5. Push the version bump commit
 
 ```bash
-git add package.json src-tauri/Cargo.toml src-tauri/tauri.conf.json src-tauri/Cargo.lock
-git commit -m "chore(release): bump version to X.Y.Z"
 git push origin main
 ```
 
@@ -107,7 +105,7 @@ pnpm release:version minor
 # Breaking release
 pnpm release:version major
 
-# Push tag after committing version bump
+# Push tag after the version bump commit is on `main`
 pnpm release:tag v0.0.2
 ```
 
@@ -117,8 +115,9 @@ pnpm release:tag v0.0.2
 
 - runs `pnpm version <level> --no-git-tag-version`
 - runs `pnpm app:sync`
+- stages `package.json`, `src-tauri/Cargo.toml`, `src-tauri/tauri.conf.json`, and `src-tauri/Cargo.lock`
+- creates `chore(release): bump version to X.Y.Z`
 - keeps package and Tauri metadata aligned
-- does not commit
 - does not push
 - does not create a tag
 
