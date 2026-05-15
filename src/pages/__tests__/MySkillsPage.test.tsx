@@ -144,7 +144,7 @@ describe('MySkillsPage', () => {
     vi.mocked(getTools).mockResolvedValue(mockTools);
     vi.mocked(getSkillLinks).mockResolvedValue([mockLink]);
     const user = userEvent.setup();
-    const { findByRole, findByText, findByLabelText, queryByRole } = renderPage();
+    const { findByRole, findByText, queryByRole } = renderPage();
 
     await user.click(await findByRole('button', { name: 'Sync targets for Test Skill' }));
 

@@ -128,4 +128,29 @@ describe('MigratePage', () => {
     });
     expect(queryByText('Migrate selected (1)')).not.toBeInTheDocument();
   });
+
+  it('shows tool-specific empty copy when the current tool has no skills', async () => {
+    const traeTool: AITool = {
+      id: 'trae',
+      name: 'Trae',
+      config_path: '/home/.trae',
+      skills_subdir: 'skills',
+      is_detected: true,
+      is_enabled: true,
+    };
+
+    vi.mocked(getTools).mockResolvedValue([mockTool, traeTool]);
+    vi.mocked(scanAllLocalSkills).mockResolvedValue([
+      { name: 'Skill A', path: '/skills/a', is_symlink: false, tool_id: 'cursor', tool_name: 'Cursor' },
+    ]);
+
+    const user = userEvent.setup();
+    const { findByText, findByRole } = renderPage();
+
+    await findByText('Skill A');
+    await user.click(await findByRole('tab', { name: 'Trae' }));
+
+    expect(await findByText('No Skills found for this tool')).toBeInTheDocument();
+    expect(await findByText('No skills found in this tool\'s folder')).toBeInTheDocument();
+  });
 });

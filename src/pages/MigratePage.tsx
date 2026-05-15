@@ -398,7 +398,10 @@ export function MigratePage() {
         {!scanning && hasScannedOnce && filteredSkills.length === 0 && (
           <div className="compact-card">
             <EmptyState
-              title={t('migrate.empty.title')}
+              title={filter === ALL_TOOLS_FILTER
+                ? t('migrate.empty.title')
+                : t('migrate.empty.title.tool')
+              }
               description={filter === ALL_TOOLS_FILTER
                 ? t('migrate.empty.all')
                 : t('migrate.empty.tool')
