@@ -20,6 +20,14 @@ function detectLineEnding(content) {
   return content.includes('\r\n') ? '\r\n' : '\n';
 }
 
+function normalizeLineEndings(content, lineEnding) {
+  return content.replace(/\r?\n/g, lineEnding);
+}
+
+function serializeJsonLike(value, currentContent) {
+  return normalizeLineEndings(serializeJson(value), detectLineEnding(currentContent));
+}
+
 function replacePackageField(content, field, value) {
   const lineEnding = detectLineEnding(content);
   const headerMatch = content.match(/\[package\]\r?\n/);
@@ -103,7 +111,8 @@ export async function syncAppMetadata({ rootDir = rootFromScript, check = false 
   const cargoTomlPath = path.join(rootDir, 'src-tauri', 'Cargo.toml');
 
   const packageJson = await readJson(packagePath);
-  const tauriConfig = await readJson(tauriConfigPath);
+  const tauriConfigContent = await readFile(tauriConfigPath, 'utf8');
+  const tauriConfig = JSON.parse(tauriConfigContent);
   const cargoToml = await readFile(cargoTomlPath, 'utf8');
 
   if (!packageJson.name || !packageJson.version) {
@@ -114,7 +123,7 @@ export async function syncAppMetadata({ rootDir = rootFromScript, check = false 
     {
       label: 'src-tauri/tauri.conf.json',
       filePath: tauriConfigPath,
-      content: serializeJson(updateTauriConfig(tauriConfig, packageJson)),
+      content: serializeJsonLike(updateTauriConfig(tauriConfig, packageJson), tauriConfigContent),
     },
     {
       label: 'src-tauri/Cargo.toml',
