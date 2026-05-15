@@ -27,6 +27,17 @@ const mockSkill: Skill = {
   metadata: { description: 'A test skill', tags: ['test'], version: '1.0.0' },
 };
 
+const secondMockSkill: Skill = {
+  id: 'skill-2',
+  name: 'Second Skill',
+  source_type: 'local',
+  local_path: '/path/to/second-skill',
+  installed_at: '2024-01-03',
+  updated_at: '2024-01-04',
+  is_enabled: true,
+  metadata: { description: 'Another test skill', tags: ['test'], version: '1.1.0' },
+};
+
 const mockTools: AITool[] = [
   {
     id: 'claude',
@@ -96,9 +107,79 @@ describe('MySkillsPage', () => {
     expect(queryByRole('tablist', { name: 'Installed skill filters' })).not.toBeInTheDocument();
     expect(getByLabelText('Test Skill linked tools')).toBeInTheDocument();
     const syncTargets = await findByRole('button', { name: 'Manage sync for Test Skill' });
+    expect(await findByRole('button', { name: 'Sync all' })).toBeInTheDocument();
     expect(await findByRole('button', { name: 'Open Test Skill folder' })).toBeInTheDocument();
     expect(await findByRole('button', { name: 'Uninstall Test Skill' })).toBeInTheDocument();
     expect(syncTargets).toBeInTheDocument();
+  });
+
+  it('opens a lightweight confirmation popover before bulk sync', async () => {
+    vi.mocked(getSkills).mockResolvedValue([mockSkill]);
+    vi.mocked(getTools).mockResolvedValue(mockTools);
+    vi.mocked(getSkillLinks).mockResolvedValue([]);
+
+    const user = userEvent.setup();
+    const { findByRole, findByText } = renderPage();
+
+    const syncAll = await findByRole('button', { name: 'Sync all' });
+    await user.click(syncAll);
+
+    expect(await findByText('Sync visible Skills?')).toBeInTheDocument();
+    expect(await findByText('This will sync the currently visible enabled Skills to all enabled tools.')).toBeInTheDocument();
+    expect(await findByRole('button', { name: 'Confirm sync' })).toBeInTheDocument();
+    expect(setAllSkillToolLinks).not.toHaveBeenCalled();
+
+    await user.click(await findByRole('button', { name: 'Confirm sync' }));
+
+    await waitFor(() => {
+      expect(setAllSkillToolLinks).toHaveBeenCalledWith('skill-1', true);
+    });
+  });
+
+  it('shows inline bulk sync progress and completion feedback', async () => {
+    let resolveSync: ((value: SyncSkillTargetsResult) => void) | undefined;
+    const pendingSync = new Promise<SyncSkillTargetsResult>((resolve) => {
+      resolveSync = resolve;
+    });
+
+    vi.mocked(getSkills).mockResolvedValue([mockSkill]);
+    vi.mocked(getTools).mockResolvedValue(mockTools);
+    vi.mocked(getSkillLinks).mockResolvedValue([mockLink]);
+    vi.mocked(setAllSkillToolLinks).mockReturnValueOnce(pendingSync);
+
+    const user = userEvent.setup();
+    const { findByRole, findByText } = renderPage();
+
+    await user.click(await findByRole('button', { name: 'Sync all' }));
+    await user.click(await findByRole('button', { name: 'Confirm sync' }));
+
+    const progressBar = await findByRole('progressbar', { name: 'Skill sync progress' });
+    expect(await findByText('Syncing 1 skills')).toBeInTheDocument();
+    expect(progressBar).toHaveAttribute('aria-valuenow', '0');
+
+    resolveSync?.(mockSyncSuccess);
+
+    expect(await findByText('Sync complete')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(progressBar).toHaveAttribute('aria-valuenow', '1');
+    });
+  });
+
+  it('syncs each visible enabled skill when bulk sync is clicked', async () => {
+    vi.mocked(getSkills).mockResolvedValue([mockSkill, secondMockSkill]);
+    vi.mocked(getTools).mockResolvedValue(mockTools);
+    vi.mocked(getSkillLinks).mockResolvedValue([]);
+
+    const user = userEvent.setup();
+    const { findByRole } = renderPage();
+
+    await user.click(await findByRole('button', { name: 'Sync all' }));
+    await user.click(await findByRole('button', { name: 'Confirm sync' }));
+
+    await waitFor(() => {
+      expect(setAllSkillToolLinks).toHaveBeenNthCalledWith(1, 'skill-1', true);
+      expect(setAllSkillToolLinks).toHaveBeenNthCalledWith(2, 'skill-2', true);
+    });
   });
 
   it('rolls back bulk sync action when syncing all tools rejects', async () => {

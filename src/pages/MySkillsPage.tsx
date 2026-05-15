@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
+import { startTransition, useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { FolderOpen, RefreshCw, Search, Trash2, X } from 'lucide-react';
 import {
   getSkillLinks,
@@ -28,10 +28,32 @@ import type { AITool, Skill, SkillLink, SyncFailureItem, SyncSkillTargetsResult 
 
 type LinkFilter = 'all' | 'linked' | 'unlinked';
 
+interface BulkSyncProgress {
+  done: number;
+  total: number;
+  currentSkillName?: string;
+}
+
+interface BulkSyncSummary {
+  success: number;
+  fail: number;
+}
+
 const LOCAL_SOURCE = 'local';
+const STATUS_FLUSH_INTERVAL = 1;
 
 function isLocalSource(sourceType: string) {
   return sourceType.trim().toLowerCase() === LOCAL_SOURCE;
+}
+
+function yieldToBrowser() {
+  return new Promise<void>((resolve) => {
+    if (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') {
+      window.requestAnimationFrame(() => resolve());
+      return;
+    }
+    setTimeout(resolve, 0);
+  });
 }
 
 function buildSyncFailureDescription(
@@ -66,6 +88,10 @@ export function MySkillsPage() {
   const [syncSkillId, setSyncSkillId] = useState<string | null>(null);
   const [toolQuery, setToolQuery] = useState('');
   const [linkFilter, setLinkFilter] = useState<LinkFilter>('all');
+  const [bulkSyncing, setBulkSyncing] = useState(false);
+  const [bulkSyncConfirmOpen, setBulkSyncConfirmOpen] = useState(false);
+  const [bulkSyncProgress, setBulkSyncProgress] = useState<BulkSyncProgress | null>(null);
+  const [bulkSyncSummary, setBulkSyncSummary] = useState<BulkSyncSummary | null>(null);
   const confirmTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { toast } = useToast();
 
@@ -141,6 +167,11 @@ export function MySkillsPage() {
   const hasAnyLinkedEnabledTools = useCallback((skillId: string) => {
     return enabledTools.some(tool => isToolLinked(skillId, tool.id));
   }, [enabledTools, isToolLinked]);
+
+  const bulkSyncableSkills = useMemo(
+    () => visible.filter((skill) => skill.is_enabled),
+    [visible]
+  );
 
   const handleOpenFolder = useCallback((skill: Skill) => {
     openFolder(skill.local_path).catch((e: unknown) => {
@@ -295,6 +326,101 @@ export function MySkillsPage() {
       });
   }, [enabledTools, linksBySkill, toast, t]);
 
+  const syncAllSkills = useCallback(async () => {
+    if (bulkSyncing || enabledTools.length === 0 || bulkSyncableSkills.length === 0) {
+      return;
+    }
+
+    setBulkSyncConfirmOpen(false);
+    setBulkSyncing(true);
+    setBulkSyncSummary(null);
+    setBulkSyncProgress({ done: 0, total: bulkSyncableSkills.length });
+
+    let success = 0;
+    let fail = 0;
+    let flushedDone = 0;
+
+    for (const skill of bulkSyncableSkills) {
+      setBulkSyncProgress((prev) => ({
+        done: prev?.done ?? 0,
+        total: bulkSyncableSkills.length,
+        currentSkillName: skill.name,
+      }));
+
+      try {
+        const result = await setAllSkillToolLinks(skill.id, true);
+        const links = await getSkillLinks(skill.id);
+        startTransition(() => {
+          setLinksBySkill((current) => ({ ...current, [skill.id]: links }));
+        });
+
+        if (result.status === 'failed') {
+          fail += 1;
+        } else {
+          success += 1;
+          if (result.status === 'partial') {
+            fail += 1;
+          }
+        }
+      } catch (e: unknown) {
+        fail += 1;
+        toast({
+          variant: 'error',
+          title: t('mySkills.error.linkUpdate'),
+          description: String((e as Error).message ?? e),
+        });
+      } finally {
+        const nextDone = Math.min(flushedDone + 1, bulkSyncableSkills.length);
+        if (nextDone - flushedDone >= STATUS_FLUSH_INTERVAL || nextDone === bulkSyncableSkills.length) {
+          startTransition(() => {
+            setBulkSyncProgress((prev) => ({
+              done: Math.min((prev?.done ?? 0) + 1, bulkSyncableSkills.length),
+              total: bulkSyncableSkills.length,
+              currentSkillName: skill.name,
+            }));
+          });
+          flushedDone = nextDone;
+        }
+
+        await yieldToBrowser();
+      }
+    }
+
+    setBulkSyncing(false);
+    setBulkSyncSummary({ success, fail });
+
+    if (fail === 0) {
+      toast({
+        variant: 'success',
+        title: t('mySkills.toast.bulkSyncComplete', { success }),
+      });
+      return;
+    }
+
+    if (success > 0) {
+      toast({
+        variant: 'warning',
+        title: t('mySkills.toast.bulkSyncPartial', { success, failed: fail }),
+        durationMs: 6000,
+      });
+      return;
+    }
+
+    toast({
+      variant: 'error',
+      title: t('mySkills.toast.bulkSyncFailed'),
+      durationMs: 6000,
+    });
+  }, [bulkSyncableSkills, bulkSyncing, enabledTools.length, t, toast]);
+
+  const handleBulkSyncClick = useCallback(() => {
+    if (bulkSyncing || enabledTools.length === 0 || bulkSyncableSkills.length === 0) {
+      return;
+    }
+
+    setBulkSyncConfirmOpen(true);
+  }, [bulkSyncableSkills.length, bulkSyncing, enabledTools.length]);
+
   const renderSkillSubtitle = (skill: Skill) => {
     const parts = [
       isLocalSource(skill.source_type) ? null : skill.source_type,
@@ -428,7 +554,38 @@ export function MySkillsPage() {
       <WorkspaceHeader
         title={t('nav.mySkills')}
         meta={t('mySkills.meta', { visible: visible.length, total: skills.length, enabled: enabledCount })}
-        search={<div className="w-[240px]"><TextField type="search" size="sm" leadingIcon={<Search size={14} />} value={q} onChange={setQ} placeholder={t('mySkills.searchPlaceholder')} /></div>}
+        search={(
+          <div className="flex items-center gap-2">
+            <div className="w-[240px]">
+              <TextField type="search" size="sm" leadingIcon={<Search size={14} />} value={q} onChange={setQ} placeholder={t('mySkills.searchPlaceholder')} />
+            </div>
+            <div className="relative">
+              <Button
+                variant="secondary"
+                size="sm"
+                loading={bulkSyncing}
+                onClick={handleBulkSyncClick}
+                disabled={enabledTools.length === 0 || bulkSyncableSkills.length === 0}
+              >
+                {t('mySkills.bulkSync.action')}
+              </Button>
+              {bulkSyncConfirmOpen && !bulkSyncing && (
+                <div className="absolute right-0 top-[calc(100%+8px)] z-20 w-64 rounded-lg border border-border-subtle bg-surface p-3 shadow-overlay">
+                  <p className="text-12 font-semibold text-text-primary">{t('mySkills.bulkSync.confirmTitle')}</p>
+                  <p className="mt-1 text-12 text-text-tertiary">{t('mySkills.bulkSync.confirmBody')}</p>
+                  <div className="mt-3 flex justify-end gap-2">
+                    <Button variant="ghost" size="sm" onClick={() => setBulkSyncConfirmOpen(false)}>
+                      {t('common.cancel')}
+                    </Button>
+                    <Button variant="primary" size="sm" onClick={() => void syncAllSkills()}>
+                      {t('mySkills.bulkSync.confirm')}
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
         primaryActions={[<IconButton key="r" icon={<RefreshCw size={16} />} aria-label={t('mySkills.refresh')} onClick={() => setRefreshTick(tick => tick + 1)} variant="subtle" size="sm" />]}
       />
       <main className="app-content">
@@ -440,6 +597,49 @@ export function MySkillsPage() {
           ]}
         />
         {showSourceFilters && <FilterPills options={sourceOptions} value={sourceType} onChange={setSourceType} ariaLabel={t('mySkills.filters.aria')} />}
+        {bulkSyncProgress && (
+          <div className="compact-card mb-4">
+            <div className="flex items-center justify-between gap-4">
+              <div className="min-w-0">
+                <p className="text-13 font-semibold text-text-primary">{t('mySkills.bulkSync.progress', { total: bulkSyncProgress.total })}</p>
+                <p className="mt-1 truncate text-12 text-text-tertiary">
+                  {bulkSyncProgress.currentSkillName
+                    ? t('mySkills.bulkSync.progressCurrent', { name: bulkSyncProgress.currentSkillName })
+                    : t('mySkills.bulkSync.progressPreparing')}
+                </p>
+              </div>
+              <span className="shrink-0 text-12 font-semibold text-text-secondary">
+                {Math.round((bulkSyncProgress.done / Math.max(bulkSyncProgress.total, 1)) * 100)}%
+              </span>
+            </div>
+            <div
+              className="mt-3 h-2 overflow-hidden rounded-full bg-surface-raised"
+              role="progressbar"
+              aria-label={t('mySkills.bulkSync.progressAria')}
+              aria-valuemin={0}
+              aria-valuemax={bulkSyncProgress.total}
+              aria-valuenow={bulkSyncProgress.done}
+            >
+              <div
+                className="h-full rounded-full bg-accent transition-[width] duration-200 ease-out"
+                style={{ width: `${(bulkSyncProgress.done / Math.max(bulkSyncProgress.total, 1)) * 100}%` }}
+              />
+            </div>
+          </div>
+        )}
+        {bulkSyncSummary && !bulkSyncing && (
+          <div className="compact-card mb-4">
+            <p className="text-13 font-semibold text-text-primary">{t('mySkills.bulkSync.complete')}</p>
+            <p className="mt-1 text-12 text-text-tertiary">
+              {bulkSyncSummary.fail === 0
+                ? t('mySkills.bulkSync.completeSummary', { success: bulkSyncSummary.success })
+                : t('mySkills.bulkSync.completeSummaryWithFailures', {
+                  success: bulkSyncSummary.success,
+                  failed: bulkSyncSummary.fail,
+                })}
+            </p>
+          </div>
+        )}
         <div className="section-kicker">{t('mySkills.section.all', { count: skills.length })}</div>
         {renderBody()}
       </main>
