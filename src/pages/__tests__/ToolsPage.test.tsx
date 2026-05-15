@@ -1,6 +1,7 @@
 import { render, waitFor, fireEvent } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { getTools, detectTools } from '../../api';
+import { getTools, detectTools, deleteTool, openFolder } from '../../api';
 import { AppProviders } from '../../shell/AppProviders';
 import { ToolsPage } from '../ToolsPage';
 import type { AITool } from '../../types';
@@ -9,6 +10,8 @@ vi.mock('../../api', () => ({
   getTools: vi.fn(),
   detectTools: vi.fn(),
   toggleTool: vi.fn(),
+  deleteTool: vi.fn(),
+  openFolder: vi.fn(),
 }));
 
 const mockTool: AITool = {
@@ -18,6 +21,7 @@ const mockTool: AITool = {
   skills_subdir: 'skills',
   is_detected: true,
   is_enabled: true,
+  custom_path: '/custom/cursor',
 };
 
 function renderPage() {
@@ -27,6 +31,8 @@ function renderPage() {
 describe('ToolsPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(openFolder).mockResolvedValue();
+    vi.mocked(deleteTool).mockResolvedValue();
   });
 
   it('shows empty state when no agent tools are detected', async () => {
@@ -50,6 +56,33 @@ describe('ToolsPage', () => {
     fireEvent.click(btn);
     await waitFor(() => {
       expect(detectTools).toHaveBeenCalled();
+    });
+  });
+
+  it('opens the custom tool path from the row action', async () => {
+    vi.mocked(getTools).mockResolvedValue([mockTool]);
+    const user = userEvent.setup();
+    const { findByRole } = renderPage();
+
+    await user.click(await findByRole('button', { name: 'Open path' }));
+
+    expect(openFolder).toHaveBeenCalledWith('/custom/cursor');
+  });
+
+  it('requires a confirmation click before deleting a tool', async () => {
+    vi.mocked(getTools).mockResolvedValue([mockTool]);
+    const user = userEvent.setup();
+    const { findByRole, queryByText } = renderPage();
+    const deleteButton = await findByRole('button', { name: 'Delete tool' });
+
+    await user.click(deleteButton);
+    expect(deleteTool).not.toHaveBeenCalled();
+    expect(queryByText('Cursor')).toBeInTheDocument();
+
+    await user.click(deleteButton);
+
+    await waitFor(() => {
+      expect(deleteTool).toHaveBeenCalledWith('tool-1');
     });
   });
 });

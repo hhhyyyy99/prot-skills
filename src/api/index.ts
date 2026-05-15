@@ -1,5 +1,24 @@
-import { invoke } from '@tauri-apps/api/core';
+import { invoke as tauriInvoke } from '@tauri-apps/api/core';
 import type { Skill, LocalSkill, AITool, SkillLink } from '../types';
+
+type InvokeArgs = Record<string, unknown> | undefined;
+
+function hasTauriRuntime() {
+  const internals = (globalThis as { __TAURI_INTERNALS__?: { invoke?: unknown } }).__TAURI_INTERNALS__;
+  return typeof internals?.invoke === 'function';
+}
+
+function getTauriUnavailableError() {
+  return new Error('Desktop runtime unavailable. Open this screen in the Tauri app instead of the browser preview.');
+}
+
+function invoke<T>(command: string, args?: InvokeArgs): Promise<T> {
+  if (!hasTauriRuntime()) {
+    return Promise.reject(getTauriUnavailableError());
+  }
+
+  return tauriInvoke<T>(command, args);
+}
 
 // Skill APIs
 export const getSkills = (): Promise<Skill[]> => {
