@@ -1,4 +1,6 @@
 import type { AITool } from '../types';
+import aiderIcon from '../assets/tool-icons/aider.svg';
+import continueIcon from '../assets/tool-icons/continue.png';
 import kiroIcon from '../assets/tool-icons/kiro.svg';
 
 type ToolIconDefinition = {
@@ -16,6 +18,8 @@ type ResolvedToolIcon = {
 
 const CDN_BASE = 'https://unpkg.com/@lobehub/icons-static-svg@latest/icons';
 const LOCAL_ICON_SOURCES: Record<string, string> = {
+  aider: aiderIcon,
+  continue: continueIcon,
   kiro: kiroIcon,
 };
 
@@ -26,7 +30,9 @@ const TOOL_ICON_DEFINITIONS: ToolIconDefinition[] = [
   { slug: 'cursor', aliases: ['cursor'] },
   { slug: 'windsurf', aliases: ['windsurf', 'codeium'] },
   { slug: 'qwen', aliases: ['qwen', 'tongyi'] },
-  { slug: 'trae', aliases: ['trae'] },
+  { slug: 'trae', aliases: ['trae', 'trae-cn', 'traecn'] },
+  { slug: 'aider', aliases: ['aider'] },
+  { slug: 'continue', aliases: ['continue'] },
   { slug: 'kiro', aliases: ['kiro'] },
   { slug: 'opencode', aliases: ['opencode', 'open-code'] },
   { slug: 'openrouter', aliases: ['openrouter', 'open-router'] },
