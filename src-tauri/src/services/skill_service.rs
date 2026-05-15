@@ -8,6 +8,29 @@ use std::path::Path;
 pub struct SkillService;
 
 impl SkillService {
+    pub fn prune_missing_skills(db: &Database) -> Result<usize> {
+        let stale_skill_ids = Self::get_all_skills(db)?
+            .into_iter()
+            .filter(|skill| {
+                let skill_path = Path::new(&skill.local_path);
+                !skill_path.exists() || !skill_path.join("SKILL.md").exists()
+            })
+            .map(|skill| skill.id)
+            .collect::<Vec<_>>();
+
+        if stale_skill_ids.is_empty() {
+            return Ok(0);
+        }
+
+        let conn = db.get_connection();
+        for skill_id in &stale_skill_ids {
+            conn.execute("DELETE FROM skill_links WHERE skill_id = ?1", [skill_id])?;
+            conn.execute("DELETE FROM skills WHERE id = ?1", [skill_id])?;
+        }
+
+        Ok(stale_skill_ids.len())
+    }
+
     pub fn register_existing_skills(db: &Database, skills_dir: &Path) -> Result<usize> {
         if !skills_dir.exists() {
             return Ok(0);
@@ -231,6 +254,28 @@ mod tests {
         assert_eq!(skills[0].id, "alpha");
         assert_eq!(skills[0].name, "alpha");
         assert_eq!(skills[0].local_path, skill_dir.to_string_lossy());
+
+        fs::remove_dir_all(root).ok();
+    }
+
+    #[test]
+    fn prunes_skill_rows_when_managed_folder_is_deleted() {
+        let root = unique_test_dir("prune-missing");
+        let skills_dir = root.join("skills");
+        let skill_dir = skills_dir.join("alpha");
+        fs::create_dir_all(&skill_dir).expect("create skill dir");
+        fs::write(skill_dir.join("SKILL.md"), "---\nname: Alpha\n---\n").expect("write skill file");
+
+        let db = Database::new(root.join("metadata.db")).expect("create test database");
+
+        SkillService::register_existing_skills(&db, &skills_dir).expect("register existing skills");
+        fs::remove_dir_all(&skill_dir).expect("remove managed skill dir");
+
+        let removed = SkillService::prune_missing_skills(&db).expect("prune missing skills");
+        let skills = SkillService::get_all_skills(&db).expect("load skills");
+
+        assert_eq!(removed, 1);
+        assert!(skills.is_empty());
 
         fs::remove_dir_all(root).ok();
     }
