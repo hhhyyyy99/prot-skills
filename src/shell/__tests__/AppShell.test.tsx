@@ -31,16 +31,18 @@ describe('AppShell', () => {
 
   it('shows My Skills page by default and removes Discovery from primary navigation', () => {
     const { getByRole, queryByRole } = renderShell();
-    expect(getByRole('heading', { name: 'My Skills' })).toBeInTheDocument();
+    expect(getByRole('heading', { name: 'Prot Skills' })).toBeInTheDocument();
+    expect(getByRole('button', { name: 'My Skills' })).toHaveAttribute('aria-current', 'page');
     expect(queryByRole('button', { name: 'Discovery' })).not.toBeInTheDocument();
   });
 
-  it('renders the app name in the window chrome', () => {
+  it('keeps the window chrome empty and shows app name below it', () => {
     const { getByRole } = renderShell();
     const chrome = getByRole('banner', { name: 'Application' });
 
-    expect(within(chrome).getByText('Prot Skills')).toBeInTheDocument();
+    expect(within(chrome).queryByText('Prot Skills')).not.toBeInTheDocument();
     expect(chrome).toHaveClass('bg-canvas');
+    expect(getByRole('heading', { name: 'Prot Skills' })).toBeInTheDocument();
   });
 
   it('switches to Tools on Mod+2 keydown', () => {
@@ -48,7 +50,8 @@ describe('AppShell', () => {
     act(() => {
       document.dispatchEvent(new KeyboardEvent('keydown', { key: '2', metaKey: true, ctrlKey: true, bubbles: true }));
     });
-    expect(getByRole('heading', { name: 'Tools' })).toBeInTheDocument();
+    expect(getByRole('heading', { name: 'Prot Skills' })).toBeInTheDocument();
+    expect(getByRole('button', { name: 'Tools' })).toHaveAttribute('aria-current', 'page');
   });
 
   it('renders app chrome in Simplified Chinese when preference is saved', () => {
@@ -56,6 +59,6 @@ describe('AppShell', () => {
     const { getByRole, getAllByText } = renderShell();
 
     expect(getAllByText('我的技能').length).toBeGreaterThan(0);
-    expect(getByRole('heading', { name: '我的技能' })).toBeInTheDocument();
+    expect(getByRole('heading', { name: 'Prot Skills' })).toBeInTheDocument();
   });
 });

@@ -42,8 +42,8 @@ describe('SettingsPage', () => {
   });
 
   it('About section contains Prot Skills', async () => {
-    const { getByText, findByText } = render(<SettingsPage />, { wrapper: Wrapper });
-    expect(getByText(appName)).toBeInTheDocument();
+    const { getAllByText, findByText } = render(<SettingsPage />, { wrapper: Wrapper });
+    expect(getAllByText(appName).length).toBeGreaterThan(0);
     await findByText('/Users/test/.prot-skills/skills');
   });
 

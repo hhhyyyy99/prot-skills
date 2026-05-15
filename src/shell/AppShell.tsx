@@ -56,13 +56,14 @@ export function AppShell() {
     <div className="app-shell h-screen flex flex-col bg-canvas text-text-primary" data-platform={platform}>
       <header
         aria-label={t('app.aria.application')}
-        className="app-titlebar flex h-[var(--topbar-height)] shrink-0 items-center gap-3 border-b border-border-subtle bg-canvas pl-[76px] pr-4"
-      >
-        <div className="flex min-w-0 flex-1 items-center">
-          <div className="truncate text-14 font-bold text-text-primary">{APP_NAME}</div>
-        </div>
+        className="app-titlebar h-[var(--topbar-height)] shrink-0 bg-canvas"
+      />
+      <div className="flex shrink-0 items-center justify-between gap-4 px-4 pb-1 pt-3">
+        <h1 className="inline-flex h-9 max-w-full items-center rounded-full border border-border-subtle bg-surface px-3.5 text-13 font-semibold text-text-primary shadow-card">
+          <span className="truncate">{APP_NAME}</span>
+        </h1>
         <PrimaryNav items={navItems} activeId={activePage} collapsed={navCollapsed} onNavigate={navigateTo} />
-      </header>
+      </div>
       <div className="flex-1 flex flex-col min-h-0 min-w-0">
         {activePage === 'settings' ? (
           <SettingsPage />

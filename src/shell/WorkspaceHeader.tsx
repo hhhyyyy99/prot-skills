@@ -21,20 +21,26 @@ export function WorkspaceHeader({ title, meta, leading, search, filters, primary
   }
 
   const visibleActions = primaryActions.length > 2 ? primaryActions.slice(0, 2) : primaryActions;
+  const showHeaderRow = Boolean(leading) || visibleActions.length > 0;
+  const showMetaRow = Boolean(meta) || Boolean(search) || Boolean(filters);
 
   return (
     <>
-      <header className="flex items-start justify-between gap-4 px-4 pt-5">
-        <div className="flex min-w-0 items-center gap-3">
-          {leading}
-          <h1 className="truncate text-20 font-bold leading-7 text-text-primary">{title}</h1>
+      <h2 className="sr-only" data-page-title={title}>{title}</h2>
+      {showHeaderRow && (
+        <header className="flex items-start justify-between gap-4 px-4 pt-1">
+          <div className="flex min-w-0 items-center gap-3">
+            {leading}
+          </div>
+          <div className="flex gap-2">{visibleActions}</div>
+        </header>
+      )}
+      {showMetaRow && (
+        <div className={`flex items-center justify-between gap-4 px-4 pb-4 ${showHeaderRow ? 'pt-2' : 'pt-1'}`}>
+          <span className="text-13 text-text-secondary truncate">{meta}</span>
+          <div className="flex items-center gap-2">{search}{filters}</div>
         </div>
-        <div className="flex gap-2">{visibleActions}</div>
-      </header>
-      <div className="flex items-center justify-between gap-4 px-4 pt-2 pb-4">
-        <span className="text-13 text-text-secondary truncate">{meta}</span>
-        <div className="flex items-center gap-2">{search}{filters}</div>
-      </div>
+      )}
     </>
   );
 }
