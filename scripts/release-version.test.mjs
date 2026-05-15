@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { releaseVersion } from './release-version.mjs';
 
 describe('releaseVersion', () => {
-  it('bumps a patch version, syncs app metadata, and commits the version files', async () => {
+  it('bumps a patch version, refreshes Cargo.lock, syncs app metadata, and commits the version files', async () => {
     const calls = [];
     const execFile = async (command, args) => {
       calls.push({ command, args });
@@ -26,6 +26,10 @@ describe('releaseVersion', () => {
       {
         command: 'pnpm',
         args: ['app:sync'],
+      },
+      {
+        command: 'cargo',
+        args: ['generate-lockfile', '--manifest-path', 'src-tauri/Cargo.toml'],
       },
       {
         command: 'git',
@@ -63,6 +67,10 @@ describe('releaseVersion', () => {
     expect(calls[0]).toEqual({
       command: 'pnpm',
       args: ['version', 'minor', '--no-git-tag-version'],
+    });
+    expect(calls[2]).toEqual({
+      command: 'cargo',
+      args: ['generate-lockfile', '--manifest-path', 'src-tauri/Cargo.toml'],
     });
     expect(calls.at(-1)).toEqual({
       command: 'git',

@@ -27,6 +27,10 @@ async function runGit(execFile, args) {
   return runCommand(execFile, 'git', args);
 }
 
+async function runCargo(execFile, args) {
+  return runCommand(execFile, 'cargo', args);
+}
+
 export async function releaseVersion({
   args = process.argv.slice(2),
   execFile = execFilePromise,
@@ -48,6 +52,7 @@ export async function releaseVersion({
   ]);
 
   await runPnpm(execFile, ['app:sync']);
+  await runCargo(execFile, ['generate-lockfile', '--manifest-path', 'src-tauri/Cargo.toml']);
   const nextVersion = normalizeVersionOutput(stdout);
 
   await runGit(execFile, ['add', ...versionFiles]);

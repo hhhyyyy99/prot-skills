@@ -115,6 +115,7 @@ pnpm release:tag v0.0.2
 
 - runs `pnpm version <level> --no-git-tag-version`
 - runs `pnpm app:sync`
+- regenerates `src-tauri/Cargo.lock`
 - stages `package.json`, `src-tauri/Cargo.toml`, `src-tauri/tauri.conf.json`, and `src-tauri/Cargo.lock`
 - creates `chore(release): bump version to X.Y.Z`
 - keeps package and Tauri metadata aligned
