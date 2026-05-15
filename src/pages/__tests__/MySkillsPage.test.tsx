@@ -1,4 +1,4 @@
-import { render, waitFor, fireEvent, within } from '@testing-library/react';
+import { render, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { getSkillLinks, getSkills, getTools, openFolder, setAllSkillToolLinks, setSkillToolLink, uninstallSkill } from '../../api';
@@ -95,26 +95,25 @@ describe('MySkillsPage', () => {
     expect(queryByText('Claude')).not.toBeInTheDocument();
     expect(queryByRole('tablist', { name: 'Installed skill filters' })).not.toBeInTheDocument();
     expect(getByLabelText('Test Skill linked tools')).toBeInTheDocument();
-    const syncAll = await findByRole('switch', { name: 'Sync Test Skill to all tools' });
-    const syncTargets = await findByRole('button', { name: 'Sync targets for Test Skill' });
-    expect(syncAll).toBeChecked();
+    const syncTargets = await findByRole('button', { name: 'Manage sync for Test Skill' });
     expect(await findByRole('button', { name: 'Open Test Skill folder' })).toBeInTheDocument();
     expect(await findByRole('button', { name: 'Uninstall Test Skill' })).toBeInTheDocument();
     expect(syncTargets).toBeInTheDocument();
-    expect(syncTargets.compareDocumentPosition(syncAll) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
-  it('rolls back sync-all switch when bulk link update rejects', async () => {
+  it('rolls back bulk sync action when syncing all tools rejects', async () => {
     vi.mocked(getSkills).mockResolvedValue([mockSkill]);
     vi.mocked(getTools).mockResolvedValue(mockTools);
     vi.mocked(getSkillLinks).mockResolvedValue([mockLink]);
     vi.mocked(setAllSkillToolLinks).mockRejectedValue(new Error('fail'));
-    const { findByLabelText } = renderPage();
-    const toggle = await findByLabelText('Sync Test Skill to all tools');
-    fireEvent.click(toggle);
+    const user = userEvent.setup();
+    const { findByRole } = renderPage();
+
+    await user.click(await findByRole('button', { name: 'Manage sync for Test Skill' }));
+    await user.click(await findByRole('button', { name: 'Remove all sync' }));
+
     await waitFor(() => {
       expect(setAllSkillToolLinks).toHaveBeenCalledWith('skill-1', false);
-      expect(toggle).toBeChecked();
     });
   });
 
@@ -146,15 +145,15 @@ describe('MySkillsPage', () => {
     const user = userEvent.setup();
     const { findByRole, findByText, queryByRole } = renderPage();
 
-    await user.click(await findByRole('button', { name: 'Sync targets for Test Skill' }));
+    await user.click(await findByRole('button', { name: 'Manage sync for Test Skill' }));
 
-    expect(await findByRole('dialog', { name: 'Sync Test Skill' })).toBeInTheDocument();
+    expect(await findByRole('dialog', { name: 'Manage sync for Test Skill' })).toBeInTheDocument();
     expect(await findByRole('tab', { name: 'All tools' })).toBeInTheDocument();
     expect(await findByText('Enabled tools')).toBeInTheDocument();
     expect(queryByRole('tab', { name: 'Pinned' })).not.toBeInTheDocument();
-    expect(queryByRole('button', { name: 'Link all' })).not.toBeInTheDocument();
-    expect(queryByRole('button', { name: 'Unlink all' })).not.toBeInTheDocument();
-    const dialog = await findByRole('dialog', { name: 'Sync Test Skill' });
+    expect(await findByRole('button', { name: 'Sync to all enabled tools' })).toBeInTheDocument();
+    expect(await findByRole('button', { name: 'Remove all sync' })).toBeInTheDocument();
+    const dialog = await findByRole('dialog', { name: 'Manage sync for Test Skill' });
     expect(within(dialog).getByLabelText('Claude')).toBeInTheDocument();
     const claudeLink = await findByRole('switch', { name: 'Link Test Skill to Claude' });
     expect(claudeLink).toBeChecked();
@@ -166,7 +165,7 @@ describe('MySkillsPage', () => {
     });
   });
 
-  it('can link and unlink all enabled tools from the row switch', async () => {
+  it('can link and unlink all enabled tools from modal bulk actions', async () => {
     const allLinks: SkillLink[] = [
       mockLink,
       {
@@ -210,17 +209,21 @@ describe('MySkillsPage', () => {
     const user = userEvent.setup();
     const { findByRole } = renderPage();
 
-    const syncAll = await findByRole('switch', { name: 'Sync Test Skill to all tools' });
-    expect(syncAll).not.toBeChecked();
+    await user.click(await findByRole('button', { name: 'Manage sync for Test Skill' }));
+    const syncAll = await findByRole('button', { name: 'Sync to all enabled tools' });
+    expect(syncAll).toBeEnabled();
 
     await user.click(syncAll);
 
     await waitFor(() => {
       expect(setAllSkillToolLinks).toHaveBeenCalledWith('skill-1', true);
     });
-    expect(syncAll).toBeChecked();
+    await waitFor(() => {
+      expect(syncAll).toBeDisabled();
+    });
 
-    await user.click(syncAll);
+    const removeAll = await findByRole('button', { name: 'Remove all sync' });
+    await user.click(removeAll);
 
     await waitFor(() => {
       expect(setAllSkillToolLinks).toHaveBeenCalledWith('skill-1', false);
@@ -249,7 +252,8 @@ describe('MySkillsPage', () => {
     const user = userEvent.setup();
     const { findByRole, findByText } = renderPage();
 
-    await user.click(await findByRole('switch', { name: 'Sync Test Skill to all tools' }));
+    await user.click(await findByRole('button', { name: 'Manage sync for Test Skill' }));
+    await user.click(await findByRole('button', { name: 'Sync to all enabled tools' }));
 
     expect(await findByText('Linked to 1 tools, 1 failed')).toBeInTheDocument();
     expect(await findByText('Codex (No write permission)')).toBeInTheDocument();
@@ -285,13 +289,14 @@ describe('MySkillsPage', () => {
     const user = userEvent.setup();
     const { findByRole, findByText } = renderPage();
 
-    const syncAll = await findByRole('switch', { name: 'Sync Test Skill to all tools' });
+    await user.click(await findByRole('button', { name: 'Manage sync for Test Skill' }));
+    const syncAll = await findByRole('button', { name: 'Sync to all enabled tools' });
     await user.click(syncAll);
 
     expect(await findByText('Failed to link to enabled tools')).toBeInTheDocument();
     expect(await findByText('Claude (No write permission), Codex (No write permission)')).toBeInTheDocument();
     await waitFor(() => {
-      expect(syncAll).not.toBeChecked();
+      expect(syncAll).toBeEnabled();
     });
   });
 

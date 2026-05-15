@@ -138,6 +138,10 @@ export function MySkillsPage() {
     return enabledTools.length > 0 && enabledTools.every(tool => isToolLinked(skillId, tool.id));
   }, [enabledTools, isToolLinked]);
 
+  const hasAnyLinkedEnabledTools = useCallback((skillId: string) => {
+    return enabledTools.some(tool => isToolLinked(skillId, tool.id));
+  }, [enabledTools, isToolLinked]);
+
   const handleOpenFolder = useCallback((skill: Skill) => {
     openFolder(skill.local_path).catch((e: unknown) => {
       toast({
@@ -366,12 +370,6 @@ export function MySkillsPage() {
                   >
                     {t('mySkills.syncTargets')}
                   </Button>
-                  <Switch
-                    checked={isLinkedToAllEnabledTools(skill.id)}
-                    onChange={(next) => setAllToolLinks(skill, next)}
-                    aria-label={t('mySkills.aria.syncAllTargets', { name: skill.name })}
-                    disabled={enabledTools.length === 0 || !skill.is_enabled}
-                  />
                 </span>
               }
             />
@@ -464,8 +462,26 @@ export function MySkillsPage() {
             </header>
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border-subtle bg-surface-raised/70 p-4">
               <FilterPills options={filterOptions} value={linkFilter} onChange={(value) => setLinkFilter(value as LinkFilter)} ariaLabel={t('mySkills.sync.allTools')} />
-              <div className="w-[240px] max-w-full">
-                <TextField type="search" size="sm" leadingIcon={<Search size={14} />} value={toolQuery} onChange={setToolQuery} placeholder={t('mySkills.sync.searchTools')} />
+              <div className="flex flex-wrap items-center justify-end gap-2">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => setAllToolLinks(syncSkill, true)}
+                  disabled={enabledTools.length === 0 || isLinkedToAllEnabledTools(syncSkill.id)}
+                >
+                  {t('mySkills.sync.linkAll')}
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setAllToolLinks(syncSkill, false)}
+                  disabled={!hasAnyLinkedEnabledTools(syncSkill.id)}
+                >
+                  {t('mySkills.sync.unlinkAll')}
+                </Button>
+                <div className="w-[240px] max-w-full">
+                  <TextField type="search" size="sm" leadingIcon={<Search size={14} />} value={toolQuery} onChange={setToolQuery} placeholder={t('mySkills.sync.searchTools')} />
+                </div>
               </div>
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto p-5">
