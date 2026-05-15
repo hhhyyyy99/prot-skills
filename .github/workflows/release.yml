@@ -91,5 +91,5 @@ jobs:
           releaseBody: ${{ env.RELEASE_NOTES }}
           releaseAssetNamePattern: "Prot-Skills-v[version]-[platform]-[arch][setup][ext]"
           generateReleaseNotes: true
-          releaseDraft: true
+          releaseDraft: false
           prerelease: false
