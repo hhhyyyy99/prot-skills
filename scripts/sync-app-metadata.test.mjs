@@ -145,4 +145,19 @@ describe('syncAppMetadata', () => {
     expect(cargoToml).toContain('name = "sample-app"\r\n');
     expect(cargoToml).toContain('version = "2.3.4"\r\n');
   });
+
+  it('treats CRLF tauri.conf.json as in sync when only line endings differ', async () => {
+    const rootDir = await mkdtemp(path.join(tmpdir(), 'sync-app-metadata-'));
+    await writeFixture(rootDir);
+    await syncAppMetadata({ rootDir });
+
+    const tauriConfigPath = path.join(rootDir, 'src-tauri', 'tauri.conf.json');
+    const tauriConfig = await readFile(tauriConfigPath, 'utf8');
+    await writeFile(tauriConfigPath, tauriConfig.replace(/\n/g, '\r\n'));
+
+    const result = await syncAppMetadata({ rootDir, check: true });
+
+    expect(result.inSync).toBe(true);
+    expect(result.changed).toEqual([]);
+  });
 });
