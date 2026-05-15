@@ -1,7 +1,7 @@
 # Release Notes
 
 This directory holds the versioned release notes that are published into each
-GitHub draft release.
+GitHub release.
 
 ## Naming
 
