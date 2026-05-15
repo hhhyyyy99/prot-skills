@@ -1,13 +1,1 @@
-#!/bin/sh
-node -e '
-const fs = require("fs");
-const s = fs.readFileSync(process.argv[1], "utf8").split("\n")[0].trim();
-if (!s) { console.error("Commit subject must not be empty."); process.exit(1); }
-if (s.length > 72) { console.error("Commit subject must be 72 characters or fewer."); process.exit(1); }
-const t = ["feat","fix","chore","docs","refactor","test","build","ci","style","perf","revert","design"];
-if (new RegExp("^(?:" + t.join("|") + ")(?:\\([^)]+\\))?!?: .+$").test(s)) process.exit(0);
-if (/^[A-Z][A-Za-z0-9"&(),\/:+ -]+$/.test(s) && s.includes(" ")) process.exit(0);
-if (/^(?:Merge|Revert|fixup!|squash!)/.test(s)) process.exit(0);
-console.error("Commit subject must use Conventional Commit format like feat(pages): add search or a short imperative subject like Add tool management actions.");
-process.exit(1);
-' "$1"
+npx --no -- commitlint --edit "$1"

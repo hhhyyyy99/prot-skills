@@ -1,0 +1,18 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["react", "import", "unicorn", "typescript", "oxc"],
+  "categories": {
+    "correctness": "error",
+    "suspicious": "warn",
+    "perf": "warn"
+  },
+  "rules": {
+    "no-unused-vars": "warn",
+    "react/react-in-jsx-scope": "off",
+    "unicorn/filename-case": "off",
+    "sort-imports": "off",
+    "import/no-unassigned-import": "off",
+    "func-style": "off"
+  },
+  "ignorePatterns": ["dist/", "node_modules/", "src-tauri/", "*.test.*"]
+}
