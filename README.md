@@ -198,6 +198,26 @@ Then the app should launch normally.
 | `pnpm audit:visual` | Run the visual audit script. |
 | `cd src-tauri && cargo test` | Run Rust tests. |
 
+## Releasing
+
+Desktop releases are published from git tags and use versioned release notes
+stored in the repository.
+
+```sh
+pnpm release:version patch
+cp docs/releases/TEMPLATE.md docs/releases/vX.Y.Z.md
+pnpm test
+pnpm build
+cd src-tauri && cargo test
+pnpm release:tag vX.Y.Z
+```
+
+The release workflow reads `docs/releases/vX.Y.Z.md` and publishes it into the
+draft GitHub Release for that tag. For the full checklist, see
+[`docs/releasing.md`](docs/releasing.md). Release assets are uploaded with a
+product-style filename pattern such as
+`Prot-Skills-v0.0.4-macos-aarch64.dmg`.
+
 ## Repository Structure
 
 ```text

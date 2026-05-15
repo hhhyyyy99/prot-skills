@@ -1,7 +1,7 @@
 # Prot Skills
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-![Tauri](https://img.shields.io/badge/Tauri-1.x-24C8DB)
+![Tauri](https://img.shields.io/badge/Tauri-2.x-24C8DB)
 ![React](https://img.shields.io/badge/React-18-61DAFB)
 ![Status](https://img.shields.io/badge/status-early%20development-orange)
 
@@ -103,7 +103,7 @@ Prot Skills 将受管 Skills 存放在：
 - TypeScript
 - Tailwind CSS
 - Radix UI primitives
-- Tauri 1.x
+- Tauri 2.x
 - Rust
 - SQLite via `rusqlite`
 - Vitest 与 Testing Library
@@ -113,7 +113,7 @@ Prot Skills 将受管 Skills 存放在：
 - Node.js 18 或更高版本
 - pnpm
 - Rust stable toolchain
-- Tauri 1.x 对应平台的系统依赖
+- Tauri 2.x 对应平台的系统依赖
 
 不同系统的 Tauri 依赖可能不同。macOS 通常需要 Rust toolchain 和 Xcode
 Command Line Tools；Linux 和 Windows 可能需要额外的 WebView 或系统包。
@@ -179,6 +179,25 @@ xattr -d com.apple.quarantine "/Applications/Prot Skills.app"
 | `pnpm test:tokens` | 校验设计 token 输出。 |
 | `pnpm audit:visual` | 运行视觉审计脚本。 |
 | `cd src-tauri && cargo test` | 运行 Rust 测试。 |
+
+## 发布流程
+
+桌面版本通过 git tag 发布，并从仓库内的版本说明文件生成 GitHub draft
+release。
+
+```sh
+pnpm release:version patch
+cp docs/releases/TEMPLATE.md docs/releases/vX.Y.Z.md
+pnpm test
+pnpm build
+cd src-tauri && cargo test
+pnpm release:tag vX.Y.Z
+```
+
+发布工作流会读取 `docs/releases/vX.Y.Z.md` 并写入对应 tag 的 draft
+release。完整清单见
+[`docs/releasing.md`](docs/releasing.md)。发布产物会使用更偏产品化的文件名，
+例如 `Prot-Skills-v0.0.4-macos-aarch64.dmg`。
 
 ## 仓库结构
 
