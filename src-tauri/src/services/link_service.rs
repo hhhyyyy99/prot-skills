@@ -41,27 +41,21 @@ impl LinkService {
 
     fn map_sync_error(error: &AppError) -> (String, String) {
         match error {
-            AppError::Io(io_error) if io_error.kind() == ErrorKind::PermissionDenied => {
-                (
-                    "permission_denied".to_string(),
-                    "No write permission".to_string(),
-                )
-            }
-            AppError::Path(message) if message.contains("does not exist") => {
-                (
-                    "path_missing".to_string(),
-                    "Tool directory does not exist".to_string(),
-                )
-            }
+            AppError::Io(io_error) if io_error.kind() == ErrorKind::PermissionDenied => (
+                "permission_denied".to_string(),
+                "No write permission".to_string(),
+            ),
+            AppError::Path(message) if message.contains("does not exist") => (
+                "path_missing".to_string(),
+                "Tool directory does not exist".to_string(),
+            ),
             AppError::Path(message) if message.contains("disabled") => {
                 ("tool_disabled".to_string(), "Tool is disabled".to_string())
             }
-            AppError::Path(message) if message.contains("not detected") => {
-                (
-                    "tool_not_detected".to_string(),
-                    "Tool is not detected".to_string(),
-                )
-            }
+            AppError::Path(message) if message.contains("not detected") => (
+                "tool_not_detected".to_string(),
+                "Tool is not detected".to_string(),
+            ),
             AppError::NotFound(message) => ("not_found".to_string(), message.clone()),
             AppError::Path(message) => ("path_error".to_string(), message.clone()),
             AppError::Other(message) => ("unknown".to_string(), message.clone()),
