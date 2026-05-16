@@ -12,6 +12,9 @@ permissions:
 jobs:
   check-and-approve:
     runs-on: ubuntu-latest
+    outputs:
+      ci_status: ${{ steps.wait.outputs.ci_status }}
+      review_status: ${{ steps.wait.outputs.review_status }}
     steps:
       - name: Wait for CI and AI review to complete
         id: wait
@@ -65,9 +68,10 @@ jobs:
             sleep 30
           done
 
-          # Save results using GITHUB_OUTPUT
-          echo "CI_STATUS=$ci_status" >> $GITHUB_OUTPUT
-          echo "REVIEW_STATUS=$review_status" >> $GITHUB_OUTPUT
+          # Save results using GITHUB_OUTPUT (not GITHUB_ENV)
+          echo "ci_status=$ci_status" >> $GITHUB_OUTPUT
+          echo "review_status=$review_status" >> $GITHUB_OUTPUT
+          echo "pr_branch=$pr_branch" >> $GITHUB_OUTPUT
 
       - name: Check conditions and approve
         if: always()
@@ -77,8 +81,8 @@ jobs:
           REPO: ${{ github.repository }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          CI_STATUS: ${{ steps.wait.outputs.CI_STATUS }}
-          REVIEW_STATUS: ${{ steps.wait.outputs.REVIEW_STATUS }}
+          CI_STATUS: ${{ steps.wait.outputs.ci_status }}
+          REVIEW_STATUS: ${{ steps.wait.outputs.review_status }}
         run: |
           echo "CI Status: $CI_STATUS"
           echo "AI Review Status: $REVIEW_STATUS"
