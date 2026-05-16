@@ -128,6 +128,7 @@ export function formatReviewComment(result) {
 }
 
 export async function findExistingIssueComment({ repo, pullRequestNumber, githubToken }) {
+  let latest = null;
   let page = 1;
 
   while (true) {
@@ -144,30 +145,25 @@ export async function findExistingIssueComment({ repo, pullRequestNumber, github
 
     const comments = await response.json();
     if (comments.length === 0) {
-      return null;
+      break;
     }
 
-    const existing = comments
-      .slice()
-      .reverse()
-      .find(
-        (comment) =>
-          typeof comment.body === "string" && comment.body.includes(AI_REVIEW_COMMENT_MARKER),
-      );
-
-    if (existing) {
-      return {
-        id: existing.id,
-        body: existing.body,
-      };
+    for (const comment of comments) {
+      if (typeof comment.body === "string" && comment.body.includes(AI_REVIEW_COMMENT_MARKER)) {
+        if (!latest || comment.id > latest.id) {
+          latest = { id: comment.id, body: comment.body };
+        }
+      }
     }
 
     if (comments.length < 100) {
-      return null;
+      break;
     }
 
     page += 1;
   }
+
+  return latest;
 }
 
 export async function createOrUpdateIssueComment({
