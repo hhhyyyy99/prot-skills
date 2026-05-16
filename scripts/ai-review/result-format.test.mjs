@@ -40,4 +40,34 @@ describe("normalizeReviewResult", () => {
       }),
     ).toThrow("AI review result is invalid");
   });
+
+  it("filters out findings below the configured confidence threshold", () => {
+    const result = normalizeReviewResult(
+      {
+        summary: "Mixed-confidence findings.",
+        findings: [
+          {
+            path: "src/app.ts",
+            line: 10,
+            severity: "important",
+            confidence: 79,
+            title: "Low-confidence issue",
+            body: "Should not survive filtering.",
+          },
+          {
+            path: "src/app.ts",
+            line: 12,
+            severity: "important",
+            confidence: 91,
+            title: "High-confidence issue",
+            body: "Should survive filtering.",
+          },
+        ],
+      },
+      { minConfidence: 80 },
+    );
+
+    expect(result.findings).toHaveLength(1);
+    expect(result.findings[0].title).toBe("High-confidence issue");
+  });
 });

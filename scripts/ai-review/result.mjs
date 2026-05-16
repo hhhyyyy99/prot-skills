@@ -33,7 +33,7 @@ function normalizeFinding(finding) {
   };
 }
 
-export function normalizeReviewResult(payload) {
+export function normalizeReviewResult(payload, options = {}) {
   if (
     !payload ||
     typeof payload !== "object" ||
@@ -43,8 +43,12 @@ export function normalizeReviewResult(payload) {
     throw new Error("AI review result is invalid");
   }
 
+  const minConfidence = Number.isFinite(options.minConfidence) ? options.minConfidence : 0;
+
   return {
     summary: payload.summary.trim(),
-    findings: payload.findings.map(normalizeFinding),
+    findings: payload.findings
+      .map(normalizeFinding)
+      .filter((finding) => finding.confidence >= minConfidence),
   };
 }

@@ -1,5 +1,8 @@
 const GITHUB_API_BASE = "https://api.github.com";
 const AI_REVIEW_COMMENT_MARKER = "## AI Review";
+const API_TIMEOUT_MS = 30_000;
+const MAX_RETRIES = 3;
+const RETRY_BASE_DELAY_MS = 1_000;
 
 function getHeaders(token) {
   return {
@@ -10,10 +13,38 @@ function getHeaders(token) {
   };
 }
 
+async function fetchWithRetry(url, options) {
+  let lastError;
+
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    if (attempt > 0) {
+      const delay = RETRY_BASE_DELAY_MS * 2 ** (attempt - 1);
+      await new Promise((resolve) => setTimeout(resolve, delay));
+    }
+
+    const response = await fetch(url, {
+      ...options,
+      signal: AbortSignal.timeout(API_TIMEOUT_MS),
+    });
+
+    if (response.status === 429 && attempt < MAX_RETRIES) {
+      lastError = new Error(`GitHub API rate limited (429)`);
+      continue;
+    }
+
+    return response;
+  }
+
+  throw lastError;
+}
+
 export async function getPullRequestContext({ repo, pullRequestNumber, githubToken }) {
-  const prResponse = await fetch(`${GITHUB_API_BASE}/repos/${repo}/pulls/${pullRequestNumber}`, {
-    headers: getHeaders(githubToken),
-  });
+  const prResponse = await fetchWithRetry(
+    `${GITHUB_API_BASE}/repos/${repo}/pulls/${pullRequestNumber}`,
+    {
+      headers: getHeaders(githubToken),
+    },
+  );
 
   if (!prResponse.ok) {
     throw new Error(`Failed to fetch pull request #${pullRequestNumber}`);
@@ -24,7 +55,7 @@ export async function getPullRequestContext({ repo, pullRequestNumber, githubTok
   let page = 1;
 
   while (true) {
-    const filesResponse = await fetch(
+    const filesResponse = await fetchWithRetry(
       `${GITHUB_API_BASE}/repos/${repo}/pulls/${pullRequestNumber}/files?per_page=100&page=${page}`,
       { headers: getHeaders(githubToken) },
     );
@@ -88,7 +119,7 @@ export async function findExistingIssueComment({ repo, pullRequestNumber, github
   let page = 1;
 
   while (true) {
-    const response = await fetch(
+    const response = await fetchWithRetry(
       `${GITHUB_API_BASE}/repos/${repo}/issues/${pullRequestNumber}/comments?per_page=100&page=${page}`,
       {
         headers: getHeaders(githubToken),
@@ -138,7 +169,7 @@ export async function createOrUpdateIssueComment({
     ? `${GITHUB_API_BASE}/repos/${repo}/issues/comments/${commentId}`
     : `${GITHUB_API_BASE}/repos/${repo}/issues/${pullRequestNumber}/comments`;
   const method = commentId ? "PATCH" : "POST";
-  const response = await fetch(url, {
+  const response = await fetchWithRetry(url, {
     method,
     headers: getHeaders(githubToken),
     body: JSON.stringify({ body }),

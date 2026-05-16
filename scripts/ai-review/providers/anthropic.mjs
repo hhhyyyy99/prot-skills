@@ -8,10 +8,12 @@ export async function generateAnthropicReview({
   model,
   systemPrompt,
   userPrompt,
+  minConfidence,
 }) {
   const client = new Anthropic({
     apiKey,
     baseURL: baseUrl,
+    timeout: 120_000,
   });
 
   const response = await client.messages.create({
@@ -27,5 +29,7 @@ export async function generateAnthropicReview({
     throw new Error("Anthropic review response did not include JSON content");
   }
 
-  return normalizeReviewResult(parseModelJson(content));
+  return normalizeReviewResult(parseModelJson(content), {
+    minConfidence,
+  });
 }
