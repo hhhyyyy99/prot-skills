@@ -13,6 +13,7 @@ describe("ai review prompts", () => {
     expect(prompt).toContain("Only report high-signal issues");
     expect(prompt).toContain("confidence score below 80");
     expect(prompt).toContain("Cap findings at 5");
+    expect(prompt).toContain("masked as ***");
   });
 
   it("builds a user prompt from PR metadata and changed files", () => {

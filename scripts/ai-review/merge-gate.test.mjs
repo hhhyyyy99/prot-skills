@@ -27,6 +27,7 @@ describe("AI review merge gate", () => {
         summary: "LGTM",
         findings: [],
       }),
+      existingCommentLoader: async () => null,
       commentWriter: async () => {},
     });
 
@@ -66,6 +67,7 @@ describe("AI review merge gate", () => {
           },
         ],
       }),
+      existingCommentLoader: async () => null,
       commentWriter: async () => {},
     });
 
@@ -113,6 +115,7 @@ describe("AI review merge gate", () => {
           },
         ],
       }),
+      existingCommentLoader: async () => null,
       commentWriter: async () => {},
     });
 

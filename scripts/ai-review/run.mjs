@@ -1,4 +1,9 @@
-import { createIssueComment, formatReviewComment, getPullRequestContext } from "./github.mjs";
+import {
+  createOrUpdateIssueComment,
+  findExistingIssueComment,
+  formatReviewComment,
+  getPullRequestContext,
+} from "./github.mjs";
 import { buildReviewPrompt, buildSystemPrompt } from "./prompt.mjs";
 import {
   getProviderConfig,
@@ -18,7 +23,8 @@ export async function runAIReview({
   env = process.env,
   pullRequestLoader = getPullRequestContext,
   providerClient,
-  commentWriter = createIssueComment,
+  existingCommentLoader = findExistingIssueComment,
+  commentWriter = createOrUpdateIssueComment,
 } = {}) {
   const repo = getRequiredEnvFrom(env, "REPO");
   const pullRequestNumber = Number.parseInt(getRequiredEnvFrom(env, "PR_NUMBER"), 10);
@@ -54,11 +60,17 @@ export async function runAIReview({
     ...result,
     passed: blockingFindings.length === 0,
   };
+  const existingComment = await existingCommentLoader({
+    repo,
+    pullRequestNumber,
+    githubToken,
+  });
 
   await commentWriter({
     repo,
     pullRequestNumber,
     githubToken,
+    commentId: existingComment?.id,
     body: formatReviewComment(gatedResult),
   });
 

@@ -39,7 +39,7 @@ For `openai` and `anthropic`, `AI_REVIEW_BASE_URL` is passed through to the offi
 - Runs on non-draft pull requests when they are opened, updated, reopened, or marked ready for review
 - Reads pull request metadata and changed file patches
 - Sends a review prompt to the configured provider
-- Posts a single PR comment with the AI review summary and findings
+- Creates or updates a single PR comment with the AI review summary and findings
 - Fails the `AI Review` workflow when blocking findings are returned
 
 ## Merge Protection

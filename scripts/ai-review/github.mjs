@@ -1,4 +1,5 @@
 const GITHUB_API_BASE = "https://api.github.com";
+const AI_REVIEW_COMMENT_MARKER = "## AI Review";
 
 function getHeaders(token) {
   return {
@@ -83,17 +84,67 @@ export function formatReviewComment(result) {
   ].join("\n");
 }
 
-export async function createIssueComment({ repo, pullRequestNumber, githubToken, body }) {
-  const response = await fetch(
-    `${GITHUB_API_BASE}/repos/${repo}/issues/${pullRequestNumber}/comments`,
-    {
-      method: "POST",
-      headers: getHeaders(githubToken),
-      body: JSON.stringify({ body }),
-    },
-  );
+export async function findExistingIssueComment({ repo, pullRequestNumber, githubToken }) {
+  let page = 1;
+
+  while (true) {
+    const response = await fetch(
+      `${GITHUB_API_BASE}/repos/${repo}/issues/${pullRequestNumber}/comments?per_page=100&page=${page}`,
+      {
+        headers: getHeaders(githubToken),
+      },
+    );
+
+    if (!response.ok) {
+      throw new Error(`Failed to list PR comments for pull request #${pullRequestNumber}`);
+    }
+
+    const comments = await response.json();
+    if (comments.length === 0) {
+      return null;
+    }
+
+    const existing = comments
+      .slice()
+      .reverse()
+      .find(
+        (comment) =>
+          typeof comment.body === "string" && comment.body.includes(AI_REVIEW_COMMENT_MARKER),
+      );
+
+    if (existing) {
+      return {
+        id: existing.id,
+        body: existing.body,
+      };
+    }
+
+    if (comments.length < 100) {
+      return null;
+    }
+
+    page += 1;
+  }
+}
+
+export async function createOrUpdateIssueComment({
+  repo,
+  pullRequestNumber,
+  githubToken,
+  body,
+  commentId,
+}) {
+  const url = commentId
+    ? `${GITHUB_API_BASE}/repos/${repo}/issues/comments/${commentId}`
+    : `${GITHUB_API_BASE}/repos/${repo}/issues/${pullRequestNumber}/comments`;
+  const method = commentId ? "PATCH" : "POST";
+  const response = await fetch(url, {
+    method,
+    headers: getHeaders(githubToken),
+    body: JSON.stringify({ body }),
+  });
 
   if (!response.ok) {
-    throw new Error(`Failed to create AI review comment on pull request #${pullRequestNumber}`);
+    throw new Error(`Failed to upsert AI review comment on pull request #${pullRequestNumber}`);
   }
 }

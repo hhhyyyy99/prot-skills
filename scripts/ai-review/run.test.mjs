@@ -42,6 +42,7 @@ describe("runAIReview", () => {
           },
         ],
       }),
+      existingCommentLoader: async () => null,
       commentWriter: async (comment) => {
         comments.push(comment);
       },
@@ -53,5 +54,44 @@ describe("runAIReview", () => {
     expect(comments[0].pullRequestNumber).toBe(7);
     expect(comments[0].body).toContain("## AI Review");
     expect(comments[0].body).toContain("Missing permission explanation");
+  });
+
+  it("updates an existing AI review comment instead of appending a new one", async () => {
+    const comments = [];
+
+    await runAIReview({
+      env: {
+        REPO: "hhhyyyy99/prot-skills",
+        PR_NUMBER: "7",
+        GITHUB_TOKEN: "github-token",
+        AI_REVIEW_PROVIDER: "openai",
+        AI_REVIEW_MODEL: "gpt-4.1-mini",
+        AI_REVIEW_API_KEY: "provider-key",
+      },
+      pullRequestLoader: async () => ({
+        pullRequest: {
+          number: 7,
+          title: "feat: add AI review automation",
+          body: "Adds a new workflow.",
+          baseRef: "main",
+          headRef: "feat/ai-review",
+        },
+        files: [],
+      }),
+      providerClient: async () => ({
+        summary: "LGTM",
+        findings: [],
+      }),
+      commentWriter: async (comment) => {
+        comments.push(comment);
+      },
+      existingCommentLoader: async () => ({
+        id: 42,
+        body: "## AI Review Passed",
+      }),
+    });
+
+    expect(comments).toHaveLength(1);
+    expect(comments[0].commentId).toBe(42);
   });
 });
