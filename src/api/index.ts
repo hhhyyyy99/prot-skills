@@ -1,15 +1,19 @@
-import { invoke as tauriInvoke } from '@tauri-apps/api/core';
-import type { Skill, LocalSkill, AITool, SkillLink, SyncSkillTargetsResult } from '../types';
+import { invoke as tauriInvoke } from "@tauri-apps/api/core";
+import type { Skill, LocalSkill, AITool, SkillLink, SyncSkillTargetsResult } from "../types";
 
 type InvokeArgs = Record<string, unknown> | undefined;
 
 function hasTauriRuntime() {
-  const internals = (globalThis as { __TAURI_INTERNALS__?: { invoke?: unknown } }).__TAURI_INTERNALS__;
-  return typeof internals?.invoke === 'function';
+  // eslint-disable-next-line eslint/no-underscore-dangle -- Tauri runtime global
+  const internals = (globalThis as { __TAURI_INTERNALS__?: { invoke?: unknown } })
+    .__TAURI_INTERNALS__;
+  return typeof internals?.invoke === "function";
 }
 
 function getTauriUnavailableError() {
-  return new Error('Desktop runtime unavailable. Open this screen in the Tauri app instead of the browser preview.');
+  return new Error(
+    "Desktop runtime unavailable. Open this screen in the Tauri app instead of the browser preview.",
+  );
 }
 
 function invoke<T>(command: string, args?: InvokeArgs): Promise<T> {
@@ -22,15 +26,15 @@ function invoke<T>(command: string, args?: InvokeArgs): Promise<T> {
 
 // Skill APIs
 export const getSkills = (): Promise<Skill[]> => {
-  return invoke('get_skills');
+  return invoke("get_skills");
 };
 
 export const installSkillFromLocal = (
   sourcePath: string,
   skillId: string,
-  name: string
+  name: string,
 ): Promise<Skill> => {
-  return invoke('install_skill_from_local', {
+  return invoke("install_skill_from_local", {
     sourcePath,
     skillId,
     name,
@@ -38,77 +42,74 @@ export const installSkillFromLocal = (
 };
 
 export const toggleSkill = (skillId: string, enabled: boolean): Promise<void> => {
-  return invoke('toggle_skill', { skillId, enabled });
+  return invoke("toggle_skill", { skillId, enabled });
 };
 
 export const uninstallSkill = (skillId: string): Promise<void> => {
-  return invoke('uninstall_skill', { skillId });
+  return invoke("uninstall_skill", { skillId });
 };
 
 export const getSkillLinks = (skillId: string): Promise<SkillLink[]> => {
-  return invoke('get_skill_links', { skillId });
+  return invoke("get_skill_links", { skillId });
 };
 
 export const setSkillToolLink = (
   skillId: string,
   toolId: string,
-  active: boolean
+  active: boolean,
 ): Promise<SkillLink | null> => {
-  return invoke('set_skill_tool_link', { skillId, toolId, active });
+  return invoke("set_skill_tool_link", { skillId, toolId, active });
 };
 
 export const setAllSkillToolLinks = (
   skillId: string,
-  active: boolean
+  active: boolean,
 ): Promise<SyncSkillTargetsResult> => {
-  return invoke('set_all_skill_tool_links', { skillId, active });
+  return invoke("set_all_skill_tool_links", { skillId, active });
 };
 
 export const scanLocalSkills = (toolId: string): Promise<LocalSkill[]> => {
-  return invoke('scan_local_skills', { toolId });
+  return invoke("scan_local_skills", { toolId });
 };
 
 export const scanAllLocalSkills = (toolIds: string[]): Promise<LocalSkill[]> => {
-  return invoke('scan_all_local_skills', { toolIds });
+  return invoke("scan_all_local_skills", { toolIds });
 };
 
-export const migrateLocalSkill = (
-  sourcePath: string,
-  skillId: string
-): Promise<Skill> => {
-  return invoke('migrate_local_skill', { sourcePath, skillId });
+export const migrateLocalSkill = (sourcePath: string, skillId: string): Promise<Skill> => {
+  return invoke("migrate_local_skill", { sourcePath, skillId });
 };
 
 // Tool APIs
 export const getTools = (): Promise<AITool[]> => {
-  return invoke('get_tools');
+  return invoke("get_tools");
 };
 
 export const detectTools = (): Promise<AITool[]> => {
-  return invoke('detect_tools');
+  return invoke("detect_tools");
 };
 
 export const toggleTool = (toolId: string, enabled: boolean): Promise<void> => {
-  return invoke('toggle_tool', { toolId, enabled });
+  return invoke("toggle_tool", { toolId, enabled });
 };
 
 export const updateToolPath = (toolId: string, customPath: string): Promise<void> => {
-  return invoke('update_tool_path', { toolId, customPath });
+  return invoke("update_tool_path", { toolId, customPath });
 };
 
 export const addTool = (id: string, name: string, configPath: string): Promise<AITool> => {
-  return invoke('add_tool', { id, name, configPath });
+  return invoke("add_tool", { id, name, configPath });
 };
 
 export const deleteTool = (toolId: string): Promise<void> => {
-  return invoke('delete_tool', { toolId });
+  return invoke("delete_tool", { toolId });
 };
 
 // Filesystem / path APIs
 export const openFolder = (path: string): Promise<void> => {
-  return invoke('open_folder', { path });
+  return invoke("open_folder", { path });
 };
 
 export const getSkillsDirPath = (): Promise<string> => {
-  return invoke('get_skills_dir_path');
+  return invoke("get_skills_dir_path");
 };

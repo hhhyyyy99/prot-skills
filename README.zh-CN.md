@@ -50,19 +50,19 @@ Prot Skills 的目标是提供：
 
 Prot Skills 当前内置以下检测规则：
 
-| 工具 | 默认配置目录 | Skills 子目录 |
-| --- | --- | --- |
-| Cursor | `~/.cursor` | `skills` |
-| Trae | `~/.trae` | `skills` |
-| Trae CN | `~/.trae-cn` | `skills` |
-| Claude | `~/.claude` | `skills` |
-| Kiro | `~/.kiro` | `skills` |
-| Codex | `~/.codex` | `skills` |
-| OpenCode | `~/.opencode` | `skills` |
-| Windsurf | `~/.windsurf` | `skills` |
-| Aider | `~/.aider` | `skills` |
-| Continue | `~/.continue` | `skills` |
-| Codeium | `~/.codeium` | `skills` |
+| 工具     | 默认配置目录  | Skills 子目录 |
+| -------- | ------------- | ------------- |
+| Cursor   | `~/.cursor`   | `skills`      |
+| Trae     | `~/.trae`     | `skills`      |
+| Trae CN  | `~/.trae-cn`  | `skills`      |
+| Claude   | `~/.claude`   | `skills`      |
+| Kiro     | `~/.kiro`     | `skills`      |
+| Codex    | `~/.codex`    | `skills`      |
+| OpenCode | `~/.opencode` | `skills`      |
+| Windsurf | `~/.windsurf` | `skills`      |
+| Aider    | `~/.aider`    | `skills`      |
+| Continue | `~/.continue` | `skills`      |
+| Codeium  | `~/.codeium`  | `skills`      |
 
 你也可以在 Tools 页面添加自定义工具。当前自定义工具默认使用 `skills` 作为
 Skills 子目录。
@@ -168,17 +168,17 @@ xattr -d com.apple.quarantine "/Applications/Prot Skills.app"
 
 ## 开发命令
 
-| 命令 | 说明 |
-| --- | --- |
-| `pnpm dev` | 启动 Vite 开发服务。 |
-| `pnpm tauri:dev` | 以开发模式运行 Tauri 桌面应用。 |
-| `pnpm build` | 执行 TypeScript 检查并构建前端。 |
-| `pnpm preview` | 预览生产构建结果。 |
-| `pnpm test` | 运行一次 Vitest 测试。 |
-| `pnpm test:watch` | 以 watch 模式运行 Vitest。 |
-| `pnpm test:tokens` | 校验设计 token 输出。 |
-| `pnpm audit:visual` | 运行视觉审计脚本。 |
-| `cd src-tauri && cargo test` | 运行 Rust 测试。 |
+| 命令                         | 说明                             |
+| ---------------------------- | -------------------------------- |
+| `pnpm dev`                   | 启动 Vite 开发服务。             |
+| `pnpm tauri:dev`             | 以开发模式运行 Tauri 桌面应用。  |
+| `pnpm build`                 | 执行 TypeScript 检查并构建前端。 |
+| `pnpm preview`               | 预览生产构建结果。               |
+| `pnpm test`                  | 运行一次 Vitest 测试。           |
+| `pnpm test:watch`            | 以 watch 模式运行 Vitest。       |
+| `pnpm test:tokens`           | 校验设计 token 输出。            |
+| `pnpm audit:visual`          | 运行视觉审计脚本。               |
+| `cd src-tauri && cargo test` | 运行 Rust 测试。                 |
 
 ## 发布流程
 

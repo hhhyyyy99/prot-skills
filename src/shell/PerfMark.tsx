@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect } from "react";
 
 /**
  * Dev-only performance mark. 在首次 mount 时记录 `interactive` 标记与耗时。
@@ -8,9 +8,9 @@ import { useEffect } from 'react';
 export function PerfMark() {
   useEffect(() => {
     if (!import.meta.env.DEV) return;
-    if (typeof performance === 'undefined') return;
+    if (typeof performance === "undefined") return;
     try {
-      performance.mark('app-shell:interactive');
+      performance.mark("app-shell:interactive");
       const ms = Math.round(performance.now());
       // eslint-disable-next-line no-console
       console.info(`[perf] app-shell interactive at ${ms}ms`);

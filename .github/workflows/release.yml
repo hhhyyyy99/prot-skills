@@ -18,21 +18,60 @@ env:
   RELEASE_NOTES_DIR: docs/releases
 
 jobs:
-  release:
-    name: Build ${{ matrix.platform }}
-    runs-on: ${{ matrix.platform }}
+  # ── 1. Create the GitHub Release first (single job) ──────────────
+  create_release:
+    name: Create GitHub Release
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
 
+      - name: Load release notes
+        shell: bash
+        run: |
+          notes_file="${RELEASE_NOTES_DIR}/${GITHUB_REF_NAME}.md"
+          if [[ ! -f "$notes_file" ]]; then
+            echo "Missing release notes file: $notes_file" >&2
+            exit 1
+          fi
+          {
+            echo "RELEASE_NOTES<<EOF"
+            cat "$notes_file"
+            echo
+            echo "EOF"
+          } >> "$GITHUB_ENV"
+
+      - name: Create Release
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "$RELEASE_NOTES" > /tmp/release-notes.md
+          gh release create "$GITHUB_REF_NAME" \
+            --title "Prot Skills $GITHUB_REF_NAME" \
+            --notes-file /tmp/release-notes.md \
+            --verify-tag
+
+  # ── 2. Build & upload per platform (parallel, after release exists) ─
+  release:
+    name: Build ${{ matrix.os_label }}
+    needs: create_release
+    runs-on: ${{ matrix.platform }}
     strategy:
       fail-fast: false
       matrix:
-        platform:
-          - macos-latest
-          - ubuntu-22.04
-          - windows-latest
+        include:
+          - platform: macos-latest
+            os_label: macOS
+            arch_label: ""
+          - platform: ubuntu-22.04
+            os_label: Linux
+            arch_label: "-x86_64"
+          - platform: windows-latest
+            os_label: Windows
+            arch_label: "-x86_64"
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -51,24 +90,13 @@ jobs:
       - name: Check app metadata
         run: pnpm app:check
 
-      - name: Load release notes
-        shell: bash
-        run: |
-          notes_file="${RELEASE_NOTES_DIR}/${GITHUB_REF_NAME}.md"
-          if [[ ! -f "$notes_file" ]]; then
-            echo "Missing release notes file: $notes_file" >&2
-            exit 1
-          fi
-
-          {
-            echo "RELEASE_NOTES<<EOF"
-            cat "$notes_file"
-            echo
-            echo "EOF"
-          } >> "$GITHUB_ENV"
-
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "src-tauri"
 
       - name: Install Linux dependencies
         if: matrix.platform == 'ubuntu-22.04'
@@ -81,15 +109,28 @@ jobs:
             librsvg2-dev \
             patchelf
 
-      - name: Build and publish Tauri release assets
-        uses: tauri-apps/tauri-action@v0
+      - name: Build Tauri app
+        shell: bash
+        run: pnpm tauri build
+
+      - name: Package release assets
+        shell: bash
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          node scripts/package-release-assets.mjs \
+            "$VERSION" \
+            "${{ matrix.os_label }}" \
+            "${{ matrix.arch_label }}" \
+            "src-tauri/target/release/bundle" \
+            "release-artifacts"
+
+      - name: Upload assets to release
+        shell: bash
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tagName: ${{ github.ref_name }}
-          releaseName: "Prot Skills ${{ github.ref_name }}"
-          releaseBody: ${{ env.RELEASE_NOTES }}
-          releaseAssetNamePattern: "Prot-Skills-v[version]-[platform]-[arch][setup][ext]"
-          generateReleaseNotes: true
-          releaseDraft: false
-          prerelease: false
+        run: |
+          echo "=== Release assets ==="
+          ls -lh release-artifacts/
+          gh release upload "$GITHUB_REF_NAME" \
+            release-artifacts/* \
+            --clobber

@@ -59,19 +59,19 @@ Prot Skills aims to provide:
 
 Prot Skills currently includes built-in detection rules for:
 
-| Tool | Default config directory | Skills subdirectory |
-| --- | --- | --- |
-| Cursor | `~/.cursor` | `skills` |
-| Trae | `~/.trae` | `skills` |
-| Trae CN | `~/.trae-cn` | `skills` |
-| Claude | `~/.claude` | `skills` |
-| Kiro | `~/.kiro` | `skills` |
-| Codex | `~/.codex` | `skills` |
-| OpenCode | `~/.opencode` | `skills` |
-| Windsurf | `~/.windsurf` | `skills` |
-| Aider | `~/.aider` | `skills` |
-| Continue | `~/.continue` | `skills` |
-| Codeium | `~/.codeium` | `skills` |
+| Tool     | Default config directory | Skills subdirectory |
+| -------- | ------------------------ | ------------------- |
+| Cursor   | `~/.cursor`              | `skills`            |
+| Trae     | `~/.trae`                | `skills`            |
+| Trae CN  | `~/.trae-cn`             | `skills`            |
+| Claude   | `~/.claude`              | `skills`            |
+| Kiro     | `~/.kiro`                | `skills`            |
+| Codex    | `~/.codex`               | `skills`            |
+| OpenCode | `~/.opencode`            | `skills`            |
+| Windsurf | `~/.windsurf`            | `skills`            |
+| Aider    | `~/.aider`               | `skills`            |
+| Continue | `~/.continue`            | `skills`            |
+| Codeium  | `~/.codeium`             | `skills`            |
 
 Custom tools can be added from the Tools screen. Custom tools currently use
 `skills` as their Skills subdirectory.
@@ -186,17 +186,17 @@ Then the app should launch normally.
 
 ## Development Commands
 
-| Command | Description |
-| --- | --- |
-| `pnpm dev` | Start the Vite development server. |
-| `pnpm tauri:dev` | Run the Tauri desktop app in development mode. |
-| `pnpm build` | Run TypeScript checks and build the frontend. |
-| `pnpm preview` | Preview the production frontend build. |
-| `pnpm test` | Run the Vitest suite once. |
-| `pnpm test:watch` | Run Vitest in watch mode. |
-| `pnpm test:tokens` | Validate design token output. |
-| `pnpm audit:visual` | Run the visual audit script. |
-| `cd src-tauri && cargo test` | Run Rust tests. |
+| Command                      | Description                                    |
+| ---------------------------- | ---------------------------------------------- |
+| `pnpm dev`                   | Start the Vite development server.             |
+| `pnpm tauri:dev`             | Run the Tauri desktop app in development mode. |
+| `pnpm build`                 | Run TypeScript checks and build the frontend.  |
+| `pnpm preview`               | Preview the production frontend build.         |
+| `pnpm test`                  | Run the Vitest suite once.                     |
+| `pnpm test:watch`            | Run Vitest in watch mode.                      |
+| `pnpm test:tokens`           | Validate design token output.                  |
+| `pnpm audit:visual`          | Run the visual audit script.                   |
+| `cd src-tauri && cargo test` | Run Rust tests.                                |
 
 ## Releasing
 

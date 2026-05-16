@@ -1,5 +1,5 @@
-import { startTransition, useEffect, useState, useCallback, useRef, useMemo } from 'react';
-import { FolderOpen, RefreshCw, Search, Trash2, X } from 'lucide-react';
+import { startTransition, useEffect, useState, useCallback, useRef, useMemo } from "react";
+import { FolderOpen, RefreshCw, Search, Trash2, X } from "lucide-react";
 import {
   getSkillLinks,
   getSkills,
@@ -8,25 +8,25 @@ import {
   setAllSkillToolLinks,
   setSkillToolLink,
   uninstallSkill,
-} from '../api';
-import { filterSkills } from '../lib/filter';
-import { useToast } from '../hooks/useToast';
-import { WorkspaceHeader } from '../shell/WorkspaceHeader';
-import { useI18n } from '../shell/LanguageProvider';
-import { TextField } from '../components/primitives/TextField';
-import { Switch } from '../components/primitives/Switch';
-import { Badge } from '../components/primitives/Badge';
-import { Button } from '../components/primitives/Button';
-import { IconButton } from '../components/primitives/IconButton';
-import { ToolIcon } from '../components/primitives/ToolIcon';
-import { ListRow } from '../components/patterns/ListRow';
-import { InlineError } from '../components/patterns/InlineError';
-import { EmptyState } from '../components/patterns/EmptyState';
-import { FilterPills } from '../components/patterns/FilterPills';
-import { StatsStrip } from '../components/patterns/StatsStrip';
-import type { AITool, Skill, SkillLink, SyncFailureItem, SyncSkillTargetsResult } from '../types';
+} from "../api";
+import { filterSkills } from "../lib/filter";
+import { useToast } from "../hooks/useToast";
+import { WorkspaceHeader } from "../shell/WorkspaceHeader";
+import { useI18n } from "../shell/LanguageProvider";
+import { TextField } from "../components/primitives/TextField";
+import { Switch } from "../components/primitives/Switch";
+import { Badge } from "../components/primitives/Badge";
+import { Button } from "../components/primitives/Button";
+import { IconButton } from "../components/primitives/IconButton";
+import { ToolIcon } from "../components/primitives/ToolIcon";
+import { ListRow } from "../components/patterns/ListRow";
+import { InlineError } from "../components/patterns/InlineError";
+import { EmptyState } from "../components/patterns/EmptyState";
+import { FilterPills } from "../components/patterns/FilterPills";
+import { StatsStrip } from "../components/patterns/StatsStrip";
+import type { AITool, Skill, SkillLink, SyncFailureItem, SyncSkillTargetsResult } from "../types";
 
-type LinkFilter = 'all' | 'linked' | 'unlinked';
+type LinkFilter = "all" | "linked" | "unlinked";
 
 interface BulkSyncProgress {
   done: number;
@@ -39,7 +39,7 @@ interface BulkSyncSummary {
   fail: number;
 }
 
-const LOCAL_SOURCE = 'local';
+const LOCAL_SOURCE = "local";
 const STATUS_FLUSH_INTERVAL = 1;
 
 function isLocalSource(sourceType: string) {
@@ -48,7 +48,7 @@ function isLocalSource(sourceType: string) {
 
 function yieldToBrowser() {
   return new Promise<void>((resolve) => {
-    if (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') {
+    if (typeof window !== "undefined" && typeof window.requestAnimationFrame === "function") {
       window.requestAnimationFrame(() => resolve());
       return;
     }
@@ -58,20 +58,18 @@ function yieldToBrowser() {
 
 function buildSyncFailureDescription(
   failures: SyncFailureItem[],
-  t: (key: string, params?: Record<string, string | number>) => string
+  t: (key: string, params?: Record<string, string | number>) => string,
 ) {
   if (failures.length === 0) return undefined;
 
   const visibleFailures = failures.slice(0, 3);
   const items = visibleFailures
     .map((failure) => `${failure.tool_name} (${failure.reason})`)
-    .join(', ');
+    .join(", ");
   const extraCount = failures.length - visibleFailures.length;
-  const more = extraCount > 0
-    ? t('mySkills.toast.syncFailuresMore', { count: extraCount })
-    : '';
+  const more = extraCount > 0 ? t("mySkills.toast.syncFailuresMore", { count: extraCount }) : "";
 
-  return t('mySkills.toast.syncFailures', { items, more });
+  return t("mySkills.toast.syncFailures", { items, more });
 }
 
 export function MySkillsPage() {
@@ -79,15 +77,15 @@ export function MySkillsPage() {
   const [skills, setSkills] = useState<Skill[]>([]);
   const [tools, setTools] = useState<AITool[]>([]);
   const [linksBySkill, setLinksBySkill] = useState<Record<string, SkillLink[]>>({});
-  const [q, setQ] = useState('');
-  const [sourceType, setSourceType] = useState('all');
+  const [q, setQ] = useState("");
+  const [sourceType, setSourceType] = useState("all");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [refreshTick, setRefreshTick] = useState(0);
   const [confirmSkillId, setConfirmSkillId] = useState<string | null>(null);
   const [syncSkillId, setSyncSkillId] = useState<string | null>(null);
-  const [toolQuery, setToolQuery] = useState('');
-  const [linkFilter, setLinkFilter] = useState<LinkFilter>('all');
+  const [toolQuery, setToolQuery] = useState("");
+  const [linkFilter, setLinkFilter] = useState<LinkFilter>("all");
   const [bulkSyncing, setBulkSyncing] = useState(false);
   const [bulkSyncConfirmOpen, setBulkSyncConfirmOpen] = useState(false);
   const [bulkSyncProgress, setBulkSyncProgress] = useState<BulkSyncProgress | null>(null);
@@ -110,13 +108,13 @@ export function MySkillsPage() {
               return [skill.id, links] as const;
             } catch (e) {
               toast({
-                variant: 'error',
-                title: t('mySkills.error.links'),
+                variant: "error",
+                title: t("mySkills.error.links"),
                 description: String((e as Error).message ?? e),
               });
               return [skill.id, []] as const;
             }
-          })
+          }),
         );
         setLinksBySkill(Object.fromEntries(linkEntries));
       })
@@ -124,7 +122,9 @@ export function MySkillsPage() {
       .finally(() => setLoading(false));
   }, [toast, t]);
 
-  useEffect(() => { refresh(); }, [refresh, refreshTick]);
+  useEffect(() => {
+    refresh();
+  }, [refresh, refreshTick]);
 
   useEffect(() => {
     return () => {
@@ -133,198 +133,243 @@ export function MySkillsPage() {
   }, []);
 
   const visible = useMemo(() => filterSkills(skills, q, sourceType), [skills, q, sourceType]);
-  const enabledCount = useMemo(() => skills.filter(s => s.is_enabled).length, [skills]);
+  const enabledCount = useMemo(() => skills.filter((s) => s.is_enabled).length, [skills]);
   const linkCount = useMemo(
-    () => Object.values(linksBySkill).reduce((sum, links) => sum + links.filter(link => link.is_active).length, 0),
-    [linksBySkill]
+    () =>
+      Object.values(linksBySkill).reduce(
+        (sum, links) => sum + links.filter((link) => link.is_active).length,
+        0,
+      ),
+    [linksBySkill],
   );
-  const enabledTools = useMemo(() => tools.filter(tool => tool.is_enabled), [tools]);
-  const syncSkill = useMemo(() => skills.find(skill => skill.id === syncSkillId) ?? null, [skills, syncSkillId]);
+  const enabledTools = useMemo(() => tools.filter((tool) => tool.is_enabled), [tools]);
+  const syncSkill = useMemo(
+    () => skills.find((skill) => skill.id === syncSkillId) ?? null,
+    [skills, syncSkillId],
+  );
 
   const sourceOptions = useMemo(() => {
-    const types = [...new Set(skills.map(s => s.source_type).filter(type => !isLocalSource(type)))];
-    return [{ value: 'all', label: t('mySkills.filters.all') }, ...types.map(type => ({ value: type, label: type }))];
+    const types = [
+      ...new Set(skills.map((s) => s.source_type).filter((type) => !isLocalSource(type))),
+    ];
+    return [
+      { value: "all", label: t("mySkills.filters.all") },
+      ...types.map((type) => ({ value: type, label: type })),
+    ];
   }, [skills, t]);
   const showSourceFilters = sourceOptions.length > 1;
 
-  const getActiveLinks = useCallback((skillId: string) => {
-    return (linksBySkill[skillId] ?? []).filter(link => link.is_active);
-  }, [linksBySkill]);
-
-  const getLinkedTools = useCallback((skillId: string) => {
-    const linkedToolIds = new Set(getActiveLinks(skillId).map((link) => link.tool_id));
-    return tools.filter((tool) => linkedToolIds.has(tool.id));
-  }, [getActiveLinks, tools]);
-
-  const isToolLinked = useCallback((skillId: string, toolId: string) => {
-    return getActiveLinks(skillId).some(link => link.tool_id === toolId);
-  }, [getActiveLinks]);
-
-  const isLinkedToAllEnabledTools = useCallback((skillId: string) => {
-    return enabledTools.length > 0 && enabledTools.every(tool => isToolLinked(skillId, tool.id));
-  }, [enabledTools, isToolLinked]);
-
-  const hasAnyLinkedEnabledTools = useCallback((skillId: string) => {
-    return enabledTools.some(tool => isToolLinked(skillId, tool.id));
-  }, [enabledTools, isToolLinked]);
-
-  const bulkSyncableSkills = useMemo(
-    () => visible.filter((skill) => skill.is_enabled),
-    [visible]
+  const getActiveLinks = useCallback(
+    (skillId: string) => {
+      return (linksBySkill[skillId] ?? []).filter((link) => link.is_active);
+    },
+    [linksBySkill],
   );
 
-  const handleOpenFolder = useCallback((skill: Skill) => {
-    openFolder(skill.local_path).catch((e: unknown) => {
-      toast({
-        variant: 'error',
-        title: t('mySkills.error.openFolder'),
-        description: String((e as Error).message ?? e),
-      });
-    });
-  }, [toast, t]);
+  const getLinkedTools = useCallback(
+    (skillId: string) => {
+      const linkedToolIds = new Set(getActiveLinks(skillId).map((link) => link.tool_id));
+      return tools.filter((tool) => linkedToolIds.has(tool.id));
+    },
+    [getActiveLinks, tools],
+  );
 
-  const confirmUninstall = useCallback((skill: Skill) => {
-    if (confirmSkillId !== skill.id) {
-      setConfirmSkillId(skill.id);
-      if (confirmTimer.current) clearTimeout(confirmTimer.current);
-      confirmTimer.current = setTimeout(() => setConfirmSkillId(null), 3000);
-      return;
-    }
+  const isToolLinked = useCallback(
+    (skillId: string, toolId: string) => {
+      return getActiveLinks(skillId).some((link) => link.tool_id === toolId);
+    },
+    [getActiveLinks],
+  );
 
-    if (confirmTimer.current) clearTimeout(confirmTimer.current);
-    setConfirmSkillId(null);
-    uninstallSkill(skill.id)
-      .then(() => {
-        setSkills(ss => ss.filter(s => s.id !== skill.id));
-        setLinksBySkill(current => {
-          const next = { ...current };
-          delete next[skill.id];
-          return next;
+  const isLinkedToAllEnabledTools = useCallback(
+    (skillId: string) => {
+      return (
+        enabledTools.length > 0 && enabledTools.every((tool) => isToolLinked(skillId, tool.id))
+      );
+    },
+    [enabledTools, isToolLinked],
+  );
+
+  const hasAnyLinkedEnabledTools = useCallback(
+    (skillId: string) => {
+      return enabledTools.some((tool) => isToolLinked(skillId, tool.id));
+    },
+    [enabledTools, isToolLinked],
+  );
+
+  const bulkSyncableSkills = useMemo(() => visible.filter((skill) => skill.is_enabled), [visible]);
+
+  const handleOpenFolder = useCallback(
+    (skill: Skill) => {
+      openFolder(skill.local_path).catch((e: unknown) => {
+        toast({
+          variant: "error",
+          title: t("mySkills.error.openFolder"),
+          description: String((e as Error).message ?? e),
         });
-        if (syncSkillId === skill.id) setSyncSkillId(null);
-      })
-      .catch((e: unknown) => {
-        toast({ variant: 'error', title: t('mySkills.error.uninstall'), description: String((e as Error).message ?? e) });
       });
-  }, [confirmSkillId, syncSkillId, toast, t]);
+    },
+    [toast, t],
+  );
+
+  const confirmUninstall = useCallback(
+    (skill: Skill) => {
+      if (confirmSkillId !== skill.id) {
+        setConfirmSkillId(skill.id);
+        if (confirmTimer.current) clearTimeout(confirmTimer.current);
+        confirmTimer.current = setTimeout(() => setConfirmSkillId(null), 3000);
+        return;
+      }
+
+      if (confirmTimer.current) clearTimeout(confirmTimer.current);
+      setConfirmSkillId(null);
+      uninstallSkill(skill.id)
+        .then(() => {
+          setSkills((ss) => ss.filter((s) => s.id !== skill.id));
+          setLinksBySkill((current) => {
+            const next = { ...current };
+            delete next[skill.id];
+            return next;
+          });
+          if (syncSkillId === skill.id) setSyncSkillId(null);
+        })
+        .catch((e: unknown) => {
+          toast({
+            variant: "error",
+            title: t("mySkills.error.uninstall"),
+            description: String((e as Error).message ?? e),
+          });
+        });
+    },
+    [confirmSkillId, syncSkillId, toast, t],
+  );
 
   const openSyncDialog = useCallback((skillId: string) => {
     setSyncSkillId(skillId);
-    setToolQuery('');
-    setLinkFilter('all');
+    setToolQuery("");
+    setLinkFilter("all");
   }, []);
 
   const closeSyncDialog = useCallback(() => setSyncSkillId(null), []);
 
-  const toggleToolLink = useCallback((skill: Skill, tool: AITool, active: boolean) => {
-    const prev = linksBySkill;
-    const previousLinks = prev[skill.id] ?? [];
-    const optimisticLink: SkillLink = {
-      id: Date.now(),
-      skill_id: skill.id,
-      tool_id: tool.id,
-      link_path: `${tool.config_path}/${tool.skills_subdir}/${skill.id}`,
-      is_active: true,
-      created_at: new Date().toISOString(),
-    };
-
-    setLinksBySkill(current => {
-      const existing = current[skill.id] ?? [];
-      const nextLinks = active
-        ? [...existing.filter(link => link.tool_id !== tool.id), optimisticLink]
-        : existing.filter(link => link.tool_id !== tool.id);
-      return { ...current, [skill.id]: nextLinks };
-    });
-
-    setSkillToolLink(skill.id, tool.id, active)
-      .then((link) => {
-        setLinksBySkill(current => {
-          const existing = current[skill.id] ?? [];
-          const nextLinks = active && link
-            ? [...existing.filter(item => item.tool_id !== tool.id), link]
-            : existing.filter(item => item.tool_id !== tool.id);
-          return { ...current, [skill.id]: nextLinks };
-        });
-        toast({
-          variant: 'success',
-          title: active
-            ? t('mySkills.toast.linked', { skill: skill.name, tool: tool.name })
-            : t('mySkills.toast.unlinked', { tool: tool.name }),
-        });
-      })
-      .catch((e: unknown) => {
-        setLinksBySkill(current => ({ ...current, [skill.id]: previousLinks }));
-        toast({
-          variant: 'error',
-          title: t('mySkills.error.linkUpdate'),
-          description: String((e as Error).message ?? e),
-        });
-      });
-  }, [linksBySkill, toast, t]);
-
-  const setAllToolLinks = useCallback((skill: Skill, active: boolean) => {
-    const prev = linksBySkill;
-    const optimisticLinks = active
-      ? enabledTools.map((tool, index): SkillLink => ({
-        id: Date.now() + index,
+  const toggleToolLink = useCallback(
+    (skill: Skill, tool: AITool, active: boolean) => {
+      const prev = linksBySkill;
+      const previousLinks = prev[skill.id] ?? [];
+      const optimisticLink: SkillLink = {
+        id: Date.now(),
         skill_id: skill.id,
         tool_id: tool.id,
         link_path: `${tool.config_path}/${tool.skills_subdir}/${skill.id}`,
         is_active: true,
         created_at: new Date().toISOString(),
-      }))
-      : [];
+      };
 
-    setLinksBySkill(current => ({ ...current, [skill.id]: optimisticLinks }));
+      setLinksBySkill((current) => {
+        const existing = current[skill.id] ?? [];
+        const nextLinks = active
+          ? [...existing.filter((link) => link.tool_id !== tool.id), optimisticLink]
+          : existing.filter((link) => link.tool_id !== tool.id);
+        return { ...current, [skill.id]: nextLinks };
+      });
 
-    setAllSkillToolLinks(skill.id, active)
-      .then(async (result: SyncSkillTargetsResult) => {
-        const links = await getSkillLinks(skill.id);
-        setLinksBySkill(current => ({ ...current, [skill.id]: links }));
-
-        const failureDescription = buildSyncFailureDescription(result.failed_tools, t);
-        if (result.status === 'success') {
-          toast({
-            variant: 'success',
-            title: active ? t('mySkills.toast.linkedAll') : t('mySkills.toast.unlinkedAll'),
+      setSkillToolLink(skill.id, tool.id, active)
+        .then((link) => {
+          setLinksBySkill((current) => {
+            const existing = current[skill.id] ?? [];
+            const nextLinks =
+              active && link
+                ? [...existing.filter((item) => item.tool_id !== tool.id), link]
+                : existing.filter((item) => item.tool_id !== tool.id);
+            return { ...current, [skill.id]: nextLinks };
           });
-          return;
-        }
-
-        if (result.status === 'partial') {
           toast({
-            variant: 'warning',
+            variant: "success",
             title: active
-              ? t('mySkills.toast.linkedPartial', {
-                success: result.success_count,
-                failed: result.failure_count,
-              })
-              : t('mySkills.toast.unlinkedPartial', {
-                success: result.success_count,
-                failed: result.failure_count,
-              }),
+              ? t("mySkills.toast.linked", { skill: skill.name, tool: tool.name })
+              : t("mySkills.toast.unlinked", { tool: tool.name }),
+          });
+        })
+        .catch((e: unknown) => {
+          setLinksBySkill((current) => ({ ...current, [skill.id]: previousLinks }));
+          toast({
+            variant: "error",
+            title: t("mySkills.error.linkUpdate"),
+            description: String((e as Error).message ?? e),
+          });
+        });
+    },
+    [linksBySkill, toast, t],
+  );
+
+  const setAllToolLinks = useCallback(
+    (skill: Skill, active: boolean) => {
+      const prev = linksBySkill;
+      const optimisticLinks = active
+        ? enabledTools.map(
+            (tool, index): SkillLink => ({
+              id: Date.now() + index,
+              skill_id: skill.id,
+              tool_id: tool.id,
+              link_path: `${tool.config_path}/${tool.skills_subdir}/${skill.id}`,
+              is_active: true,
+              created_at: new Date().toISOString(),
+            }),
+          )
+        : [];
+
+      setLinksBySkill((current) => ({ ...current, [skill.id]: optimisticLinks }));
+
+      setAllSkillToolLinks(skill.id, active)
+        .then(async (result: SyncSkillTargetsResult) => {
+          const links = await getSkillLinks(skill.id);
+          setLinksBySkill((current) => ({ ...current, [skill.id]: links }));
+
+          const failureDescription = buildSyncFailureDescription(result.failed_tools, t);
+          if (result.status === "success") {
+            toast({
+              variant: "success",
+              title: active ? t("mySkills.toast.linkedAll") : t("mySkills.toast.unlinkedAll"),
+            });
+            return;
+          }
+
+          if (result.status === "partial") {
+            toast({
+              variant: "warning",
+              title: active
+                ? t("mySkills.toast.linkedPartial", {
+                    success: result.success_count,
+                    failed: result.failure_count,
+                  })
+                : t("mySkills.toast.unlinkedPartial", {
+                    success: result.success_count,
+                    failed: result.failure_count,
+                  }),
+              description: failureDescription,
+              durationMs: 6000,
+            });
+            return;
+          }
+
+          toast({
+            variant: "error",
+            title: active ? t("mySkills.toast.linkedFailed") : t("mySkills.toast.unlinkedFailed"),
             description: failureDescription,
             durationMs: 6000,
           });
-          return;
-        }
-
-        toast({
-          variant: 'error',
-          title: active ? t('mySkills.toast.linkedFailed') : t('mySkills.toast.unlinkedFailed'),
-          description: failureDescription,
-          durationMs: 6000,
+        })
+        .catch((e: unknown) => {
+          setLinksBySkill(prev);
+          toast({
+            variant: "error",
+            title: t("mySkills.error.linkUpdate"),
+            description: String((e as Error).message ?? e),
+          });
         });
-      })
-      .catch((e: unknown) => {
-        setLinksBySkill(prev);
-        toast({
-          variant: 'error',
-          title: t('mySkills.error.linkUpdate'),
-          description: String((e as Error).message ?? e),
-        });
-      });
-  }, [enabledTools, linksBySkill, toast, t]);
+    },
+    [enabledTools, linksBySkill, toast, t],
+  );
 
   const syncAllSkills = useCallback(async () => {
     if (bulkSyncing || enabledTools.length === 0 || bulkSyncableSkills.length === 0) {
@@ -340,6 +385,7 @@ export function MySkillsPage() {
     let fail = 0;
     let flushedDone = 0;
 
+    /* eslint-disable eslint/no-await-in-loop -- sequential execution required for progress tracking */
     for (const skill of bulkSyncableSkills) {
       setBulkSyncProgress((prev) => ({
         done: prev?.done ?? 0,
@@ -354,24 +400,27 @@ export function MySkillsPage() {
           setLinksBySkill((current) => ({ ...current, [skill.id]: links }));
         });
 
-        if (result.status === 'failed') {
+        if (result.status === "failed") {
           fail += 1;
         } else {
           success += 1;
-          if (result.status === 'partial') {
+          if (result.status === "partial") {
             fail += 1;
           }
         }
       } catch (e: unknown) {
         fail += 1;
         toast({
-          variant: 'error',
-          title: t('mySkills.error.linkUpdate'),
+          variant: "error",
+          title: t("mySkills.error.linkUpdate"),
           description: String((e as Error).message ?? e),
         });
       } finally {
         const nextDone = Math.min(flushedDone + 1, bulkSyncableSkills.length);
-        if (nextDone - flushedDone >= STATUS_FLUSH_INTERVAL || nextDone === bulkSyncableSkills.length) {
+        if (
+          nextDone - flushedDone >= STATUS_FLUSH_INTERVAL ||
+          nextDone === bulkSyncableSkills.length
+        ) {
           startTransition(() => {
             setBulkSyncProgress((prev) => ({
               done: Math.min((prev?.done ?? 0) + 1, bulkSyncableSkills.length),
@@ -385,30 +434,31 @@ export function MySkillsPage() {
         await yieldToBrowser();
       }
     }
+    /* eslint-enable eslint/no-await-in-loop */
 
     setBulkSyncing(false);
     setBulkSyncSummary({ success, fail });
 
     if (fail === 0) {
       toast({
-        variant: 'success',
-        title: t('mySkills.toast.bulkSyncComplete', { success }),
+        variant: "success",
+        title: t("mySkills.toast.bulkSyncComplete", { success }),
       });
       return;
     }
 
     if (success > 0) {
       toast({
-        variant: 'warning',
-        title: t('mySkills.toast.bulkSyncPartial', { success, failed: fail }),
+        variant: "warning",
+        title: t("mySkills.toast.bulkSyncPartial", { success, failed: fail }),
         durationMs: 6000,
       });
       return;
     }
 
     toast({
-      variant: 'error',
-      title: t('mySkills.toast.bulkSyncFailed'),
+      variant: "error",
+      title: t("mySkills.toast.bulkSyncFailed"),
       durationMs: 6000,
     });
   }, [bulkSyncableSkills, bulkSyncing, enabledTools.length, t, toast]);
@@ -428,9 +478,9 @@ export function MySkillsPage() {
       skill.metadata?.description,
     ].filter(Boolean);
 
-    return parts.length > 0
-      ? <span className="text-12 text-text-tertiary truncate">{parts.join(' · ')}</span>
-      : undefined;
+    return parts.length > 0 ? (
+      <span className="text-12 text-text-tertiary truncate">{parts.join(" · ")}</span>
+    ) : undefined;
   };
 
   const renderLinkedToolIcons = (skill: Skill) => {
@@ -440,7 +490,7 @@ export function MySkillsPage() {
     return (
       <span
         className="flex items-center gap-1.5"
-        aria-label={t('mySkills.aria.linkedTools', { name: skill.name })}
+        aria-label={t("mySkills.aria.linkedTools", { name: skill.name })}
       >
         {linkedTools.slice(0, 4).map((tool) => (
           <ToolIcon key={tool.id} tool={tool} size="sm" />
@@ -453,13 +503,49 @@ export function MySkillsPage() {
   };
 
   const renderBody = () => {
-    if (error) return <div className="compact-card"><InlineError title={t('mySkills.error.load')} details={error} onRetry={refresh} /></div>;
-    if (loading && !skills.length) return <ul>{Array.from({ length: 8 }).map((_, i) => <ListRow key={i} id={`skeleton-${i}`} primary="" loading />)}</ul>;
-    if (!loading && skills.length === 0) return <div className="compact-card"><EmptyState title={t('mySkills.empty.installed')} description={t('mySkills.empty.installed.description')} /></div>;
-    if (!loading && skills.length > 0 && visible.length === 0) return <div className="compact-card"><EmptyState title={t('mySkills.empty.matches')} description={t('mySkills.empty.matches.description')} primaryAction={{ label: t('mySkills.empty.matches.clear'), onClick: () => { setQ(''); setSourceType('all'); } }} /></div>;
+    if (error)
+      return (
+        <div className="compact-card">
+          <InlineError title={t("mySkills.error.load")} details={error} onRetry={refresh} />
+        </div>
+      );
+    // eslint-disable-next-line react/no-array-index-key -- static skeleton placeholders
+    if (loading && !skills.length)
+      return (
+        <ul>
+          {Array.from({ length: 8 }).map((_, i) => (
+            <ListRow key={i} id={`skeleton-${i}`} primary="" loading />
+          ))}
+        </ul>
+      );
+    if (!loading && skills.length === 0)
+      return (
+        <div className="compact-card">
+          <EmptyState
+            title={t("mySkills.empty.installed")}
+            description={t("mySkills.empty.installed.description")}
+          />
+        </div>
+      );
+    if (!loading && skills.length > 0 && visible.length === 0)
+      return (
+        <div className="compact-card">
+          <EmptyState
+            title={t("mySkills.empty.matches")}
+            description={t("mySkills.empty.matches.description")}
+            primaryAction={{
+              label: t("mySkills.empty.matches.clear"),
+              onClick: () => {
+                setQ("");
+                setSourceType("all");
+              },
+            }}
+          />
+        </div>
+      );
     return (
       <ul role="rowgroup">
-        {visible.map(skill => (
+        {visible.map((skill) => (
           <li key={skill.id}>
             <ListRow
               id={skill.id}
@@ -474,15 +560,19 @@ export function MySkillsPage() {
                 <span className="flex items-center gap-2">
                   <IconButton
                     icon={<FolderOpen size={16} />}
-                    aria-label={t('mySkills.aria.openFolder', { name: skill.name })}
+                    aria-label={t("mySkills.aria.openFolder", { name: skill.name })}
                     variant="subtle"
                     size="sm"
                     onClick={() => handleOpenFolder(skill)}
                   />
                   <IconButton
                     icon={<Trash2 size={15} />}
-                    aria-label={t('mySkills.aria.uninstall', { name: skill.name })}
-                    title={confirmSkillId === skill.id ? t('mySkills.confirmUninstall') : t('mySkills.uninstall')}
+                    aria-label={t("mySkills.aria.uninstall", { name: skill.name })}
+                    title={
+                      confirmSkillId === skill.id
+                        ? t("mySkills.confirmUninstall")
+                        : t("mySkills.uninstall")
+                    }
                     variant="subtle"
                     size="sm"
                     className="text-danger hover:text-danger"
@@ -492,9 +582,9 @@ export function MySkillsPage() {
                     variant="secondary"
                     size="sm"
                     onClick={() => openSyncDialog(skill.id)}
-                    aria-label={t('mySkills.aria.syncTargets', { name: skill.name })}
+                    aria-label={t("mySkills.aria.syncTargets", { name: skill.name })}
                   >
-                    {t('mySkills.syncTargets')}
+                    {t("mySkills.syncTargets")}
                   </Button>
                 </span>
               }
@@ -506,43 +596,51 @@ export function MySkillsPage() {
   };
 
   const filterOptions = [
-    { value: 'all', label: t('mySkills.sync.allTools') },
-    { value: 'linked', label: t('mySkills.sync.linked') },
-    { value: 'unlinked', label: t('mySkills.sync.unlinked') },
+    { value: "all", label: t("mySkills.sync.allTools") },
+    { value: "linked", label: t("mySkills.sync.linked") },
+    { value: "unlinked", label: t("mySkills.sync.unlinked") },
   ];
 
   const modalTools = useMemo(() => {
     if (!syncSkill) return [];
     const query = toolQuery.trim().toLowerCase();
-    return enabledTools
-      .filter(tool => {
-        const linked = isToolLinked(syncSkill.id, tool.id);
-        if (linkFilter === 'linked' && !linked) return false;
-        if (linkFilter === 'unlinked' && linked) return false;
-        if (!query) return true;
-        return `${tool.name} ${tool.id} ${tool.config_path}`.toLowerCase().includes(query);
-      })
-      .sort((a, b) => a.name.localeCompare(b.name));
+    return (
+      enabledTools
+        .filter((tool) => {
+          const linked = isToolLinked(syncSkill.id, tool.id);
+          if (linkFilter === "linked" && !linked) return false;
+          if (linkFilter === "unlinked" && linked) return false;
+          if (!query) return true;
+          return `${tool.name} ${tool.id} ${tool.config_path}`.toLowerCase().includes(query);
+        })
+        // eslint-disable-next-line unicorn/no-array-sort -- .toSorted() not available in current TS lib target
+        .sort((a, b) => a.name.localeCompare(b.name))
+    );
   }, [enabledTools, isToolLinked, linkFilter, syncSkill, toolQuery]);
 
   const renderToolRows = () => {
     if (!syncSkill) return null;
-    return modalTools.map(tool => {
+    return modalTools.map((tool) => {
       const linked = isToolLinked(syncSkill.id, tool.id);
       return (
-        <div key={tool.id} className="grid min-h-[58px] grid-cols-[auto_1fr_auto] items-center gap-3 border-t border-border-subtle px-3 py-2 first:border-t-0">
+        <div
+          key={tool.id}
+          className="grid min-h-[58px] grid-cols-[auto_1fr_auto] items-center gap-3 border-t border-border-subtle px-3 py-2 first:border-t-0"
+        >
           <ToolIcon tool={tool} size="md" />
           <span className="min-w-0">
             <span className="flex min-w-0 items-center gap-2">
               <span className="truncate text-13 font-semibold text-text-primary">{tool.name}</span>
-              {linked && <Badge variant="success">{t('mySkills.sync.linked')}</Badge>}
+              {linked && <Badge variant="success">{t("mySkills.sync.linked")}</Badge>}
             </span>
-            <span className="block truncate text-12 text-text-tertiary">{tool.config_path}/{tool.skills_subdir}/{syncSkill.id}</span>
+            <span className="block truncate text-12 text-text-tertiary">
+              {tool.config_path}/{tool.skills_subdir}/{syncSkill.id}
+            </span>
           </span>
           <Switch
             checked={linked}
             onChange={(next) => toggleToolLink(syncSkill, tool, next)}
-            aria-label={t('mySkills.aria.linkTool', { skill: syncSkill.name, tool: tool.name })}
+            aria-label={t("mySkills.aria.linkTool", { skill: syncSkill.name, tool: tool.name })}
           />
         </div>
       );
@@ -552,12 +650,23 @@ export function MySkillsPage() {
   return (
     <>
       <WorkspaceHeader
-        title={t('nav.mySkills')}
-        meta={t('mySkills.meta', { visible: visible.length, total: skills.length, enabled: enabledCount })}
-        search={(
+        title={t("nav.mySkills")}
+        meta={t("mySkills.meta", {
+          visible: visible.length,
+          total: skills.length,
+          enabled: enabledCount,
+        })}
+        search={
           <div className="flex items-center gap-2">
             <div className="w-[240px]">
-              <TextField type="search" size="sm" leadingIcon={<Search size={14} />} value={q} onChange={setQ} placeholder={t('mySkills.searchPlaceholder')} />
+              <TextField
+                type="search"
+                size="sm"
+                leadingIcon={<Search size={14} />}
+                value={q}
+                onChange={setQ}
+                placeholder={t("mySkills.searchPlaceholder")}
+              />
             </div>
             <div className="relative">
               <Button
@@ -567,45 +676,69 @@ export function MySkillsPage() {
                 onClick={handleBulkSyncClick}
                 disabled={enabledTools.length === 0 || bulkSyncableSkills.length === 0}
               >
-                {t('mySkills.bulkSync.action')}
+                {t("mySkills.bulkSync.action")}
               </Button>
               {bulkSyncConfirmOpen && !bulkSyncing && (
                 <div className="absolute right-0 top-[calc(100%+8px)] z-20 w-64 rounded-lg border border-border-subtle bg-surface p-3 shadow-overlay">
-                  <p className="text-12 font-semibold text-text-primary">{t('mySkills.bulkSync.confirmTitle')}</p>
-                  <p className="mt-1 text-12 text-text-tertiary">{t('mySkills.bulkSync.confirmBody')}</p>
+                  <p className="text-12 font-semibold text-text-primary">
+                    {t("mySkills.bulkSync.confirmTitle")}
+                  </p>
+                  <p className="mt-1 text-12 text-text-tertiary">
+                    {t("mySkills.bulkSync.confirmBody")}
+                  </p>
                   <div className="mt-3 flex justify-end gap-2">
                     <Button variant="ghost" size="sm" onClick={() => setBulkSyncConfirmOpen(false)}>
-                      {t('common.cancel')}
+                      {t("common.cancel")}
                     </Button>
                     <Button variant="primary" size="sm" onClick={() => void syncAllSkills()}>
-                      {t('mySkills.bulkSync.confirm')}
+                      {t("mySkills.bulkSync.confirm")}
                     </Button>
                   </div>
                 </div>
               )}
             </div>
           </div>
-        )}
-        primaryActions={[<IconButton key="r" icon={<RefreshCw size={16} />} aria-label={t('mySkills.refresh')} onClick={() => setRefreshTick(tick => tick + 1)} variant="subtle" size="sm" />]}
+        }
+        primaryActions={[
+          <IconButton
+            key="r"
+            icon={<RefreshCw size={16} />}
+            aria-label={t("mySkills.refresh")}
+            onClick={() => setRefreshTick((tick) => tick + 1)}
+            variant="subtle"
+            size="sm"
+          />,
+        ]}
       />
       <main className="app-content">
         <StatsStrip
           items={[
-            { label: t('mySkills.stats.enabled'), value: enabledCount, accent: true },
-            { label: t('mySkills.stats.links'), value: linkCount },
-            { label: t('mySkills.stats.tools'), value: enabledTools.length },
+            { label: t("mySkills.stats.enabled"), value: enabledCount, accent: true },
+            { label: t("mySkills.stats.links"), value: linkCount },
+            { label: t("mySkills.stats.tools"), value: enabledTools.length },
           ]}
         />
-        {showSourceFilters && <FilterPills options={sourceOptions} value={sourceType} onChange={setSourceType} ariaLabel={t('mySkills.filters.aria')} />}
+        {showSourceFilters && (
+          <FilterPills
+            options={sourceOptions}
+            value={sourceType}
+            onChange={setSourceType}
+            ariaLabel={t("mySkills.filters.aria")}
+          />
+        )}
         {bulkSyncProgress && (
           <div className="compact-card mb-4">
             <div className="flex items-center justify-between gap-4">
               <div className="min-w-0">
-                <p className="text-13 font-semibold text-text-primary">{t('mySkills.bulkSync.progress', { total: bulkSyncProgress.total })}</p>
+                <p className="text-13 font-semibold text-text-primary">
+                  {t("mySkills.bulkSync.progress", { total: bulkSyncProgress.total })}
+                </p>
                 <p className="mt-1 truncate text-12 text-text-tertiary">
                   {bulkSyncProgress.currentSkillName
-                    ? t('mySkills.bulkSync.progressCurrent', { name: bulkSyncProgress.currentSkillName })
-                    : t('mySkills.bulkSync.progressPreparing')}
+                    ? t("mySkills.bulkSync.progressCurrent", {
+                        name: bulkSyncProgress.currentSkillName,
+                      })
+                    : t("mySkills.bulkSync.progressPreparing")}
                 </p>
               </div>
               <span className="shrink-0 text-12 font-semibold text-text-secondary">
@@ -615,32 +748,36 @@ export function MySkillsPage() {
             <div
               className="mt-3 h-2 overflow-hidden rounded-full bg-surface-raised"
               role="progressbar"
-              aria-label={t('mySkills.bulkSync.progressAria')}
+              aria-label={t("mySkills.bulkSync.progressAria")}
               aria-valuemin={0}
               aria-valuemax={bulkSyncProgress.total}
               aria-valuenow={bulkSyncProgress.done}
             >
               <div
                 className="h-full rounded-full bg-accent transition-[width] duration-200 ease-out"
-                style={{ width: `${(bulkSyncProgress.done / Math.max(bulkSyncProgress.total, 1)) * 100}%` }}
+                style={{
+                  width: `${(bulkSyncProgress.done / Math.max(bulkSyncProgress.total, 1)) * 100}%`,
+                }}
               />
             </div>
           </div>
         )}
         {bulkSyncSummary && !bulkSyncing && (
           <div className="compact-card mb-4">
-            <p className="text-13 font-semibold text-text-primary">{t('mySkills.bulkSync.complete')}</p>
+            <p className="text-13 font-semibold text-text-primary">
+              {t("mySkills.bulkSync.complete")}
+            </p>
             <p className="mt-1 text-12 text-text-tertiary">
               {bulkSyncSummary.fail === 0
-                ? t('mySkills.bulkSync.completeSummary', { success: bulkSyncSummary.success })
-                : t('mySkills.bulkSync.completeSummaryWithFailures', {
-                  success: bulkSyncSummary.success,
-                  failed: bulkSyncSummary.fail,
-                })}
+                ? t("mySkills.bulkSync.completeSummary", { success: bulkSyncSummary.success })
+                : t("mySkills.bulkSync.completeSummaryWithFailures", {
+                    success: bulkSyncSummary.success,
+                    failed: bulkSyncSummary.fail,
+                  })}
             </p>
           </div>
         )}
-        <div className="section-kicker">{t('mySkills.section.all', { count: skills.length })}</div>
+        <div className="section-kicker">{t("mySkills.section.all", { count: skills.length })}</div>
         {renderBody()}
       </main>
       {syncSkill && (
@@ -648,20 +785,35 @@ export function MySkillsPage() {
           className="fixed inset-0 z-50 flex items-center justify-center bg-text-primary/30 p-6"
           role="dialog"
           aria-modal="true"
-          aria-label={t('mySkills.sync.title', { name: syncSkill.name })}
-          onMouseDown={(event) => { if (event.target === event.currentTarget) closeSyncDialog(); }}
-          onKeyDown={(event) => { if (event.key === 'Escape') closeSyncDialog(); }}
+          aria-label={t("mySkills.sync.title", { name: syncSkill.name })}
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) closeSyncDialog();
+          }}
+          onKeyDown={(event) => {
+            if (event.key === "Escape") closeSyncDialog();
+          }}
         >
           <section className="flex max-h-[calc(100vh-56px)] w-[min(860px,calc(100vw-48px))] flex-col overflow-hidden rounded-lg border border-border-subtle bg-surface shadow-overlay">
             <header className="flex items-start justify-between gap-4 border-b border-border-subtle p-5">
               <div>
-                <h2 className="text-16 font-bold text-text-primary">{t('mySkills.sync.title', { name: syncSkill.name })}</h2>
-                <p className="mt-1 text-12 text-text-tertiary">{t('mySkills.sync.subtitle')}</p>
+                <h2 className="text-16 font-bold text-text-primary">
+                  {t("mySkills.sync.title", { name: syncSkill.name })}
+                </h2>
+                <p className="mt-1 text-12 text-text-tertiary">{t("mySkills.sync.subtitle")}</p>
               </div>
-              <IconButton icon={<X size={16} />} aria-label={t('common.close')} onClick={closeSyncDialog} />
+              <IconButton
+                icon={<X size={16} />}
+                aria-label={t("common.close")}
+                onClick={closeSyncDialog}
+              />
             </header>
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border-subtle bg-surface-raised/70 p-4">
-              <FilterPills options={filterOptions} value={linkFilter} onChange={(value) => setLinkFilter(value as LinkFilter)} ariaLabel={t('mySkills.sync.allTools')} />
+              <FilterPills
+                options={filterOptions}
+                value={linkFilter}
+                onChange={(value) => setLinkFilter(value as LinkFilter)}
+                ariaLabel={t("mySkills.sync.allTools")}
+              />
               <div className="flex flex-wrap items-center justify-end gap-2">
                 <Button
                   variant="secondary"
@@ -669,7 +821,7 @@ export function MySkillsPage() {
                   onClick={() => setAllToolLinks(syncSkill, true)}
                   disabled={enabledTools.length === 0 || isLinkedToAllEnabledTools(syncSkill.id)}
                 >
-                  {t('mySkills.sync.linkAll')}
+                  {t("mySkills.sync.linkAll")}
                 </Button>
                 <Button
                   variant="ghost"
@@ -677,23 +829,34 @@ export function MySkillsPage() {
                   onClick={() => setAllToolLinks(syncSkill, false)}
                   disabled={!hasAnyLinkedEnabledTools(syncSkill.id)}
                 >
-                  {t('mySkills.sync.unlinkAll')}
+                  {t("mySkills.sync.unlinkAll")}
                 </Button>
                 <div className="w-[240px] max-w-full">
-                  <TextField type="search" size="sm" leadingIcon={<Search size={14} />} value={toolQuery} onChange={setToolQuery} placeholder={t('mySkills.sync.searchTools')} />
+                  <TextField
+                    type="search"
+                    size="sm"
+                    leadingIcon={<Search size={14} />}
+                    value={toolQuery}
+                    onChange={setToolQuery}
+                    placeholder={t("mySkills.sync.searchTools")}
+                  />
                 </div>
               </div>
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto p-5">
               <section>
                 <div className="mb-2 flex items-center justify-between text-11 font-semibold uppercase tracking-[0.07em] text-text-tertiary">
-                  <span>{t('mySkills.sync.enabledTools')}</span>
-                  <span>{t('mySkills.sync.totalTools', { count: modalTools.length })}</span>
+                  <span>{t("mySkills.sync.enabledTools")}</span>
+                  <span>{t("mySkills.sync.totalTools", { count: modalTools.length })}</span>
                 </div>
                 <div className="overflow-hidden rounded-lg border border-border-subtle bg-surface">
-                  {modalTools.length > 0
-                    ? renderToolRows()
-                    : <div className="p-6 text-center text-13 text-text-tertiary">{t('mySkills.empty.matches')}</div>}
+                  {modalTools.length > 0 ? (
+                    renderToolRows()
+                  ) : (
+                    <div className="p-6 text-center text-13 text-text-tertiary">
+                      {t("mySkills.empty.matches")}
+                    </div>
+                  )}
                 </div>
               </section>
             </div>

@@ -1,4 +1,4 @@
-import { useEffect, type ReactNode } from 'react';
+import { useEffect, type ReactNode } from "react";
 
 export interface WorkspaceHeaderProps {
   title: string;
@@ -9,15 +9,22 @@ export interface WorkspaceHeaderProps {
   primaryActions?: readonly ReactNode[];
 }
 
-export function WorkspaceHeader({ title, meta, leading, search, filters, primaryActions = [] }: WorkspaceHeaderProps) {
+export function WorkspaceHeader({
+  title,
+  meta,
+  leading,
+  search,
+  filters,
+  primaryActions = [],
+}: WorkspaceHeaderProps) {
   useEffect(() => {
-    if (import.meta.env.DEV && typeof meta === 'string' && meta.length > 120) {
-      console.warn('WorkspaceHeader: meta exceeds 120 characters');
+    if (import.meta.env.DEV && typeof meta === "string" && meta.length > 120) {
+      console.warn("WorkspaceHeader: meta exceeds 120 characters");
     }
   }, [meta]);
 
   if (primaryActions.length > 2) {
-    console.error('WorkspaceHeader: primaryActions exceeds max of 2');
+    console.error("WorkspaceHeader: primaryActions exceeds max of 2");
   }
 
   const visibleActions = primaryActions.length > 2 ? primaryActions.slice(0, 2) : primaryActions;
@@ -28,12 +35,12 @@ export function WorkspaceHeader({ title, meta, leading, search, filters, primary
 
   return (
     <>
-      <h2 className="sr-only" data-page-title={title}>{title}</h2>
+      <h2 className="sr-only" data-page-title={title}>
+        {title}
+      </h2>
       {hasLeadingRow && (
         <header className="flex items-start justify-between gap-4 px-4 pt-1">
-          <div className="flex min-w-0 items-center gap-3">
-            {leading}
-          </div>
+          <div className="flex min-w-0 items-center gap-3">{leading}</div>
           <div className="flex shrink-0 gap-2">{visibleActions}</div>
         </header>
       )}
@@ -48,9 +55,14 @@ export function WorkspaceHeader({ title, meta, leading, search, filters, primary
         </div>
       )}
       {!shouldUseCompactToolbar && showMetaRow && (
-        <div className={`flex items-center justify-between gap-4 px-4 pb-2 ${hasLeadingRow ? 'pt-2' : 'pt-1'}`}>
+        <div
+          className={`flex items-center justify-between gap-4 px-4 pb-2 ${hasLeadingRow ? "pt-2" : "pt-1"}`}
+        >
           <span className="min-w-0 truncate text-13 text-text-secondary">{meta}</span>
-          <div className="flex shrink-0 items-center gap-2">{search}{filters}</div>
+          <div className="flex shrink-0 items-center gap-2">
+            {search}
+            {filters}
+          </div>
         </div>
       )}
     </>
