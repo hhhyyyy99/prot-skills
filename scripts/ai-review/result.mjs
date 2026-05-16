@@ -2,6 +2,23 @@ function isNonEmptyString(value) {
   return typeof value === "string" && value.trim().length > 0;
 }
 
+const SELF_RETRACTION_PATTERNS = [
+  /\bnot a bug\b/i,
+  /\bno (?:bug|issue|problem)\b/i,
+  /\bdisregard\b/i,
+  /\bcorrect (?:behavior|as intended)\b/i,
+  /\bworks as intended\b/i,
+  /\bis correct\b/i,
+  /\bis not a\b.*\bbug\b/i,
+  /\bno issue here\b/i,
+  /\bactually (?:correct|fine|valid)\b/i,
+];
+
+function isSelfRetracted(finding) {
+  const text = `${finding.title} ${finding.body}`;
+  return SELF_RETRACTION_PATTERNS.some((pattern) => pattern.test(text));
+}
+
 function normalizeFinding(finding) {
   if (!finding || typeof finding !== "object") {
     throw new Error("AI review result is invalid");
@@ -49,6 +66,7 @@ export function normalizeReviewResult(payload, options = {}) {
     summary: payload.summary.trim(),
     findings: payload.findings
       .map(normalizeFinding)
-      .filter((finding) => finding.confidence >= minConfidence),
+      .filter((finding) => finding.confidence >= minConfidence)
+      .filter((finding) => !isSelfRetracted(finding)),
   };
 }

@@ -41,6 +41,36 @@ describe("normalizeReviewResult", () => {
     ).toThrow("AI review result is invalid");
   });
 
+  it("filters out self-retracted findings that conclude the code is correct", () => {
+    const result = normalizeReviewResult(
+      {
+        summary: "One self-retracted finding.",
+        findings: [
+          {
+            path: "src/app.ts",
+            line: 10,
+            severity: "important",
+            confidence: 95,
+            title: "NaN when env var is empty string",
+            body: "The || operator treats empty string as falsy, so this is correct. Not a bug.",
+          },
+          {
+            path: "src/app.ts",
+            line: 12,
+            severity: "important",
+            confidence: 91,
+            title: "Real bug here",
+            body: "This actually causes a crash.",
+          },
+        ],
+      },
+      { minConfidence: 80 },
+    );
+
+    expect(result.findings).toHaveLength(1);
+    expect(result.findings[0].title).toBe("Real bug here");
+  });
+
   it("filters out findings below the configured confidence threshold", () => {
     const result = normalizeReviewResult(
       {

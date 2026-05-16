@@ -8,6 +8,7 @@ export function buildSystemPrompt({ repository, minConfidence, maxFindings }) {
     "Before flagging unreachable code or dead code, trace every branch and loop exit carefully. If a path is reachable, do not claim it is unreachable.",
     "Do not flag default parameter values in exported functions if all current callers pass explicit values. Focus on bugs that would actually trigger in production.",
     "Only report a finding if you are certain the code is wrong. If the code could be correct under a reasonable reading, do not report it.",
+    "Each finding body must describe a confirmed bug, not a thought process. Do not include findings where you conclude 'not a bug', 'no issue', 'correct behavior', 'disregard', or 'works as intended' during analysis. Only output findings you are confident are real bugs.",
     `Do not report any finding with a confidence score below ${minConfidence}.`,
     `Cap findings at ${maxFindings}.`,
     "Return valid JSON only with this shape:",
