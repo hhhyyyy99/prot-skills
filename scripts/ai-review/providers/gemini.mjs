@@ -1,4 +1,5 @@
 import { normalizeReviewResult } from "../result.mjs";
+import { parseModelJson } from "./parse-json.mjs";
 
 export async function generateGeminiReview({ apiKey, baseUrl, model, systemPrompt, userPrompt }) {
   const response = await fetch(`${baseUrl}/models/${model}:generateContent?key=${apiKey}`, {
@@ -33,5 +34,5 @@ export async function generateGeminiReview({ apiKey, baseUrl, model, systemPromp
     throw new Error("Gemini review response did not include JSON content");
   }
 
-  return normalizeReviewResult(JSON.parse(content));
+  return normalizeReviewResult(parseModelJson(content));
 }

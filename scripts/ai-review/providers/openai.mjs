@@ -1,5 +1,6 @@
 import { normalizeReviewResult } from "../result.mjs";
 import OpenAI from "openai";
+import { parseModelJson } from "./parse-json.mjs";
 
 export async function generateOpenAIReview({ apiKey, baseUrl, model, systemPrompt, userPrompt }) {
   const client = new OpenAI({
@@ -22,5 +23,5 @@ export async function generateOpenAIReview({ apiKey, baseUrl, model, systemPromp
     throw new Error("OpenAI review response did not include JSON content");
   }
 
-  return normalizeReviewResult(JSON.parse(content));
+  return normalizeReviewResult(parseModelJson(content));
 }

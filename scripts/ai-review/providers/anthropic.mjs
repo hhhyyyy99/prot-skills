@@ -1,5 +1,6 @@
 import { normalizeReviewResult } from "../result.mjs";
 import Anthropic from "@anthropic-ai/sdk";
+import { parseModelJson } from "./parse-json.mjs";
 
 export async function generateAnthropicReview({
   apiKey,
@@ -26,5 +27,5 @@ export async function generateAnthropicReview({
     throw new Error("Anthropic review response did not include JSON content");
   }
 
-  return normalizeReviewResult(JSON.parse(content));
+  return normalizeReviewResult(parseModelJson(content));
 }
