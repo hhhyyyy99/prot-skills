@@ -1,0 +1,50 @@
+name: Self Approve PR
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  check-and-approve:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check conditions and approve
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          EXPECTED_EMAIL: eamon9812@gmail.com
+        run: |
+          # 检查1: 通过 GitHub API 获取作者邮箱，判断是否是 Eamon
+          author_login=$(gh pr view $PR_NUMBER --json author --jq '.author.login')
+          author_email=$(gh api users/$author_login --jq '.email // "null"')
+          echo "Author: $author_login, Email: $author_email"
+
+          if [ "$author_email" != "$EXPECTED_EMAIL" ]; then
+            echo "Not Eamon's PR (email mismatch), skip"
+            exit 0
+          fi
+
+          # 检查2: 必须有 auto-merge 标签
+          labels=$(gh pr view $PR_NUMBER --json labels --jq '.labels[].name')
+          if ! echo "$labels" | grep -q "auto-merge"; then
+            echo "No auto-merge label, skip"
+            exit 0
+          fi
+
+          # 检查3: CI 必须通过
+          ci_status=$(gh run list --workflow=ci.yml --branch=refs/pull/$PR_NUMBER/merge --status=completed --json=conclusion --jq '.[0].conclusion // "null"')
+          if [ "$ci_status" != "success" ]; then
+            echo "CI not passed ($ci_status), skip"
+            exit 0
+          fi
+
+          # 检查4: AI review 必须通过
+          review_status=$(gh run list --workflow=ai-review.yml --branch=refs/pull/$PR_NUMBER/merge --status=completed --json=conclusion --jq '.[0].conclusion // "null"')
+          if [ "$review_status" != "success" ]; then
+            echo "AI review not passed ($review_status), skip"
+            exit 0
+          fi
+
+          # 全部通过，执行 approve
+          echo "All conditions met, approving PR..."
+          gh pr review $PR_NUMBER --approve -b "Auto-approved by self-approve workflow"
