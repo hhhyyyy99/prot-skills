@@ -107,8 +107,7 @@ Execute these phases in order. Each phase has a clear output — report it to th
    - Version bump in package.json, tauri.conf.json, Cargo.toml
    - Release notes at docs/releases/v{NEXT_VERSION}.md
    EOF
-   )" \
-     --merge
+   )"
 
    gh pr merge --auto --squash
    ```
