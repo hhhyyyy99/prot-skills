@@ -45,6 +45,7 @@ jobs:
           PR_NUMBER: ${{ steps.pr-info.outputs.PR_NUMBER }}
           AUTHOR_LOGIN: ${{ steps.pr-info.outputs.AUTHOR_LOGIN }}
           HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          PR_BRANCH: ${{ github.event.workflow_run.head_branch }}
         run: |
           # 检查0: 验证 PR 当前 head SHA 未被 force-push
           current_sha=$(gh pr view $PR_NUMBER -R $REPO --json headRefOid --jq '.headRefOid')
@@ -72,15 +73,15 @@ jobs:
             exit 0
           fi
 
-          # 检查3: CI 必须通过 (使用 PR 的 merge ref 查询)
-          ci_status=$(gh run list -R $REPO --workflow=ci.yml --branch=refs/pull/$PR_NUMBER/merge --status=completed --json=conclusion --jq '.[0].conclusion // "null"')
+          # 检查3: CI 必须通过 (使用 PR branch name)
+          ci_status=$(gh run list -R $REPO --workflow=ci.yml --branch=$PR_BRANCH --status=completed --json=conclusion --jq '.[0].conclusion // "null"')
           if [ "$ci_status" != "success" ]; then
             echo "CI not passed ($ci_status), skip"
             exit 0
           fi
 
-          # 检查4: AI review 必须通过 (使用 PR 的 merge ref 查询)
-          review_status=$(gh run list -R $REPO --workflow=ai-review.yml --branch=refs/pull/$PR_NUMBER/merge --status=completed --json=conclusion --jq '.[0].conclusion // "null"')
+          # 检查4: AI review 必须通过 (使用 PR branch name)
+          review_status=$(gh run list -R $REPO --workflow=ai-review.yml --branch=$PR_BRANCH --status=completed --json=conclusion --jq '.[0].conclusion // "null"')
           if [ "$review_status" != "success" ]; then
             echo "AI review not passed ($review_status), skip"
             exit 0
