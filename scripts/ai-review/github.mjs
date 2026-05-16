@@ -22,10 +22,19 @@ async function fetchWithRetry(url, options) {
       await new Promise((resolve) => setTimeout(resolve, delay));
     }
 
-    const response = await fetch(url, {
-      ...options,
-      signal: AbortSignal.timeout(API_TIMEOUT_MS),
-    });
+    let response;
+    try {
+      response = await fetch(url, {
+        ...options,
+        signal: AbortSignal.timeout(API_TIMEOUT_MS),
+      });
+    } catch (error) {
+      lastError = error;
+      if (attempt < MAX_RETRIES) {
+        continue;
+      }
+      throw lastError;
+    }
 
     if (response.status === 429) {
       lastError = new Error("GitHub API rate limited (429)");
