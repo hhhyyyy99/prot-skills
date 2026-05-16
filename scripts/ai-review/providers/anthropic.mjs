@@ -14,10 +14,15 @@ function extractContent(response) {
     return response.content;
   }
 
-  // Fallback: grab any content block that has text-like data
-  const anyBlock = response.content?.[0];
-  if (anyBlock && typeof anyBlock.text === "string") {
-    return anyBlock.text;
+  // Some APIs (e.g. DeepSeek) return extended thinking blocks without a
+  // separate text block. Extract from the last thinking block as fallback.
+  const thinkingBlocks = response.content?.filter(
+    (item) => item.type === "thinking" && typeof item.thinking === "string",
+  );
+  if (thinkingBlocks?.length > 0) {
+    const lastThinking = thinkingBlocks[thinkingBlocks.length - 1].thinking;
+    console.warn("No text block in response; using thinking block content as fallback");
+    return lastThinking;
   }
 
   // Debug: dump structure to help diagnose incompatible APIs
