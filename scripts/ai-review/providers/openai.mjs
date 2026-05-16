@@ -1,0 +1,37 @@
+import { normalizeReviewResult } from "../result.mjs";
+import OpenAI from "openai";
+import { parseModelJson } from "./parse-json.mjs";
+
+export async function generateOpenAIReview({
+  apiKey,
+  baseUrl,
+  model,
+  systemPrompt,
+  userPrompt,
+  minConfidence,
+}) {
+  const client = new OpenAI({
+    apiKey,
+    baseURL: baseUrl,
+    timeout: 120_000,
+  });
+
+  const response = await client.chat.completions.create({
+    model,
+    temperature: 0.1,
+    response_format: { type: "json_object" },
+    messages: [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: userPrompt },
+    ],
+  });
+
+  const content = response.choices?.[0]?.message?.content;
+  if (typeof content !== "string") {
+    throw new Error("OpenAI review response did not include JSON content");
+  }
+
+  return normalizeReviewResult(parseModelJson(content), {
+    minConfidence,
+  });
+}
