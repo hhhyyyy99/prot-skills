@@ -20,10 +20,10 @@
  *   Prot-Skills-v0.1.0-Windows-Portable.zip
  */
 
-import { readdir, copyFile, mkdir, stat } from 'node:fs/promises';
-import { existsSync } from 'node:fs';
-import { execSync } from 'node:child_process';
-import path from 'node:path';
+import { readdir, copyFile, mkdir, stat } from "node:fs/promises";
+import { existsSync } from "node:fs";
+import { execSync } from "node:child_process";
+import path from "node:path";
 
 function usage() {
   console.error(`Usage: node scripts/package-release-assets.mjs <version> <os-label> <arch-label> <bundle-dir> <output-dir>
@@ -46,7 +46,7 @@ if (!version || !osLabel || !bundleDir || !outputDir) {
 await mkdir(outputDir, { recursive: true });
 
 const PREFIX = `Prot-Skills-v${version}-${osLabel}${archLabel}`;
-const APP_NAME = 'Prot Skills';
+const APP_NAME = "Prot Skills";
 const created = [];
 
 async function copyArtifact(srcPath, suffix) {
@@ -59,39 +59,35 @@ async function copyArtifact(srcPath, suffix) {
 
 function createTarGz(sourceDir, sourceName, outputName) {
   const tarPath = path.join(outputDir, `${outputName}.tar.gz`);
-  execSync(
-    `tar czf "${tarPath}" -C "${sourceDir}" "${sourceName}"`,
-    { stdio: 'pipe', timeout: 120_000 },
-  );
+  execSync(`tar czf "${tarPath}" -C "${sourceDir}" "${sourceName}"`, {
+    stdio: "pipe",
+    timeout: 120_000,
+  });
   created.push(`${outputName}.tar.gz`);
 }
 
 function createZip(sourcePath, outputName) {
   const zipPath = path.join(outputDir, `${outputName}.zip`);
-  const sourceDir = path.dirname(sourcePath);
-  const sourceBase = path.basename(sourcePath);
-  execSync(
-    `zip -j "${zipPath}" "${sourcePath}"`,
-    { stdio: 'pipe', timeout: 120_000 },
-  );
+  execSync(`zip -j "${zipPath}" "${sourcePath}"`, { stdio: "pipe", timeout: 120_000 });
   created.push(`${outputName}.zip`);
 }
 
 // ── macOS ──────────────────────────────────────────────────────────
-if (osLabel === 'macOS') {
+/* eslint-disable eslint/no-await-in-loop -- sequential file copies for release packaging */
+if (osLabel === "macOS") {
   // .dmg
-  const dmgDir = path.join(bundleDir, 'dmg');
+  const dmgDir = path.join(bundleDir, "dmg");
   if (existsSync(dmgDir)) {
     const files = await readdir(dmgDir);
     for (const f of files) {
-      if (f.endsWith('.dmg')) {
-        await copyArtifact(path.join(dmgDir, f), '');
+      if (f.endsWith(".dmg")) {
+        await copyArtifact(path.join(dmgDir, f), "");
       }
     }
   }
 
   // .tar.gz from .app bundle (extra format, like CC-Switch provides)
-  const macosDir = path.join(bundleDir, 'macos');
+  const macosDir = path.join(bundleDir, "macos");
   if (existsSync(macosDir)) {
     const appBundle = path.join(macosDir, `${APP_NAME}.app`);
     if (existsSync(appBundle)) {
@@ -101,8 +97,8 @@ if (osLabel === 'macOS') {
 }
 
 // ── Linux ──────────────────────────────────────────────────────────
-if (osLabel === 'Linux') {
-  for (const subdir of ['deb', 'rpm', 'appimage']) {
+if (osLabel === "Linux") {
+  for (const subdir of ["deb", "rpm", "appimage"]) {
     const dir = path.join(bundleDir, subdir);
     if (!existsSync(dir)) continue;
     const files = await readdir(dir);
@@ -110,47 +106,48 @@ if (osLabel === 'Linux') {
       const fullPath = path.join(dir, f);
       const st = await stat(fullPath);
       if (!st.isFile()) continue;
-      await copyArtifact(fullPath, '');
+      await copyArtifact(fullPath, "");
     }
   }
 }
 
 // ── Windows ────────────────────────────────────────────────────────
-if (osLabel === 'Windows') {
+if (osLabel === "Windows") {
   // .msi
-  const msiDir = path.join(bundleDir, 'msi');
+  const msiDir = path.join(bundleDir, "msi");
   if (existsSync(msiDir)) {
     const files = await readdir(msiDir);
     for (const f of files) {
-      if (f.endsWith('.msi')) {
-        await copyArtifact(path.join(msiDir, f), '');
+      if (f.endsWith(".msi")) {
+        await copyArtifact(path.join(msiDir, f), "");
       }
     }
   }
 
   // .exe (NSIS installer)
-  const nsisDir = path.join(bundleDir, 'nsis');
+  const nsisDir = path.join(bundleDir, "nsis");
   if (existsSync(nsisDir)) {
     const files = await readdir(nsisDir);
     for (const f of files) {
-      if (f.endsWith('.exe')) {
-        await copyArtifact(path.join(nsisDir, f), '');
+      if (f.endsWith(".exe")) {
+        await copyArtifact(path.join(nsisDir, f), "");
       }
     }
   }
 
   // Portable .zip (extra format, like CC-Switch -Portable.zip)
-  const releaseDir = path.resolve(bundleDir, '..');
+  const releaseDir = path.resolve(bundleDir, "..");
   const exeName = `${APP_NAME}.exe`;
   const exePath = path.join(releaseDir, exeName);
   if (existsSync(exePath)) {
     createZip(exePath, `${PREFIX}-Portable`);
   }
 }
+/* eslint-enable eslint/no-await-in-loop */
 
 // ── Output ─────────────────────────────────────────────────────────
-console.log('=== Packaged release assets ===');
-for (const name of created.sort()) {
+console.log("=== Packaged release assets ===");
+for (const name of created.toSorted()) {
   console.log(`  ${name}`);
 }
 console.log(`→ ${outputDir}/ (${created.length} files)`);
