@@ -9,18 +9,17 @@ jobs:
   check-and-approve:
     runs-on: ubuntu-latest
     if: >
-      github.event.workflow_run.conclusion == 'success' &&
-      github.event.workflow_run.name == 'CI'
+      github.event.workflow_run.conclusion == 'success'
     steps:
       - name: Get PR info
         id: pr-info
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          RUN_ID: ${{ github.event.workflow_run.id }}
           REPO: ${{ github.repository }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
         run: |
           # 通过 commit SHA 获取关联的 PR
-          pr_data=$(gh api repos/$REPO/commits/${{ github.event.workflow_run.head_sha }}/pulls --jq '.[0]')
+          pr_data=$(gh api repos/$REPO/commits/$HEAD_SHA/pulls --jq '.[0]')
           pr_number=$(echo "$pr_data" | jq -r '.number // "null"')
           author_login=$(echo "$pr_data" | jq -r '.user.login // "null"')
 
@@ -42,6 +41,7 @@ jobs:
           REPO: ${{ github.repository }}
           PR_NUMBER: ${{ steps.pr-info.outputs.PR_NUMBER }}
           AUTHOR_LOGIN: ${{ steps.pr-info.outputs.AUTHOR_LOGIN }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
         run: |
           # 检查1: 通过 GitHub API 获取作者邮箱
           author_email=$(gh api users/$AUTHOR_LOGIN --jq '.email // "null"')
@@ -59,8 +59,15 @@ jobs:
             exit 0
           fi
 
-          # 检查3: AI review 必须通过
-          review_status=$(gh run list -R $REPO --workflow=ai-review.yml --branch=refs/pull/$PR_NUMBER/merge --status=completed --json=conclusion --jq '.[0].conclusion // "null"')
+          # 检查3: CI 必须通过 (按 commit SHA 过滤)
+          ci_status=$(gh run list -R $REPO --workflow=ci.yml --branch=refs/pull/$PR_NUMBER/merge --status=completed --json=conclusion --jq '[.[] | select(.head_sha == "$HEAD_SHA")] | .[0].conclusion // "null"')
+          if [ "$ci_status" != "success" ]; then
+            echo "CI not passed ($ci_status), skip"
+            exit 0
+          fi
+
+          # 检查4: AI review 必须通过 (按 commit SHA 过滤)
+          review_status=$(gh run list -R $REPO --workflow=ai-review.yml --branch=refs/pull/$PR_NUMBER/merge --status=completed --json=conclusion --jq '[.[] | select(.head_sha == "$HEAD_SHA")] | .[0].conclusion // "null"')
           if [ "$review_status" != "success" ]; then
             echo "AI review not passed ($review_status), skip"
             exit 0
