@@ -2,6 +2,29 @@ import { normalizeReviewResult } from "../result.mjs";
 import Anthropic from "@anthropic-ai/sdk";
 import { parseModelJson } from "./parse-json.mjs";
 
+function extractContent(response) {
+  // Standard Anthropic format: content[].type === "text"
+  const textBlock = response.content?.find((item) => item.type === "text");
+  if (textBlock?.text) {
+    return textBlock.text;
+  }
+
+  // Some Anthropic-compatible APIs return content as a plain string
+  if (typeof response.content === "string") {
+    return response.content;
+  }
+
+  // Fallback: grab any content block that has text-like data
+  const anyBlock = response.content?.[0];
+  if (anyBlock && typeof anyBlock.text === "string") {
+    return anyBlock.text;
+  }
+
+  // Debug: dump structure to help diagnose incompatible APIs
+  console.error("Unexpected response structure:", JSON.stringify(response, null, 2).slice(0, 2000));
+  return null;
+}
+
 export async function generateAnthropicReview({
   apiKey,
   baseUrl,
@@ -24,7 +47,7 @@ export async function generateAnthropicReview({
     messages: [{ role: "user", content: userPrompt }],
   });
 
-  const content = response.content?.find((item) => item.type === "text")?.text;
+  const content = extractContent(response);
   if (typeof content !== "string") {
     throw new Error("Anthropic review response did not include JSON content");
   }

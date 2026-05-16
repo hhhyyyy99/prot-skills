@@ -77,7 +77,10 @@ export async function runAIReview({
   return gatedResult;
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+import { pathToFileURL } from "node:url";
+import { resolve } from "node:path";
+
+if (import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
   runAIReview()
     .then((result) => {
       if (!result.passed) {
