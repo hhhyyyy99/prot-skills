@@ -46,7 +46,7 @@ export async function generateAnthropicReview({
 
   const response = await client.messages.create({
     model,
-    max_tokens: 4096,
+    max_tokens: 16384,
     temperature: 0.1,
     system: systemPrompt,
     messages: [{ role: "user", content: userPrompt }],
