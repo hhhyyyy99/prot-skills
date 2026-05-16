@@ -27,9 +27,12 @@ async function fetchWithRetry(url, options) {
       signal: AbortSignal.timeout(API_TIMEOUT_MS),
     });
 
-    if (response.status === 429 && attempt < MAX_RETRIES) {
-      lastError = new Error(`GitHub API rate limited (429)`);
-      continue;
+    if (response.status === 429) {
+      lastError = new Error("GitHub API rate limited (429)");
+      if (attempt < MAX_RETRIES) {
+        continue;
+      }
+      throw lastError;
     }
 
     return response;
