@@ -72,6 +72,53 @@ describe("AI review merge gate", () => {
     expect(result.passed).toBe(false);
   });
 
+  it("does not block merges for nit and pre-existing findings only", async () => {
+    const result = await runAIReview({
+      env: {
+        REPO: "hhhyyyy99/prot-skills",
+        PR_NUMBER: "10",
+        GITHUB_TOKEN: "github-token",
+        AI_REVIEW_PROVIDER: "openai",
+        AI_REVIEW_MODEL: "gpt-4.1-mini",
+        AI_REVIEW_API_KEY: "provider-key",
+      },
+      pullRequestLoader: async () => ({
+        pullRequest: {
+          number: 10,
+          title: "chore: polish docs",
+          body: "",
+          baseRef: "main",
+          headRef: "chore/polish-docs",
+        },
+        files: [],
+      }),
+      providerClient: async () => ({
+        summary: "A couple of non-blocking issues were found.",
+        findings: [
+          {
+            path: "docs/ai-review.md",
+            line: 12,
+            severity: "nit",
+            confidence: 84,
+            title: "Wording tweak",
+            body: "This sentence could be shorter.",
+          },
+          {
+            path: "scripts/ai-review/run.mjs",
+            line: 22,
+            severity: "pre-existing",
+            confidence: 82,
+            title: "Existing limitation",
+            body: "This limitation predates the current PR.",
+          },
+        ],
+      }),
+      commentWriter: async () => {},
+    });
+
+    expect(result.passed).toBe(true);
+  });
+
   it("renders passing and blocking headings clearly", () => {
     const passing = formatReviewComment({
       summary: "LGTM",
