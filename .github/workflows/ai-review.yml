@@ -17,7 +17,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  review:
+  ai-review:
     if: github.event.pull_request.draft == false
     runs-on: ubuntu-22.04
 
