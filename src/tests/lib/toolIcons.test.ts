@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { resolveToolIcon } from "@/lib/toolIcons";
-import type { AITool } from "@/lib/types";
+import type { AITool } from "@/types";
 
 const BUILTIN_TOOLS = [
   { id: "cursor", name: "Cursor" },

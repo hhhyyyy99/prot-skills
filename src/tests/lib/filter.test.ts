@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import * as fc from "fast-check";
 import { filterSkills } from "@/lib/filter";
-import type { Skill } from "@/lib/types/index";
+import type { Skill } from "@/types";
 
 function makeSkill(overrides: Partial<Skill> = {}): Skill {
   return {

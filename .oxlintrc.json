@@ -14,5 +14,5 @@
     "import/no-unassigned-import": "off",
     "func-style": "off"
   },
-  "ignorePatterns": ["dist/", "node_modules/", "src-tauri/", "*.test.*"]
+  "ignorePatterns": ["dist/", "node_modules/", "src-tauri/"]
 }
