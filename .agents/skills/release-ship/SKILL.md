@@ -98,7 +98,7 @@ Execute these phases in order. Each phase has a clear output — report it to th
    git push -u origin chore/release-v{NEXT_VERSION}
    ```
 
-2. Create a PR targeting `main` with auto-merge enabled. Substitute the version value before running the command:
+2. Create a PR targeting `main` with auto-merge enabled. Substitute the version value before running the command. Capture the PR URL and number for use in Phase 4:
 
    ```bash
    gh pr create \
@@ -115,13 +115,17 @@ Execute these phases in order. Each phase has a clear output — report it to th
    "
 
    gh pr merge --auto --squash
+
+   # Capture PR number from the gh pr create output
+   PR_URL=$(gh pr view --json url -q .url)
+   PR_NUMBER=$(gh pr view --json number -q .number)
    ```
 
    Do not use a heredoc with single-quoted delimiter — write the body as a plain string with the version substituted directly.
 
 3. If `gh pr merge --auto` fails (e.g. branch protection requires reviews, or auto-merge is not enabled on the repo), report the PR URL to the user and tell them to review and merge manually. Then skip to Phase 5.
 
-**Output**: PR created and auto-merge enabled, OR PR URL for manual merge.
+**Output**: PR_NUMBER, PR_URL, auto-merge status.
 
 ---
 
@@ -136,7 +140,7 @@ Execute these phases in order. Each phase has a clear output — report it to th
 2. Poll the PR status until it merges or a timeout is reached. Check every 15 seconds, up to 40 attempts (10 minutes total):
 
    ```bash
-   gh pr view {PR_NUMBER} --json state,mergedAt -q '.state'
+   gh pr view "$PR_NUMBER" --json state,mergedAt -q '.state'
    ```
 
    Possible states:

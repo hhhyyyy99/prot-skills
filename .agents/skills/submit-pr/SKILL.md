@@ -109,16 +109,19 @@ git push -u origin HEAD
    git log main..HEAD --format="- %s"
    ```
 
-3. Create the PR:
+3. Create the PR and capture the PR number:
+
    ```bash
    gh pr create \
      --base main \
      --head "$(git branch --show-current)" \
      --title "<title>" \
      --body "<body>"
+
+   PR_NUMBER=$(gh pr view --json number -q .number)
    ```
 
-**Output**: PR URL created.
+**Output**: PR_URL and PR_NUMBER created.
 
 ---
 
@@ -127,7 +130,7 @@ git push -u origin HEAD
 1. Enable auto-merge with squash:
 
    ```bash
-   gh pr merge <PR_NUMBER> --auto --squash
+   gh pr merge "$PR_NUMBER" --auto --squash
    ```
 
 2. If auto-merge enables successfully:
