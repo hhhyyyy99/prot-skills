@@ -117,7 +117,7 @@ jobs:
         shell: bash
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
-          tsx scripts/package-release-assets.ts \
+          pnpm exec tsx scripts/package-release-assets.ts \
             "$VERSION" \
             "${{ matrix.os_label }}" \
             "${{ matrix.arch_label }}" \
