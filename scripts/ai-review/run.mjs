@@ -59,6 +59,7 @@ export async function runAIReview({
     minConfidence,
     maxFindings,
   });
+  result.findings = result.findings.slice(0, maxFindings);
   const blockingFindings = result.findings.filter((finding) => finding.severity === "important");
   const gatedResult = {
     ...result,
