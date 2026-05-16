@@ -31,6 +31,10 @@ export async function runAIReview({
   const githubToken = getRequiredEnvFrom(env, "GITHUB_TOKEN");
   const minConfidence = Number.parseInt(env.AI_REVIEW_MIN_CONFIDENCE || "80", 10);
   const maxFindings = Number.parseInt(env.AI_REVIEW_MAX_FINDINGS || "5", 10);
+
+  if (Number.isNaN(minConfidence) || Number.isNaN(maxFindings)) {
+    throw new Error("AI_REVIEW_MIN_CONFIDENCE and AI_REVIEW_MAX_FINDINGS must be valid integers");
+  }
   const providerConfig = getProviderConfig(env);
 
   validateProviderConfig(providerConfig);
