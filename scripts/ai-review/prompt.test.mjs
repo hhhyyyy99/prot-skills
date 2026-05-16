@@ -10,10 +10,10 @@ describe("ai review prompts", () => {
     });
 
     expect(prompt).toContain("hhhyyyy99/prot-skills");
-    expect(prompt).toContain("Only report high-signal issues");
-    expect(prompt).toContain("confidence score below 80");
-    expect(prompt).toContain("Cap findings at 5");
-    expect(prompt).toContain("masked as ***");
+    expect(prompt).toContain("Default to");
+    expect(prompt).toContain("Confidence below 80");
+    expect(prompt).toContain("Maximum 5 findings");
+    expect(prompt).toContain("shown as *** in logs");
   });
 
   it("builds a user prompt from PR metadata and changed files", () => {
