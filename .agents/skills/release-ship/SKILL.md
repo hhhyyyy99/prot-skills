@@ -214,14 +214,14 @@ Execute these phases in order. Each phase has a clear output — report it to th
 
 ## Quick Reference
 
-| Step              | Command                                            |
-| ----------------- | -------------------------------------------------- |
-| Bump version      | `pnpm release:version patch\|minor\|major`         |
-| Create tag        | `pnpm release:tag v{VERSION}`                      |
-| Create PR         | `gh pr create --base main --head <branch> --merge` |
-| Enable auto-merge | `gh pr merge --auto --squash`                      |
-| Check PR status   | `gh pr view {N} --json state,mergedAt`             |
-| Watch CI          | `gh run list --workflow=release.yml --limit=1`     |
+| Step              | Command                                        |
+| ----------------- | ---------------------------------------------- |
+| Bump version      | `pnpm release:version patch\|minor\|major`     |
+| Create tag        | `pnpm release:tag v{VERSION}`                  |
+| Create PR         | `gh pr create --base main --head <branch>`     |
+| Enable auto-merge | `gh pr merge --auto --squash`                  |
+| Check PR status   | `gh pr view {N} --json state,mergedAt`         |
+| Watch CI          | `gh run list --workflow=release.yml --limit=1` |
 
 ## Error Handling
 
