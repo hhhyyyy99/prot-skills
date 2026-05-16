@@ -13,7 +13,7 @@ jobs:
     steps:
       - name: Auto approve PR
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.PAT_TOKEN }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           REPO: ${{ github.repository }}
           EXPECTED_AUTHOR: hhhyyyy99
