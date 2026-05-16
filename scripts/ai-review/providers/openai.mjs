@@ -1,30 +1,23 @@
 import { normalizeReviewResult } from "../result.mjs";
-import { resolveOpenAIEndpoint } from "./url.mjs";
+import OpenAI from "openai";
 
 export async function generateOpenAIReview({ apiKey, baseUrl, model, systemPrompt, userPrompt }) {
-  const response = await fetch(resolveOpenAIEndpoint(baseUrl), {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      model,
-      temperature: 0.1,
-      response_format: { type: "json_object" },
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userPrompt },
-      ],
-    }),
+  const client = new OpenAI({
+    apiKey,
+    baseURL: baseUrl,
   });
 
-  if (!response.ok) {
-    throw new Error(`OpenAI review request failed with ${response.status}`);
-  }
+  const response = await client.chat.completions.create({
+    model,
+    temperature: 0.1,
+    response_format: { type: "json_object" },
+    messages: [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: userPrompt },
+    ],
+  });
 
-  const payload = await response.json();
-  const content = payload.choices?.[0]?.message?.content;
+  const content = response.choices?.[0]?.message?.content;
   if (typeof content !== "string") {
     throw new Error("OpenAI review response did not include JSON content");
   }

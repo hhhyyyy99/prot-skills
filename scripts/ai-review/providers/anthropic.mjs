@@ -1,5 +1,5 @@
 import { normalizeReviewResult } from "../result.mjs";
-import { resolveAnthropicEndpoint } from "./url.mjs";
+import Anthropic from "@anthropic-ai/sdk";
 
 export async function generateAnthropicReview({
   apiKey,
@@ -8,28 +8,20 @@ export async function generateAnthropicReview({
   systemPrompt,
   userPrompt,
 }) {
-  const response = await fetch(resolveAnthropicEndpoint(baseUrl), {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      "x-api-key": apiKey,
-      "anthropic-version": "2023-06-01",
-    },
-    body: JSON.stringify({
-      model,
-      max_tokens: 4096,
-      temperature: 0.1,
-      system: systemPrompt,
-      messages: [{ role: "user", content: userPrompt }],
-    }),
+  const client = new Anthropic({
+    apiKey,
+    baseURL: baseUrl,
   });
 
-  if (!response.ok) {
-    throw new Error(`Anthropic review request failed with ${response.status}`);
-  }
+  const response = await client.messages.create({
+    model,
+    max_tokens: 4096,
+    temperature: 0.1,
+    system: systemPrompt,
+    messages: [{ role: "user", content: userPrompt }],
+  });
 
-  const payload = await response.json();
-  const content = payload.content?.find((item) => item.type === "text")?.text;
+  const content = response.content?.find((item) => item.type === "text")?.text;
   if (typeof content !== "string") {
     throw new Error("Anthropic review response did not include JSON content");
   }

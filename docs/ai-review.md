@@ -32,10 +32,7 @@ If `AI_REVIEW_BASE_URL` is not set, the workflow uses these defaults:
 - `anthropic`: `https://api.anthropic.com/v1`
 - `gemini`: `https://generativelanguage.googleapis.com/v1beta`
 
-For `openai` and `anthropic`, `AI_REVIEW_BASE_URL` may be either:
-
-- the API root, such as `https://api.openai.com/v1` or `https://api.anthropic.com/v1`
-- or the full endpoint, such as `.../chat/completions` or `.../messages`
+For `openai` and `anthropic`, `AI_REVIEW_BASE_URL` is passed through to the official SDK as the provider base URL. Use the exact base URL documented by your provider or compatibility gateway.
 
 ## Behavior
 
