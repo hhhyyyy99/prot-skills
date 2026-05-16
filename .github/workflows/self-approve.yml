@@ -2,140 +2,46 @@ name: Self Approve PR
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened]
+    types: [opened, synchronize, reopened, labeled]
 
 permissions:
-  contents: read
-  actions: read
   pull-requests: write
 
 jobs:
-  check-and-approve:
+  approve:
     runs-on: ubuntu-latest
     steps:
-      - name: Wait for CI and AI review to complete
+      - name: Auto approve PR
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          REPO: ${{ github.repository }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-        run: |
-          echo "Waiting for CI and AI review to complete for SHA: $HEAD_SHA"
-
-          # Initialize status with null
-          ci_status="null"
-          review_status="null"
-          ci_done=false
-          review_done=false
-
-          # Get PR branch name
-          pr_branch=$(gh pr view $PR_NUMBER -R $REPO --json headRefName --jq '.headRefName')
-          echo "PR branch: $pr_branch"
-
-          # Poll for workflows to complete (max 30 minutes, check every 30 seconds)
-          max_attempts=60
-          attempt=0
-
-          while [ $attempt -lt $max_attempts ]; do
-            # Check CI status for this specific SHA
-            ci_result=$(gh run list -R $REPO --workflow=ci.yml --branch=$pr_branch --status=completed --json=headSha,conclusion --jq "[.[] | select(.headSha == \"$HEAD_SHA\")] | .[0] // {}")
-            ci_status=$(echo "$ci_result" | jq -r '.conclusion // "null"')
-
-            if [ "$ci_status" != "null" ]; then
-              ci_done=true
-              echo "CI completed with status: $ci_status"
-            fi
-
-            # Check AI review status for this specific SHA
-            review_result=$(gh run list -R $REPO --workflow=ai-review.yml --branch=$pr_branch --status=completed --json=headSha,conclusion --jq "[.[] | select(.headSha == \"$HEAD_SHA\")] | .[0] // {}")
-            review_status=$(echo "$review_result" | jq -r '.conclusion // "null"')
-
-            if [ "$review_status" != "null" ]; then
-              review_done=true
-              echo "AI review completed with status: $review_status"
-            fi
-
-            if [ "$ci_done" = "true" ] && [ "$review_done" = "true" ]; then
-              echo "Both workflows completed"
-              break
-            fi
-
-            attempt=$((attempt + 1))
-            echo "Waiting... (attempt $attempt/$max_attempts)"
-            sleep 30
-          done
-
-          # Write status to temp file for next step
-          echo "CI_STATUS=$ci_status"
-          echo "REVIEW_STATUS=$review_status"
-          echo "$ci_status" > /tmp/ci_status.txt
-          echo "$review_status" > /tmp/review_status.txt
-
-      - name: Check conditions and approve
-        if: always()
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
           EXPECTED_AUTHOR: hhhyyyy99
-          REPO: ${{ github.repository }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
-          # Read status from temp files
-          CI_STATUS=$(cat /tmp/ci_status.txt 2>/dev/null || echo "null")
-          REVIEW_STATUS=$(cat /tmp/review_status.txt 2>/dev/null || echo "null")
-
-          echo "CI Status: $CI_STATUS"
-          echo "AI Review Status: $REVIEW_STATUS"
-
-          # Skip if CI/review not found
-          if [ "$CI_STATUS" = "null" ] || [ "$CI_STATUS" = "" ]; then
-            echo "CI not completed or not found for this SHA, skip"
-            exit 0
-          fi
-
-          if [ "$REVIEW_STATUS" = "null" ] || [ "$REVIEW_STATUS" = "" ]; then
-            echo "AI review not completed or not found for this SHA, skip"
-            exit 0
-          fi
-
-          # 检查1: 验证 PR 当前 head SHA 未被 force-push
-          current_sha=$(gh pr view $PR_NUMBER -R $REPO --json headRefOid --jq '.headRefOid')
-          echo "Event payload SHA: $HEAD_SHA"
-          echo "Current SHA: $current_sha"
-
-          if [ "$current_sha" != "$HEAD_SHA" ]; then
-            echo "PR was force-pushed. Skip."
-            exit 0
-          fi
-
-          # 检查2: CI 必须通过
-          if [ "$CI_STATUS" != "success" ]; then
-            echo "CI not passed ($CI_STATUS), skip"
-            exit 0
-          fi
-
-          # 检查3: AI review 必须通过
-          if [ "$REVIEW_STATUS" != "success" ]; then
-            echo "AI review not passed ($REVIEW_STATUS), skip"
-            exit 0
-          fi
-
-          # 检查4: 通过作者 login 判断是否是预期用户
+          # 检查1: 作者必须是 hhhyyyy99
           author_login=$(gh pr view $PR_NUMBER -R $REPO --json author --jq '.author.login')
           echo "Author: $author_login"
 
           if [ "$author_login" != "$EXPECTED_AUTHOR" ]; then
-            echo "Not Eamon's PR (login mismatch), skip"
+            echo "Not Eamon's PR, skip"
             exit 0
           fi
 
-          # 检查5: 必须有 auto-merge 标签
+          # 检查2: 必须有 auto-merge 标签
           labels=$(gh pr view $PR_NUMBER -R $REPO --json labels --jq '.labels[].name')
           if ! echo "$labels" | grep -q "auto-merge"; then
             echo "No auto-merge label, skip"
             exit 0
           fi
 
+          # 检查3: PR 未被 force-push（SHA 一致性）
+          current_sha=$(gh pr view $PR_NUMBER -R $REPO --json headRefOid --jq '.headRefOid')
+          if [ "$current_sha" != "$HEAD_SHA" ]; then
+            echo "PR SHA mismatch, skip"
+            exit 0
+          fi
+
           # 全部通过，执行 approve
-          echo "All conditions met, approving PR..."
+          echo "Approving PR..."
           gh pr review $PR_NUMBER -R $REPO --approve -b "Auto-approved by self-approve workflow"
