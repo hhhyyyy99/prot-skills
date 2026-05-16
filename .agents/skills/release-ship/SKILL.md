@@ -45,8 +45,15 @@ Execute these phases in order. Each phase has a clear output — report it to th
    To gather commits:
 
    ```bash
-   git log $(git describe --tags --abbrev=0)..HEAD --oneline
+   LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+   if [[ -n "$LAST_TAG" ]]; then
+     git log "$LAST_TAG..HEAD" --oneline
+   else
+     git log --oneline
+   fi
    ```
+
+   If there are no tags yet, fall back to `git log --oneline` to show all commits.
 
 **Output**: confirmed next version and whether release notes need to be written.
 
@@ -91,26 +98,26 @@ Execute these phases in order. Each phase has a clear output — report it to th
    git push -u origin chore/release-v{NEXT_VERSION}
    ```
 
-2. Create a PR targeting `main` with auto-merge enabled:
+2. Create a PR targeting `main` with auto-merge enabled. Substitute the version value before running the command:
 
    ```bash
    gh pr create \
      --base main \
      --head chore/release-v{NEXT_VERSION} \
      --title "chore(release): v{NEXT_VERSION}" \
-     --body "$(cat <<'EOF'
-   ## Release v{NEXT_VERSION}
+     --body "## Release v{NEXT_VERSION}
 
-   Bumps version to {NEXT_VERSION} and adds release notes.
+   Bumps version to v{NEXT_VERSION} and adds release notes.
 
    ### Changes
    - Version bump in package.json, tauri.conf.json, Cargo.toml
    - Release notes at docs/releases/v{NEXT_VERSION}.md
-   EOF
-   )"
+   "
 
    gh pr merge --auto --squash
    ```
+
+   Do not use a heredoc with single-quoted delimiter — write the body as a plain string with the version substituted directly.
 
 3. If `gh pr merge --auto` fails (e.g. branch protection requires reviews, or auto-merge is not enabled on the repo), report the PR URL to the user and tell them to review and merge manually. Then skip to Phase 5.
 
