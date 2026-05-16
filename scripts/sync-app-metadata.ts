@@ -4,7 +4,34 @@ import { fileURLToPath } from "node:url";
 
 const rootFromScript = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
-function humanizePackageName(name) {
+type PackageJson = {
+  name?: string;
+  productName?: string;
+  version?: string;
+};
+
+type SyncedPackageJson = {
+  name: string;
+  productName?: string;
+  version: string;
+};
+
+type TauriConfig = {
+  productName?: string;
+  version?: string;
+  build?: {
+    beforeDevCommand?: string;
+    beforeBuildCommand?: string;
+    [key: string]: unknown;
+  };
+  app?: {
+    windows?: Array<Record<string, unknown>>;
+    [key: string]: unknown;
+  };
+  [key: string]: unknown;
+};
+
+function humanizePackageName(name: string) {
   return name
     .split(/[-_\s]+/)
     .filter(Boolean)
@@ -12,23 +39,23 @@ function humanizePackageName(name) {
     .join(" ");
 }
 
-function serializeJson(value) {
+function serializeJson(value: unknown) {
   return `${JSON.stringify(value, null, 2)}\n`;
 }
 
-function detectLineEnding(content) {
+function detectLineEnding(content: string) {
   return content.includes("\r\n") ? "\r\n" : "\n";
 }
 
-function normalizeLineEndings(content, lineEnding) {
+function normalizeLineEndings(content: string, lineEnding: string) {
   return content.replace(/\r?\n/g, lineEnding);
 }
 
-function serializeJsonLike(value, currentContent) {
+function serializeJsonLike(value: unknown, currentContent: string) {
   return normalizeLineEndings(serializeJson(value), detectLineEnding(currentContent));
 }
 
-function replacePackageField(content, field, value) {
+function replacePackageField(content: string, field: string, value: string) {
   const lineEnding = detectLineEnding(content);
   const headerMatch = content.match(/\[package\]\r?\n/);
   if (!headerMatch || headerMatch.index === undefined) {
@@ -45,7 +72,7 @@ function replacePackageField(content, field, value) {
   const fieldPattern = new RegExp(`^${field}\\s*=\\s*".*"$`);
   const lines = body.split(/\r?\n/);
   let replaced = false;
-  const nextLines = [];
+  const nextLines: string[] = [];
 
   for (const line of lines) {
     if (fieldPattern.test(line)) {
@@ -65,7 +92,7 @@ function replacePackageField(content, field, value) {
   return `${content.slice(0, headerStart)}${header}${nextBody}${content.slice(bodyEnd)}`;
 }
 
-function updateCargoToml(content, packageJson) {
+function updateCargoToml(content: string, packageJson: SyncedPackageJson) {
   return replacePackageField(
     replacePackageField(content, "name", packageJson.name),
     "version",
@@ -73,7 +100,7 @@ function updateCargoToml(content, packageJson) {
   );
 }
 
-function updateTauriConfig(config, packageJson) {
+function updateTauriConfig(config: TauriConfig, packageJson: SyncedPackageJson) {
   const productName = packageJson.productName ?? humanizePackageName(packageJson.name);
   const windows = Array.isArray(config.app?.windows)
     ? config.app.windows.map((windowConfig) => ({ ...windowConfig, title: productName }))
@@ -95,11 +122,11 @@ function updateTauriConfig(config, packageJson) {
   };
 }
 
-async function readJson(filePath) {
-  return JSON.parse(await readFile(filePath, "utf8"));
+async function readJson<T>(filePath: string): Promise<T> {
+  return JSON.parse(await readFile(filePath, "utf8")) as T;
 }
 
-async function writeIfChanged(filePath, nextContent, check) {
+async function writeIfChanged(filePath: string, nextContent: string, check: boolean) {
   const currentContent = await readFile(filePath, "utf8");
   if (currentContent === nextContent) return false;
   if (!check) await writeFile(filePath, nextContent);
@@ -111,29 +138,38 @@ export async function syncAppMetadata({ rootDir = rootFromScript, check = false 
   const tauriConfigPath = path.join(rootDir, "src-tauri", "tauri.conf.json");
   const cargoTomlPath = path.join(rootDir, "src-tauri", "Cargo.toml");
 
-  const packageJson = await readJson(packagePath);
+  const packageJson = await readJson<PackageJson>(packagePath);
   const tauriConfigContent = await readFile(tauriConfigPath, "utf8");
-  const tauriConfig = JSON.parse(tauriConfigContent);
+  const tauriConfig = JSON.parse(tauriConfigContent) as TauriConfig;
   const cargoToml = await readFile(cargoTomlPath, "utf8");
 
   if (!packageJson.name || !packageJson.version) {
     throw new Error("package.json must define name and version");
   }
 
+  const syncedPackageJson: SyncedPackageJson = {
+    name: packageJson.name,
+    productName: packageJson.productName,
+    version: packageJson.version,
+  };
+
   const changes = [
     {
       label: "src-tauri/tauri.conf.json",
       filePath: tauriConfigPath,
-      content: serializeJsonLike(updateTauriConfig(tauriConfig, packageJson), tauriConfigContent),
+      content: serializeJsonLike(
+        updateTauriConfig(tauriConfig, syncedPackageJson),
+        tauriConfigContent,
+      ),
     },
     {
       label: "src-tauri/Cargo.toml",
       filePath: cargoTomlPath,
-      content: updateCargoToml(cargoToml, packageJson),
+      content: updateCargoToml(cargoToml, syncedPackageJson),
     },
   ];
 
-  const changed = [];
+  const changed: string[] = [];
   for (const change of changes) {
     // eslint-disable-next-line eslint/no-await-in-loop -- sequential writes to track changed files
     if (await writeIfChanged(change.filePath, change.content, check)) {

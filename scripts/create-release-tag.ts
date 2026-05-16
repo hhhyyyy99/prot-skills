@@ -2,9 +2,16 @@ import { promisify } from "node:util";
 import { execFile as execFileCallback } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
-const execFilePromise = promisify(execFileCallback);
+type ExecFileResult = {
+  stdout?: string;
+  stderr?: string;
+};
 
-function parseArgs(args) {
+type ExecFile = (command: string, args: string[]) => Promise<ExecFileResult>;
+
+const execFilePromise = promisify(execFileCallback) as ExecFile;
+
+function parseArgs(args: string[]) {
   const [tagName, ...rest] = args;
   let remote = "origin";
 
@@ -25,13 +32,16 @@ function parseArgs(args) {
   return { tagName, remote };
 }
 
-async function runGit(execFile, args) {
+async function runGit(execFile: ExecFile, args: string[]) {
   await execFile("git", args);
 }
 
 export async function createReleaseTag({
   args = process.argv.slice(2),
   execFile = execFilePromise,
+}: {
+  args?: string[];
+  execFile?: ExecFile;
 } = {}) {
   const { tagName, remote } = parseArgs(args);
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { formatReviewComment } from "./github.mjs";
-import { runAIReview } from "./run.mjs";
+import { formatReviewComment } from "../../ai-review/github.ts";
+import { runAIReview } from "../../ai-review/run.ts";
 
 describe("AI review merge gate", () => {
   it("marks a clean review as passing", async () => {
@@ -106,7 +106,7 @@ describe("AI review merge gate", () => {
             body: "This sentence could be shorter.",
           },
           {
-            path: "scripts/ai-review/run.mjs",
+            path: "scripts/ai-review/run.ts",
             line: 22,
             severity: "pre-existing",
             confidence: 82,

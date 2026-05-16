@@ -1,15 +1,16 @@
-import { normalizeReviewResult } from "../result.mjs";
 import OpenAI from "openai";
-import { parseModelJson } from "./parse-json.mjs";
+import { normalizeReviewResult } from "../result.ts";
+import { parseModelJson } from "./parse-json.ts";
+import type { ReviewProvider } from "../types.ts";
 
-export async function generateOpenAIReview({
+export const generateOpenAIReview: ReviewProvider = async ({
   apiKey,
   baseUrl,
   model,
   systemPrompt,
   userPrompt,
   minConfidence,
-}) {
+}) => {
   const client = new OpenAI({
     apiKey,
     baseURL: baseUrl,
@@ -34,4 +35,4 @@ export async function generateOpenAIReview({
   return normalizeReviewResult(parseModelJson(content), {
     minConfidence,
   });
-}
+};

@@ -1,25 +1,26 @@
-import { generateAnthropicReview } from "./anthropic.mjs";
-import { generateOpenAIReview } from "./openai.mjs";
+import { generateAnthropicReview } from "./anthropic.ts";
+import { generateOpenAIReview } from "./openai.ts";
+import type { AIReviewEnv, ProviderConfig, ProviderName, ReviewProvider } from "../types.ts";
 
-const DEFAULT_BASE_URLS = {
+const DEFAULT_BASE_URLS: Record<ProviderName, string> = {
   openai: "https://api.openai.com/v1",
   anthropic: "https://api.anthropic.com/v1",
 };
 
-const PROVIDER_CLIENTS = {
+const PROVIDER_CLIENTS: Record<ProviderName, ReviewProvider> = {
   openai: generateOpenAIReview,
   anthropic: generateAnthropicReview,
 };
 
-export function validateProviderConfig(config) {
+export function validateProviderConfig(config: ProviderConfig) {
   if (!config.model || !config.apiKey || !config.baseUrl) {
     throw new Error("AI review configuration is incomplete");
   }
 }
 
-export function getProviderConfig(env) {
+export function getProviderConfig(env: AIReviewEnv): ProviderConfig {
   const provider = env.AI_REVIEW_PROVIDER;
-  if (!Object.hasOwn(PROVIDER_CLIENTS, provider)) {
+  if (provider !== "openai" && provider !== "anthropic") {
     throw new Error(`Unsupported AI review provider: ${provider}`);
   }
 
@@ -31,6 +32,6 @@ export function getProviderConfig(env) {
   };
 }
 
-export function resolveProviderClient(config) {
+export function resolveProviderClient(config: ProviderConfig) {
   return PROVIDER_CLIENTS[config.provider];
 }

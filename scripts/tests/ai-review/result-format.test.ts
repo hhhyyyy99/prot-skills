@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { normalizeReviewResult } from "./result.mjs";
+import { normalizeReviewResult } from "../../ai-review/result.ts";
 
 describe("normalizeReviewResult", () => {
   it("normalizes review payloads into a stable shape", () => {

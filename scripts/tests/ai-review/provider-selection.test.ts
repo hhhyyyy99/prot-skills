@@ -3,7 +3,7 @@ import {
   getProviderConfig,
   resolveProviderClient,
   validateProviderConfig,
-} from "./providers/index.mjs";
+} from "../../ai-review/providers/index.ts";
 
 describe("ai review provider config", () => {
   it("builds OpenAI provider config from environment", () => {

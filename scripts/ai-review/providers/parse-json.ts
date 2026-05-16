@@ -1,16 +1,14 @@
-export function parseModelJson(content) {
+export function parseModelJson(content: unknown) {
   if (typeof content !== "string") {
     throw new Error("Model response did not include JSON content");
   }
 
   const trimmed = content.trim();
 
-  // 1. Try direct parse
   try {
     return JSON.parse(trimmed);
   } catch {}
 
-  // 2. Try fenced code block
   const fencedMatch = trimmed.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
   if (fencedMatch) {
     try {
@@ -18,7 +16,6 @@ export function parseModelJson(content) {
     } catch {}
   }
 
-  // 3. Try extracting the first top-level JSON object or array
   const jsonMatch = trimmed.match(/(\{[\s\S]*\}|\[[\s\S]*\])/);
   if (jsonMatch) {
     try {

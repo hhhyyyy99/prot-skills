@@ -1,17 +1,27 @@
+import { pathToFileURL } from "node:url";
+import { resolve } from "node:path";
 import {
   createOrUpdateIssueComment,
   findExistingIssueComment,
   formatReviewComment,
   getPullRequestContext,
-} from "./github.mjs";
-import { buildReviewPrompt, buildSystemPrompt } from "./prompt.mjs";
+} from "./github.ts";
+import { buildReviewPrompt, buildSystemPrompt } from "./prompt.ts";
 import {
   getProviderConfig,
   resolveProviderClient,
   validateProviderConfig,
-} from "./providers/index.mjs";
+} from "./providers/index.ts";
+import type {
+  AIReviewEnv,
+  GatedReviewResult,
+  IssueComment,
+  PullRequestContext,
+  ReviewProvider,
+  ReviewResult,
+} from "./types.ts";
 
-function getRequiredEnvFrom(env, name) {
+function getRequiredEnvFrom(env: AIReviewEnv, name: string) {
   const value = env[name];
   if (!value) {
     throw new Error(`Missing required environment variable: ${name}`);
@@ -25,7 +35,27 @@ export async function runAIReview({
   providerClient,
   existingCommentLoader = findExistingIssueComment,
   commentWriter = createOrUpdateIssueComment,
-} = {}) {
+}: {
+  env?: AIReviewEnv;
+  pullRequestLoader?: (input: {
+    repo: string;
+    pullRequestNumber: number;
+    githubToken: string;
+  }) => Promise<PullRequestContext>;
+  providerClient?: ReviewProvider;
+  existingCommentLoader?: (input: {
+    repo: string;
+    pullRequestNumber: number;
+    githubToken: string;
+  }) => Promise<IssueComment | null>;
+  commentWriter?: (input: {
+    repo: string;
+    pullRequestNumber: number;
+    githubToken: string;
+    commentId?: number;
+    body: string;
+  }) => Promise<void>;
+} = {}): Promise<GatedReviewResult> {
   const repo = getRequiredEnvFrom(env, "REPO");
   const pullRequestNumber = Number.parseInt(getRequiredEnvFrom(env, "PR_NUMBER"), 10);
   const githubToken = getRequiredEnvFrom(env, "GITHUB_TOKEN");
@@ -59,10 +89,15 @@ export async function runAIReview({
     minConfidence,
     maxFindings,
   });
-  result.findings = result.findings.slice(0, maxFindings);
-  const blockingFindings = result.findings.filter((finding) => finding.severity === "important");
-  const gatedResult = {
+  const trimmedResult: ReviewResult = {
     ...result,
+    findings: result.findings.slice(0, maxFindings),
+  };
+  const blockingFindings = trimmedResult.findings.filter(
+    (finding) => finding.severity === "important",
+  );
+  const gatedResult: GatedReviewResult = {
+    ...trimmedResult,
     passed: blockingFindings.length === 0,
   };
   const existingComment = await existingCommentLoader({
@@ -81,9 +116,6 @@ export async function runAIReview({
 
   return gatedResult;
 }
-
-import { pathToFileURL } from "node:url";
-import { resolve } from "node:path";
 
 if (import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
   runAIReview()

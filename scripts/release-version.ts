@@ -2,7 +2,14 @@ import { execFile as execFileCallback } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 
-const execFilePromise = promisify(execFileCallback);
+type ExecFileResult = {
+  stdout: string;
+  stderr?: string;
+};
+
+type ExecFile = (command: string, args: string[]) => Promise<ExecFileResult>;
+
+const execFilePromise = promisify(execFileCallback) as ExecFile;
 const validReleaseLevels = new Set(["patch", "minor", "major"]);
 const versionFiles = [
   "package.json",
@@ -11,29 +18,32 @@ const versionFiles = [
   "src-tauri/Cargo.lock",
 ];
 
-function normalizeVersionOutput(stdout) {
+function normalizeVersionOutput(stdout: string) {
   return stdout.trim().replace(/^v/, "");
 }
 
-async function runCommand(execFile, command, args) {
+async function runCommand(execFile: ExecFile, command: string, args: string[]) {
   return execFile(command, args);
 }
 
-async function runPnpm(execFile, args) {
+async function runPnpm(execFile: ExecFile, args: string[]) {
   return runCommand(execFile, "pnpm", args);
 }
 
-async function runGit(execFile, args) {
+async function runGit(execFile: ExecFile, args: string[]) {
   return runCommand(execFile, "git", args);
 }
 
-async function runCargo(execFile, args) {
+async function runCargo(execFile: ExecFile, args: string[]) {
   return runCommand(execFile, "cargo", args);
 }
 
 export async function releaseVersion({
   args = process.argv.slice(2),
   execFile = execFilePromise,
+}: {
+  args?: string[];
+  execFile?: ExecFile;
 } = {}) {
   const [releaseLevel] = args;
 

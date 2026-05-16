@@ -1,49 +1,54 @@
-import { normalizeReviewResult } from "../result.mjs";
 import Anthropic from "@anthropic-ai/sdk";
-import { parseModelJson } from "./parse-json.mjs";
+import { normalizeReviewResult } from "../result.ts";
+import { parseModelJson } from "./parse-json.ts";
+import type { ReviewProvider } from "../types.ts";
 
-function isRetryableError(error) {
-  if (error?.status === 429 || error?.status === 529) return true;
-  const code = error?.cause?.code || error?.code;
-  return ["ECONNRESET", "ECONNREFUSED", "ETIMEDOUT", "ENOTFOUND", "UND_ERR_SOCKET"].includes(code);
+function isRetryableError(error: unknown) {
+  if (!error || typeof error !== "object") return false;
+  const candidate = error as {
+    status?: number;
+    cause?: { code?: string };
+    code?: string;
+  };
+  if (candidate.status === 429 || candidate.status === 529) return true;
+  const code = candidate.cause?.code || candidate.code;
+  return ["ECONNRESET", "ECONNREFUSED", "ETIMEDOUT", "ENOTFOUND", "UND_ERR_SOCKET"].includes(
+    String(code),
+  );
 }
 
-function extractContent(response) {
-  // Standard Anthropic format: content[].type === "text"
-  const textBlock = response.content?.find((item) => item.type === "text");
-  if (textBlock?.text) {
+function extractContent(response: Anthropic.Messages.Message) {
+  const textBlock = response.content.find((item) => item.type === "text");
+  if (textBlock && "text" in textBlock && typeof textBlock.text === "string") {
     return textBlock.text;
   }
 
-  // Some Anthropic-compatible APIs return content as a plain string
   if (typeof response.content === "string") {
     return response.content;
   }
 
-  // Some APIs (e.g. DeepSeek) return extended thinking blocks without a
-  // separate text block. Extract from the last thinking block as fallback.
-  const thinkingBlocks = response.content?.filter(
-    (item) => item.type === "thinking" && typeof item.thinking === "string",
+  const thinkingBlocks = response.content.filter(
+    (item): item is Anthropic.ThinkingBlock =>
+      item.type === "thinking" && "thinking" in item && typeof item.thinking === "string",
   );
-  if (thinkingBlocks?.length > 0) {
+  if (thinkingBlocks.length > 0) {
     const lastThinking = thinkingBlocks[thinkingBlocks.length - 1].thinking;
     console.warn("No text block in response; using thinking block content as fallback");
     return lastThinking;
   }
 
-  // Debug: dump structure to help diagnose incompatible APIs
   console.error("Unexpected response structure:", JSON.stringify(response, null, 2).slice(0, 2000));
   return null;
 }
 
-export async function generateAnthropicReview({
+export const generateAnthropicReview: ReviewProvider = async ({
   apiKey,
   baseUrl,
   model,
   systemPrompt,
   userPrompt,
   minConfidence,
-}) {
+}) => {
   const client = new Anthropic({
     apiKey,
     baseURL: baseUrl,
@@ -51,9 +56,9 @@ export async function generateAnthropicReview({
   });
 
   const maxRetries = 3;
-  let response;
+  let response: Anthropic.Messages.Message | undefined;
 
-  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+  for (let attempt = 0; attempt <= maxRetries; attempt += 1) {
     if (attempt > 0) {
       const delay = 1000 * 2 ** (attempt - 1);
       console.warn(`Retrying model call (attempt ${attempt}/${maxRetries}) after ${delay}ms`);
@@ -77,6 +82,10 @@ export async function generateAnthropicReview({
     }
   }
 
+  if (!response) {
+    throw new Error("Anthropic review response was not received");
+  }
+
   const content = extractContent(response);
   if (typeof content !== "string") {
     throw new Error("Anthropic review response did not include JSON content");
@@ -90,4 +99,4 @@ export async function generateAnthropicReview({
     console.error("Raw model response (first 2000 chars):", content.slice(0, 2000));
     throw error;
   }
-}
+};

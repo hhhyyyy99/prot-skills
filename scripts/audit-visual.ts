@@ -1,44 +1,45 @@
 #!/usr/bin/env node
-/**
- * Visual constraint audit for the UI redesign.
- *
- * Enforces Requirement 17.5:
- *   - 不允许 bg-gradient-*
- *   - 不允许 Tailwind 原生 shadow-{sm,md,lg,xl,2xl}（仅允许 shadow-overlay / shadow-none）
- *   - 不允许硬编码彩色 class（bg-gray-* / bg-blue-* / bg-green-* / bg-red-* /
- *     bg-orange-* / bg-yellow-* / text-blue-* / text-green-* / text-red-* /
- *     text-orange-* / text-yellow-*）
- *
- * 退出码：违反任一规则时非零。
- */
-
 import { readdir, readFile } from "node:fs/promises";
 import { join, extname, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 
-// eslint-disable-next-line eslint/no-underscore-dangle -- Node __dirname polyfill for ESM
+type Violation = {
+  rule: string;
+  message: string;
+  file: string;
+  line: number;
+  match: string;
+  snippet: string;
+};
+
+type Rule = {
+  id: string;
+  pattern: RegExp;
+  message: string;
+};
+
 const __dirname = fileURLToPath(new URL(".", import.meta.url));
 const ROOT = join(__dirname, "..");
 const SRC = join(ROOT, "src");
 const SKIP_DIRS = new Set(["__tests__", "node_modules", "dist", ".git"]);
 const EXTS = new Set([".ts", ".tsx", ".css"]);
 
-async function walk(dir) {
+async function walk(dir: string): Promise<string[]> {
   const entries = await readdir(dir, { withFileTypes: true });
-  const out = [];
-  for (const e of entries) {
-    if (e.isDirectory()) {
-      if (SKIP_DIRS.has(e.name)) continue;
+  const out: string[] = [];
+  for (const entry of entries) {
+    if (entry.isDirectory()) {
+      if (SKIP_DIRS.has(entry.name)) continue;
       // eslint-disable-next-line eslint/no-await-in-loop -- recursive walk requires sequential awaits
-      out.push(...(await walk(join(dir, e.name))));
-    } else if (EXTS.has(extname(e.name))) {
-      out.push(join(dir, e.name));
+      out.push(...(await walk(join(dir, entry.name))));
+    } else if (EXTS.has(extname(entry.name))) {
+      out.push(join(dir, entry.name));
     }
   }
   return out;
 }
 
-const RULES = [
+const RULES: Rule[] = [
   {
     id: "no-bg-gradient",
     pattern: /\bbg-gradient-[\w-]+/g,
@@ -46,7 +47,6 @@ const RULES = [
   },
   {
     id: "no-raw-shadow",
-    // 仅匹配 Tailwind 原生 shadow-sm/md/lg/xl/2xl，排除 shadow-overlay / shadow-none
     pattern: /\bshadow-(?:sm|md|lg|xl|2xl|inner)\b/g,
     message: "只允许 shadow-overlay 与 shadow-none。",
   },
@@ -75,7 +75,7 @@ const RULES = [
 
 async function main() {
   const files = await walk(SRC);
-  const violations = [];
+  const violations: Violation[] = [];
 
   for (const file of files) {
     // eslint-disable-next-line eslint/no-await-in-loop -- sequential file reads for audit
@@ -83,10 +83,9 @@ async function main() {
     const lines = content.split("\n");
     for (const rule of RULES) {
       rule.pattern.lastIndex = 0;
-      let m;
-      while ((m = rule.pattern.exec(content)) !== null) {
-        // compute line number
-        const before = content.slice(0, m.index);
+      let match: RegExpExecArray | null;
+      while ((match = rule.pattern.exec(content)) !== null) {
+        const before = content.slice(0, match.index);
         const line = before.split("\n").length;
         const lineText = lines[line - 1]?.trim() ?? "";
         violations.push({
@@ -94,7 +93,7 @@ async function main() {
           message: rule.message,
           file: relative(ROOT, file),
           line,
-          match: m[0],
+          match: match[0],
           snippet: lineText,
         });
       }
@@ -102,29 +101,29 @@ async function main() {
   }
 
   if (violations.length === 0) {
-    console.log("✅ Visual audit passed — no violations found");
+    console.log("Visual audit passed - no violations found");
     console.log(`   checked ${files.length} file(s), ${RULES.length} rule(s)`);
     process.exit(0);
   }
 
-  console.error(`❌ Visual audit failed — ${violations.length} violation(s)\n`);
-  const byRule = new Map();
-  for (const v of violations) {
-    if (!byRule.has(v.rule)) byRule.set(v.rule, []);
-    byRule.get(v.rule).push(v);
+  console.error(`Visual audit failed - ${violations.length} violation(s)\n`);
+  const byRule = new Map<string, Violation[]>();
+  for (const violation of violations) {
+    if (!byRule.has(violation.rule)) byRule.set(violation.rule, []);
+    byRule.get(violation.rule)?.push(violation);
   }
   for (const [rule, list] of byRule) {
-    console.error(`[${rule}] — ${list[0].message}`);
-    for (const v of list) {
-      console.error(`  ${v.file}:${v.line}  ${v.match}`);
-      console.error(`    ${v.snippet}`);
+    console.error(`[${rule}] - ${list[0].message}`);
+    for (const violation of list) {
+      console.error(`  ${violation.file}:${violation.line}  ${violation.match}`);
+      console.error(`    ${violation.snippet}`);
     }
     console.error("");
   }
   process.exit(1);
 }
 
-main().catch((e) => {
-  console.error(e);
+main().catch((error: unknown) => {
+  console.error(error);
   process.exit(2);
 });

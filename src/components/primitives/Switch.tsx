@@ -35,7 +35,7 @@ function Switch({
     >
       <SwitchPrimitive.Thumb
         className={[
-          "block rounded-full bg-white shadow-sm transition-transform duration-fast ease-out-quart",
+          "block rounded-full bg-white shadow-none transition-transform duration-fast ease-out-quart",
           thumbSize,
           thumbTranslate,
           "translate-x-[3px]",

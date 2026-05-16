@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { releaseVersion } from "./release-version.mjs";
+import { releaseVersion } from "../release-version.ts";
 
 describe("releaseVersion", () => {
   it("bumps a patch version, refreshes Cargo.lock, syncs app metadata, and commits the version files", async () => {
-    const calls = [];
-    const execFile = async (command, args) => {
+    const calls: Array<{ command: string; args: string[] }> = [];
+    const execFile = async (command: string, args: string[]) => {
       calls.push({ command, args });
       if (args[0] === "version") {
         return { stdout: "v0.0.2\n" };
@@ -49,8 +49,8 @@ describe("releaseVersion", () => {
   });
 
   it("bumps a minor version and uses the bumped version in the commit message", async () => {
-    const calls = [];
-    const execFile = async (command, args) => {
+    const calls: Array<{ command: string; args: string[] }> = [];
+    const execFile = async (command: string, args: string[]) => {
       calls.push({ command, args });
       if (args[0] === "version") {
         return { stdout: "v0.1.0\n" };
@@ -72,7 +72,7 @@ describe("releaseVersion", () => {
       command: "cargo",
       args: ["generate-lockfile", "--manifest-path", "src-tauri/Cargo.toml"],
     });
-    expect(calls.at(-1)).toEqual({
+    expect(calls[calls.length - 1]).toEqual({
       command: "git",
       args: ["commit", "-m", "chore(release): bump version to 0.1.0"],
     });

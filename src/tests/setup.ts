@@ -1,6 +1,5 @@
 import "@testing-library/jest-dom";
 
-// matchMedia polyfill for jsdom
 Object.defineProperty(window, "matchMedia", {
   writable: true,
   value: (query: string) => ({
@@ -15,7 +14,6 @@ Object.defineProperty(window, "matchMedia", {
   }),
 });
 
-// ResizeObserver polyfill for cmdk
 class ResizeObserverStub {
   observe() {}
   unobserve() {}
@@ -23,5 +21,4 @@ class ResizeObserverStub {
 }
 window.ResizeObserver = ResizeObserverStub as unknown as typeof ResizeObserver;
 
-// scrollIntoView polyfill for cmdk
 Element.prototype.scrollIntoView = () => {};

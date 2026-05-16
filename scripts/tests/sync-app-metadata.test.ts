@@ -2,9 +2,9 @@ import { mkdtemp, mkdir, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { syncAppMetadata } from "./sync-app-metadata.mjs";
+import { syncAppMetadata } from "../sync-app-metadata.ts";
 
-async function writeFixture(rootDir) {
+async function writeFixture(rootDir: string) {
   await mkdir(path.join(rootDir, "src-tauri"), { recursive: true });
   await writeFile(
     path.join(rootDir, "package.json"),
@@ -62,7 +62,12 @@ describe("syncAppMetadata", () => {
 
     const tauriConfig = JSON.parse(
       await readFile(path.join(rootDir, "src-tauri", "tauri.conf.json"), "utf8"),
-    );
+    ) as {
+      productName?: string;
+      version?: string;
+      build: { beforeDevCommand: string; beforeBuildCommand: string };
+      app: { windows: Array<{ title: string }> };
+    };
     expect(tauriConfig.productName).toBe("Sample App");
     expect(tauriConfig.version).toBe("2.3.4");
     expect(tauriConfig.app.windows[0].title).toBe("Sample App");
@@ -89,7 +94,7 @@ describe("syncAppMetadata", () => {
 
     const tauriConfig = JSON.parse(
       await readFile(path.join(rootDir, "src-tauri", "tauri.conf.json"), "utf8"),
-    );
+    ) as { productName?: string };
     expect(tauriConfig.productName).toBeUndefined();
   });
 
