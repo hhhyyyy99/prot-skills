@@ -5,14 +5,26 @@ export function parseModelJson(content) {
 
   const trimmed = content.trim();
 
+  // 1. Try direct parse
   try {
     return JSON.parse(trimmed);
-  } catch {
-    const fencedMatch = trimmed.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
-    if (!fencedMatch) {
-      throw new Error("Model response did not contain valid JSON");
-    }
+  } catch {}
 
-    return JSON.parse(fencedMatch[1].trim());
+  // 2. Try fenced code block
+  const fencedMatch = trimmed.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
+  if (fencedMatch) {
+    try {
+      return JSON.parse(fencedMatch[1].trim());
+    } catch {}
   }
+
+  // 3. Try extracting the first top-level JSON object or array
+  const jsonMatch = trimmed.match(/(\{[\s\S]*\}|\[[\s\S]*\])/);
+  if (jsonMatch) {
+    try {
+      return JSON.parse(jsonMatch[1]);
+    } catch {}
+  }
+
+  throw new Error("Model response did not contain valid JSON");
 }

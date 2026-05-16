@@ -29,7 +29,12 @@ export async function generateAnthropicReview({
     throw new Error("Anthropic review response did not include JSON content");
   }
 
-  return normalizeReviewResult(parseModelJson(content), {
-    minConfidence,
-  });
+  try {
+    return normalizeReviewResult(parseModelJson(content), {
+      minConfidence,
+    });
+  } catch (error) {
+    console.error("Raw model response (first 2000 chars):", content.slice(0, 2000));
+    throw error;
+  }
 }

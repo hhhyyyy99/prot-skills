@@ -16,6 +16,18 @@ describe("parseModelJson", () => {
     });
   });
 
+  it("extracts JSON wrapped in explanatory text", () => {
+    expect(
+      parseModelJson('Here is the review:\n{"summary":"LGTM","findings":[]}\n\nDone.'),
+    ).toEqual({ summary: "LGTM", findings: [] });
+  });
+
+  it("extracts JSON from fenced block with surrounding text", () => {
+    expect(
+      parseModelJson('Review results:\n```json\n{"summary":"ok","findings":[]}\n```\nEnd.'),
+    ).toEqual({ summary: "ok", findings: [] });
+  });
+
   it("rejects invalid content", () => {
     expect(() => parseModelJson("not json")).toThrow("Model response did not contain valid JSON");
   });
