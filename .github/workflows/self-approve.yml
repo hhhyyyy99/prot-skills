@@ -19,14 +19,14 @@ jobs:
           EXPECTED_AUTHOR: hhhyyyy99
           REPO: ${{ github.repository }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
-          # 检查0: 验证 PR 当前 head SHA 未被 force-push
+          # 检查0: 获取当前 PR 的 head SHA
           current_sha=$(gh pr view $PR_NUMBER -R $REPO --json headRefOid --jq '.headRefOid')
-          trigger_sha=$(gh api repos/$REPO/pulls/$PR_NUMBER --jq '.head.sha')
-          echo "Trigger SHA: $trigger_sha"
+          echo "Event payload SHA: $HEAD_SHA"
           echo "Current SHA: $current_sha"
 
-          if [ "$current_sha" != "$trigger_sha" ]; then
+          if [ "$current_sha" != "$HEAD_SHA" ]; then
             echo "PR was force-pushed. Skip."
             exit 0
           fi
@@ -51,19 +51,21 @@ jobs:
           pr_branch=$(gh pr view $PR_NUMBER -R $REPO --json headRefName --jq '.headRefName')
           echo "PR branch: $pr_branch"
 
-          # 检查4: CI 必须通过
-          ci_status=$(gh run list -R $REPO --workflow=ci.yml --branch=$pr_branch --status=completed --json=conclusion --jq '.[0].conclusion // "null"')
+          # 检查4: CI 必须通过 (同时验证 SHA)
+          ci_run=$(gh run list -R $REPO --workflow=ci.yml --branch=$pr_branch --status=completed --json=headSha,conclusion --jq '[.[] | select(.headSha == "$HEAD_SHA")] | .[0]')
+          ci_status=$(echo "$ci_run" | jq -r '.conclusion // "null"')
           echo "CI status: $ci_status"
           if [ "$ci_status" != "success" ]; then
-            echo "CI not passed, skip"
+            echo "CI not passed or not run for current SHA, skip"
             exit 0
           fi
 
-          # 检查5: AI review 必须通过
-          review_status=$(gh run list -R $REPO --workflow=ai-review.yml --branch=$pr_branch --status=completed --json=conclusion --jq '.[0].conclusion // "null"')
+          # 检查5: AI review 必须通过 (同时验证 SHA)
+          review_run=$(gh run list -R $REPO --workflow=ai-review.yml --branch=$pr_branch --status=completed --json=headSha,conclusion --jq '[.[] | select(.headSha == "$HEAD_SHA")] | .[0]')
+          review_status=$(echo "$review_run" | jq -r '.conclusion // "null"')
           echo "AI review status: $review_status"
           if [ "$review_status" != "success" ]; then
-            echo "AI review not passed, skip"
+            echo "AI review not passed or not run for current SHA, skip"
             exit 0
           fi
 
