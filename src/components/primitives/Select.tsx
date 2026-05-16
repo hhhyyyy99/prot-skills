@@ -1,5 +1,5 @@
-import * as SelectPrimitive from '@radix-ui/react-select';
-import { ChevronDown } from 'lucide-react';
+import * as SelectPrimitive from "@radix-ui/react-select";
+import { ChevronDown } from "lucide-react";
 
 interface SelectOption<T extends string = string> {
   value: T;
@@ -14,21 +14,28 @@ interface SelectProps<T extends string = string> {
   options: readonly SelectOption<T>[];
   placeholder?: string;
   disabled?: boolean;
-  size?: 'sm' | 'md';
+  size?: "sm" | "md";
 }
 
-function Select<T extends string = string>({ value, onChange, options, placeholder, disabled, size = 'md' }: SelectProps<T>) {
-  const heightClass = size === 'sm' ? 'h-7 text-12' : 'h-8 text-13';
+function Select<T extends string = string>({
+  value,
+  onChange,
+  options,
+  placeholder,
+  disabled,
+  size = "md",
+}: SelectProps<T>) {
+  const heightClass = size === "sm" ? "h-7 text-12" : "h-8 text-13";
 
   return (
     <SelectPrimitive.Root value={value} onValueChange={(v) => onChange(v as T)} disabled={disabled}>
       <SelectPrimitive.Trigger
         className={[
-          'inline-flex items-center justify-between gap-1 rounded-md border border-border-default bg-surface px-2',
-          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas',
-          'disabled:opacity-50',
+          "inline-flex items-center justify-between gap-1 rounded-md border border-border-default bg-surface px-2",
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas",
+          "disabled:opacity-50",
           heightClass,
-        ].join(' ')}
+        ].join(" ")}
       >
         <SelectPrimitive.Value placeholder={placeholder} />
         <SelectPrimitive.Icon>

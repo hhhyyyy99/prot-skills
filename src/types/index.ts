@@ -46,7 +46,7 @@ export interface SkillLink {
   created_at: string;
 }
 
-export type SyncResultStatus = 'success' | 'partial' | 'failed';
+export type SyncResultStatus = "success" | "partial" | "failed";
 
 export interface SyncSuccessItem {
   tool_id: string;

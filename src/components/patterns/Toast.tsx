@@ -1,7 +1,7 @@
-import { X } from 'lucide-react';
-import { IconButton } from '../primitives/IconButton';
-import { Button } from '../primitives/Button';
-import type { ToastPayload } from '../../lib/toastQueue';
+import { X } from "lucide-react";
+import { IconButton } from "../primitives/IconButton";
+import { Button } from "../primitives/Button";
+import type { ToastPayload } from "../../lib/toastQueue";
 
 interface ToastProps extends ToastPayload {
   onDismiss: (id: string) => void;
@@ -9,19 +9,19 @@ interface ToastProps extends ToastPayload {
 }
 
 const variantBorder: Record<string, string> = {
-  info: 'border-accent text-accent',
-  success: 'border-success text-success',
-  warning: 'border-warning text-warning',
-  error: 'border-danger text-danger',
+  info: "border-accent text-accent",
+  success: "border-success text-success",
+  warning: "border-warning text-warning",
+  error: "border-danger text-danger",
 };
 
 function Toast({ id, variant, title, description, action, onDismiss }: ToastProps) {
-  const isAssertive = variant === 'warning' || variant === 'error';
+  const isAssertive = variant === "warning" || variant === "error";
 
   return (
     <div
-      role={isAssertive ? 'alert' : 'status'}
-      aria-live={isAssertive ? 'assertive' : 'polite'}
+      role={isAssertive ? "alert" : "status"}
+      aria-live={isAssertive ? "assertive" : "polite"}
       className={`relative border rounded-md p-3 min-w-[280px] max-w-[360px] bg-surface ${variantBorder[variant]}`}
     >
       <div className="pr-6">

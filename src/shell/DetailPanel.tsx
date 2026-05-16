@@ -1,6 +1,6 @@
-import { useEffect, useRef, type ReactNode } from 'react';
-import { X } from 'lucide-react';
-import { IconButton } from '../components/primitives/IconButton';
+import { useEffect, useRef, type ReactNode } from "react";
+import { X } from "lucide-react";
+import { IconButton } from "../components/primitives/IconButton";
 
 export interface DetailPanelProps {
   open: boolean;
@@ -12,7 +12,15 @@ export interface DetailPanelProps {
   ariaLabel?: string;
 }
 
-export function DetailPanel({ open, onClose, title, subtitle, footer, children, ariaLabel }: DetailPanelProps) {
+export function DetailPanel({
+  open,
+  onClose,
+  title,
+  subtitle,
+  footer,
+  children,
+  ariaLabel,
+}: DetailPanelProps) {
   const closeBtnRef = useRef<HTMLButtonElement>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
   const prevOpenRef = useRef(open);
@@ -37,18 +45,20 @@ export function DetailPanel({ open, onClose, title, subtitle, footer, children, 
         onClose();
       }
     };
-    document.addEventListener('pointerdown', handler);
-    return () => document.removeEventListener('pointerdown', handler);
+    document.addEventListener("pointerdown", handler);
+    return () => document.removeEventListener("pointerdown", handler);
   }, [open, onClose]);
 
   return (
     <aside
       ref={asideRef}
       role="complementary"
-      aria-label={ariaLabel ?? 'Details'}
-      data-state={open ? 'open' : 'closed'}
+      aria-label={ariaLabel ?? "Details"}
+      data-state={open ? "open" : "closed"}
       tabIndex={-1}
-      onKeyDown={(e) => { if (e.key === 'Escape') onClose(); }}
+      onKeyDown={(e) => {
+        if (e.key === "Escape") onClose();
+      }}
       className="h-full flex flex-col bg-surface border-l border-border-subtle transition-transform duration-base ease-out-quart data-[state=closed]:translate-x-full data-[state=open]:translate-x-0"
     >
       <div className="flex items-start justify-between p-4 border-b border-border-subtle">

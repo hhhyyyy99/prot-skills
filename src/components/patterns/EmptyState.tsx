@@ -1,5 +1,5 @@
-import { type ReactNode, isValidElement } from 'react';
-import { Button } from '../primitives/Button';
+import { type ReactNode, isValidElement } from "react";
+import { Button } from "../primitives/Button";
 
 interface EmptyStateProps {
   title: string;
@@ -9,7 +9,7 @@ interface EmptyStateProps {
   secondaryAction?:
     | { label: string; onClick: () => void }
     | { label: string; href: string; external?: boolean };
-  align?: 'left' | 'center';
+  align?: "left" | "center";
 }
 
 function EmptyState({
@@ -18,21 +18,31 @@ function EmptyState({
   icon,
   primaryAction,
   secondaryAction,
-  align = 'left',
+  align = "left",
 }: EmptyStateProps) {
   if (isValidElement(icon)) {
     const props = icon.props as Record<string, unknown>;
-    if (typeof props.size === 'number' && props.size > 16) {
-      console.warn('EmptyState: icon size should be 16px');
+    if (typeof props.size === "number" && props.size > 16) {
+      console.warn("EmptyState: icon size should be 16px");
     }
   }
 
-  const alignClass = align === 'center' ? 'text-center mx-auto' : '';
+  const alignClass = align === "center" ? "text-center mx-auto" : "";
 
   return (
     <div className={`p-6 space-y-2 max-w-md ${alignClass}`}>
-      <div className={align === 'center' ? 'flex items-center justify-center gap-2' : 'inline-flex items-center gap-2'}>
-        {icon && <span className="inline-flex items-center" style={{ width: 16, height: 16 }}>{icon}</span>}
+      <div
+        className={
+          align === "center"
+            ? "flex items-center justify-center gap-2"
+            : "inline-flex items-center gap-2"
+        }
+      >
+        {icon && (
+          <span className="inline-flex items-center" style={{ width: 16, height: 16 }}>
+            {icon}
+          </span>
+        )}
         <h3 className="text-14 font-medium text-text-primary">{title}</h3>
       </div>
       {description && <p className="text-13 text-text-secondary">{description}</p>}
@@ -51,9 +61,11 @@ function EmptyState({
 }
 
 function renderSecondary(
-  action: { label: string; onClick: () => void } | { label: string; href: string; external?: boolean }
+  action:
+    | { label: string; onClick: () => void }
+    | { label: string; href: string; external?: boolean },
 ) {
-  if ('href' in action && action.external) {
+  if ("href" in action && action.external) {
     return (
       <a
         href={action.href}
@@ -65,7 +77,7 @@ function renderSecondary(
       </a>
     );
   }
-  if ('href' in action) {
+  if ("href" in action) {
     return (
       <a href={action.href} className="text-13 text-accent underline-offset-2 hover:underline">
         {action.label}

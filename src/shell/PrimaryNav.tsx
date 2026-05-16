@@ -1,7 +1,7 @@
-import { useRef, useCallback, type ComponentType, type KeyboardEvent } from 'react';
-import { useI18n } from './LanguageProvider';
-import { Tooltip } from '../components/primitives/Tooltip';
-import type { PageId } from './types';
+import { useRef, useCallback, type ComponentType, type KeyboardEvent } from "react";
+import { useI18n } from "./LanguageProvider";
+import { Tooltip } from "../components/primitives/Tooltip";
+import type { PageId } from "./types";
 
 export interface PrimaryNavItem {
   id: PageId;
@@ -22,22 +22,25 @@ export function PrimaryNav({ items, activeId, collapsed, onNavigate }: PrimaryNa
   const listRef = useRef<HTMLUListElement>(null);
   const { t } = useI18n();
 
-  const handleKeyDown = useCallback((e: KeyboardEvent<HTMLButtonElement>, index: number) => {
-    let nextIndex: number | null = null;
-    if (e.key === 'ArrowDown') {
-      nextIndex = index < items.length - 1 ? index + 1 : 0;
-    } else if (e.key === 'ArrowUp') {
-      nextIndex = index > 0 ? index - 1 : items.length - 1;
-    }
-    if (nextIndex !== null) {
-      e.preventDefault();
-      const buttons = listRef.current?.querySelectorAll('button');
-      buttons?.[nextIndex]?.focus();
-    }
-  }, [items.length]);
+  const handleKeyDown = useCallback(
+    (e: KeyboardEvent<HTMLButtonElement>, index: number) => {
+      let nextIndex: number | null = null;
+      if (e.key === "ArrowDown") {
+        nextIndex = index < items.length - 1 ? index + 1 : 0;
+      } else if (e.key === "ArrowUp") {
+        nextIndex = index > 0 ? index - 1 : items.length - 1;
+      }
+      if (nextIndex !== null) {
+        e.preventDefault();
+        const buttons = listRef.current?.querySelectorAll("button");
+        buttons?.[nextIndex]?.focus();
+      }
+    },
+    [items.length],
+  );
 
   return (
-    <nav aria-label={t('app.aria.primaryNav')} className="primary-nav">
+    <nav aria-label={t("app.aria.primaryNav")} className="primary-nav">
       <ul ref={listRef} className="flex items-center gap-0.5">
         {items.map((item, index) => {
           const isActive = item.id === activeId;
@@ -47,15 +50,17 @@ export function PrimaryNav({ items, activeId, collapsed, onNavigate }: PrimaryNa
             <button
               key={item.id}
               type="button"
-              aria-current={isActive ? 'page' : undefined}
+              aria-current={isActive ? "page" : undefined}
               onClick={() => onNavigate(item.id)}
               onKeyDown={(e) => handleKeyDown(e, index)}
               className={`
                 h-[34px] min-w-[34px] rounded-sm px-2.5 flex items-center justify-center gap-2 text-13 transition-colors duration-fast
-                ${isActive
-                  ? 'bg-surface-raised text-text-primary'
-                  : 'text-text-secondary hover:text-text-primary hover:bg-surface-raised'}
-                ${collapsed ? 'justify-center' : ''}
+                ${
+                  isActive
+                    ? "bg-surface-raised text-text-primary"
+                    : "text-text-secondary hover:text-text-primary hover:bg-surface-raised"
+                }
+                ${collapsed ? "justify-center" : ""}
               `}
             >
               <span className="relative flex-shrink-0">
