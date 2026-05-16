@@ -52,7 +52,7 @@ jobs:
           echo "PR branch: $pr_branch"
 
           # 检查4: CI 必须通过 (同时验证 SHA)
-          ci_run=$(gh run list -R $REPO --workflow=ci.yml --branch=$pr_branch --status=completed --json=headSha,conclusion --jq '[.[] | select(.headSha == "$HEAD_SHA")] | .[0]')
+          ci_run=$(gh run list -R $REPO --workflow=ci.yml --branch=$pr_branch --status=completed --json=headSha,conclusion --jq "[.[] | select(.headSha == \"$HEAD_SHA\")] | .[0]")
           ci_status=$(echo "$ci_run" | jq -r '.conclusion // "null"')
           echo "CI status: $ci_status"
           if [ "$ci_status" != "success" ]; then
@@ -61,7 +61,7 @@ jobs:
           fi
 
           # 检查5: AI review 必须通过 (同时验证 SHA)
-          review_run=$(gh run list -R $REPO --workflow=ai-review.yml --branch=$pr_branch --status=completed --json=headSha,conclusion --jq '[.[] | select(.headSha == "$HEAD_SHA")] | .[0]')
+          review_run=$(gh run list -R $REPO --workflow=ai-review.yml --branch=$pr_branch --status=completed --json=headSha,conclusion --jq "[.[] | select(.headSha == \"$HEAD_SHA\")] | .[0]")
           review_status=$(echo "$review_run" | jq -r '.conclusion // "null"')
           echo "AI review status: $review_status"
           if [ "$review_status" != "success" ]; then
