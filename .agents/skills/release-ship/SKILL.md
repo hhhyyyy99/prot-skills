@@ -168,10 +168,11 @@ Execute these phases in order. Each phase has a clear output — report it to th
 4. If the PR is not merged after 10 minutes:
    Tell the user:
 
-   > The release PR has not been merged yet. Please review and merge it manually:
-   > {PR_URL}
+   > The release PR has not been merged yet. Please review and merge it manually.
    >
    > After merging, run `pnpm release:tag v{NEXT_VERSION}` on `main` to publish.
+
+   Use the PR URL from the Phase 3 output (the `gh pr create` command echoes it).
 
    Then end the workflow.
 
