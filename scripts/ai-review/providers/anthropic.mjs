@@ -1,4 +1,5 @@
 import { normalizeReviewResult } from "../result.mjs";
+import { resolveAnthropicEndpoint } from "./url.mjs";
 
 export async function generateAnthropicReview({
   apiKey,
@@ -7,7 +8,7 @@ export async function generateAnthropicReview({
   systemPrompt,
   userPrompt,
 }) {
-  const response = await fetch(`${baseUrl}/messages`, {
+  const response = await fetch(resolveAnthropicEndpoint(baseUrl), {
     method: "POST",
     headers: {
       "content-type": "application/json",

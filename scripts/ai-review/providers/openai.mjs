@@ -1,7 +1,8 @@
 import { normalizeReviewResult } from "../result.mjs";
+import { resolveOpenAIEndpoint } from "./url.mjs";
 
 export async function generateOpenAIReview({ apiKey, baseUrl, model, systemPrompt, userPrompt }) {
-  const response = await fetch(`${baseUrl}/chat/completions`, {
+  const response = await fetch(resolveOpenAIEndpoint(baseUrl), {
     method: "POST",
     headers: {
       "content-type": "application/json",
