@@ -60,14 +60,14 @@ jobs:
           fi
 
           # 检查3: CI 必须通过 (按 commit SHA 过滤)
-          ci_status=$(gh run list -R $REPO --workflow=ci.yml --branch=refs/pull/$PR_NUMBER/merge --status=completed --json=conclusion --jq '[.[] | select(.head_sha == "$HEAD_SHA")] | .[0].conclusion // "null"')
+          ci_status=$(gh run list -R $REPO --workflow=ci.yml --branch=refs/pull/$PR_NUMBER/merge --status=completed --json=head_sha,conclusion --jq --arg sha "$HEAD_SHA" '[.[] | select(.head_sha == $sha)] | .[0].conclusion // "null"')
           if [ "$ci_status" != "success" ]; then
             echo "CI not passed ($ci_status), skip"
             exit 0
           fi
 
           # 检查4: AI review 必须通过 (按 commit SHA 过滤)
-          review_status=$(gh run list -R $REPO --workflow=ai-review.yml --branch=refs/pull/$PR_NUMBER/merge --status=completed --json=conclusion --jq '[.[] | select(.head_sha == "$HEAD_SHA")] | .[0].conclusion // "null"')
+          review_status=$(gh run list -R $REPO --workflow=ai-review.yml --branch=refs/pull/$PR_NUMBER/merge --status=completed --json=head_sha,conclusion --jq --arg sha "$HEAD_SHA" '[.[] | select(.head_sha == $sha)] | .[0].conclusion // "null"')
           if [ "$review_status" != "success" ]; then
             echo "AI review not passed ($review_status), skip"
             exit 0
