@@ -2,6 +2,12 @@ import { normalizeReviewResult } from "../result.mjs";
 import Anthropic from "@anthropic-ai/sdk";
 import { parseModelJson } from "./parse-json.mjs";
 
+function isRetryableError(error) {
+  if (error?.status === 429 || error?.status === 529) return true;
+  const code = error?.cause?.code || error?.code;
+  return ["ECONNRESET", "ECONNREFUSED", "ETIMEDOUT", "ENOTFOUND", "UND_ERR_SOCKET"].includes(code);
+}
+
 function extractContent(response) {
   // Standard Anthropic format: content[].type === "text"
   const textBlock = response.content?.find((item) => item.type === "text");
@@ -44,13 +50,32 @@ export async function generateAnthropicReview({
     timeout: 120_000,
   });
 
-  const response = await client.messages.create({
-    model,
-    max_tokens: 16384,
-    temperature: 0.1,
-    system: systemPrompt,
-    messages: [{ role: "user", content: userPrompt }],
-  });
+  const maxRetries = 3;
+  let response;
+
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    if (attempt > 0) {
+      const delay = 1000 * 2 ** (attempt - 1);
+      console.warn(`Retrying model call (attempt ${attempt}/${maxRetries}) after ${delay}ms`);
+      await new Promise((resolve) => setTimeout(resolve, delay));
+    }
+
+    try {
+      response = await client.messages.create({
+        model,
+        max_tokens: 16384,
+        temperature: 0.1,
+        system: systemPrompt,
+        messages: [{ role: "user", content: userPrompt }],
+      });
+      break;
+    } catch (error) {
+      if (attempt < maxRetries && isRetryableError(error)) {
+        continue;
+      }
+      throw error;
+    }
+  }
 
   const content = extractContent(response);
   if (typeof content !== "string") {
