@@ -43,6 +43,16 @@ jobs:
           AUTHOR_LOGIN: ${{ steps.pr-info.outputs.AUTHOR_LOGIN }}
           HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
         run: |
+          # 检查0: 验证 PR 当前 head SHA 未被 force-push
+          current_sha=$(gh pr view $PR_NUMBER -R $REPO --json headRefOid --jq '.headRefOid')
+          echo "Trigger SHA: $HEAD_SHA"
+          echo "Current SHA: $current_sha"
+
+          if [ "$current_sha" != "$HEAD_SHA" ]; then
+            echo "PR was force-pushed, current SHA does not match trigger SHA. Skip."
+            exit 0
+          fi
+
           # 检查1: 通过 GitHub API 获取作者邮箱
           author_email=$(gh api users/$AUTHOR_LOGIN --jq '.email // "null"')
           echo "Author: $AUTHOR_LOGIN, Email: $author_email"
