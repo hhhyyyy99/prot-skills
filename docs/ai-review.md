@@ -8,7 +8,6 @@ Set `AI_REVIEW_PROVIDER` to one of:
 
 - `openai`
 - `anthropic`
-- `gemini`
 
 ## Required GitHub Configuration
 
@@ -18,7 +17,7 @@ Set `AI_REVIEW_PROVIDER` to one of:
 
 ### Variables
 
-- `AI_REVIEW_PROVIDER`: `openai`, `anthropic`, or `gemini`
+- `AI_REVIEW_PROVIDER`: `openai` or `anthropic`
 - `AI_REVIEW_MODEL`: the model name to call
 - `AI_REVIEW_BASE_URL`: optional override for the provider API base URL
 - `AI_REVIEW_MIN_CONFIDENCE`: optional minimum confidence threshold, defaults to `80`
@@ -30,9 +29,8 @@ If `AI_REVIEW_BASE_URL` is not set, the workflow uses these defaults:
 
 - `openai`: `https://api.openai.com/v1`
 - `anthropic`: `https://api.anthropic.com/v1`
-- `gemini`: `https://generativelanguage.googleapis.com/v1beta`
 
-For `openai` and `anthropic`, `AI_REVIEW_BASE_URL` is passed through to the official SDK as the provider base URL. Use the exact base URL documented by your provider or compatibility gateway.
+`AI_REVIEW_BASE_URL` is passed through to the official SDK as the provider base URL. Use the exact base URL documented by your provider or compatibility gateway.
 
 ## Behavior
 

@@ -1,17 +1,14 @@
 import { generateAnthropicReview } from "./anthropic.mjs";
-import { generateGeminiReview } from "./gemini.mjs";
 import { generateOpenAIReview } from "./openai.mjs";
 
 const DEFAULT_BASE_URLS = {
   openai: "https://api.openai.com/v1",
   anthropic: "https://api.anthropic.com/v1",
-  gemini: "https://generativelanguage.googleapis.com/v1beta",
 };
 
 const PROVIDER_CLIENTS = {
   openai: generateOpenAIReview,
   anthropic: generateAnthropicReview,
-  gemini: generateGeminiReview,
 };
 
 export function validateProviderConfig(config) {

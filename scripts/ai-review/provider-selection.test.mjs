@@ -36,21 +36,6 @@ describe("ai review provider config", () => {
     });
   });
 
-  it("builds Gemini provider config from environment", () => {
-    const config = getProviderConfig({
-      AI_REVIEW_PROVIDER: "gemini",
-      AI_REVIEW_MODEL: "gemini-2.5-pro",
-      AI_REVIEW_API_KEY: "gemini-key",
-    });
-
-    expect(config).toEqual({
-      provider: "gemini",
-      model: "gemini-2.5-pro",
-      apiKey: "gemini-key",
-      baseUrl: "https://generativelanguage.googleapis.com/v1beta",
-    });
-  });
-
   it("rejects unknown providers", () => {
     expect(() =>
       getProviderConfig({
@@ -90,14 +75,5 @@ describe("ai review provider config", () => {
         baseUrl: "https://api.anthropic.com/v1",
       }).name,
     ).toBe("generateAnthropicReview");
-
-    expect(
-      resolveProviderClient({
-        provider: "gemini",
-        model: "gemini-2.5-pro",
-        apiKey: "key",
-        baseUrl: "https://generativelanguage.googleapis.com/v1beta",
-      }).name,
-    ).toBe("generateGeminiReview");
   });
 });
