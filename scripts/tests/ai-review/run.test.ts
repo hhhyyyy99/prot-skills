@@ -1,9 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { runAIReview } from "./run.mjs";
+import { runAIReview } from "../../ai-review/run.ts";
 
 describe("runAIReview", () => {
   it("loads PR context and posts a formatted comment", async () => {
-    const comments = [];
+    const comments: Array<{
+      repo: string;
+      pullRequestNumber: number;
+      body: string;
+      githubToken: string;
+      commentId?: number;
+    }> = [];
 
     const result = await runAIReview({
       env: {
@@ -57,7 +63,7 @@ describe("runAIReview", () => {
   });
 
   it("updates an existing AI review comment instead of appending a new one", async () => {
-    const comments = [];
+    const comments: Array<{ commentId?: number }> = [];
 
     await runAIReview({
       env: {

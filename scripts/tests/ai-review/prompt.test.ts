@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildReviewPrompt, buildSystemPrompt } from "./prompt.mjs";
+import { buildReviewPrompt, buildSystemPrompt } from "../../ai-review/prompt.ts";
 
 describe("ai review prompts", () => {
   it("builds a repository-aware system prompt", () => {

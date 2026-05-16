@@ -52,4 +52,4 @@ jobs:
           AI_REVIEW_MIN_CONFIDENCE: ${{ vars.AI_REVIEW_MIN_CONFIDENCE }}
           AI_REVIEW_MAX_FINDINGS: ${{ vars.AI_REVIEW_MAX_FINDINGS }}
           AI_REVIEW_API_KEY: ${{ secrets.AI_REVIEW_API_KEY }}
-        run: node scripts/ai-review/run.mjs
+        run: tsx scripts/ai-review/run.ts

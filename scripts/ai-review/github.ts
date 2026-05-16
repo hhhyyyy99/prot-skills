@@ -1,10 +1,17 @@
+import type {
+  GatedReviewResult,
+  IssueComment,
+  PullRequestContext,
+  ReviewFinding,
+} from "./types.ts";
+
 const GITHUB_API_BASE = "https://api.github.com";
 const AI_REVIEW_COMMENT_MARKER = "## AI Review";
 const API_TIMEOUT_MS = 30_000;
 const MAX_RETRIES = 3;
 const RETRY_BASE_DELAY_MS = 1_000;
 
-function getHeaders(token) {
+function getHeaders(token: string) {
   return {
     authorization: `Bearer ${token}`,
     accept: "application/vnd.github+json",
@@ -13,16 +20,16 @@ function getHeaders(token) {
   };
 }
 
-async function fetchWithRetry(url, options) {
-  let lastError;
+async function fetchWithRetry(url: string, options: RequestInit) {
+  let lastError: unknown;
 
-  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt += 1) {
     if (attempt > 0) {
       const delay = RETRY_BASE_DELAY_MS * 2 ** (attempt - 1);
       await new Promise((resolve) => setTimeout(resolve, delay));
     }
 
-    let response;
+    let response: Response;
     try {
       response = await fetch(url, {
         ...options,
@@ -50,7 +57,15 @@ async function fetchWithRetry(url, options) {
   throw lastError;
 }
 
-export async function getPullRequestContext({ repo, pullRequestNumber, githubToken }) {
+export async function getPullRequestContext({
+  repo,
+  pullRequestNumber,
+  githubToken,
+}: {
+  repo: string;
+  pullRequestNumber: number;
+  githubToken: string;
+}): Promise<PullRequestContext> {
   const prResponse = await fetchWithRetry(
     `${GITHUB_API_BASE}/repos/${repo}/pulls/${pullRequestNumber}`,
     {
@@ -62,8 +77,14 @@ export async function getPullRequestContext({ repo, pullRequestNumber, githubTok
     throw new Error(`Failed to fetch pull request #${pullRequestNumber}`);
   }
 
-  const pr = await prResponse.json();
-  const files = [];
+  const pr = (await prResponse.json()) as {
+    number: number;
+    title: string;
+    body: string | null;
+    base: { ref: string };
+    head: { ref: string };
+  };
+  const files: PullRequestContext["files"] = [];
   let page = 1;
 
   while (true) {
@@ -76,7 +97,10 @@ export async function getPullRequestContext({ repo, pullRequestNumber, githubTok
       throw new Error(`Failed to fetch changed files for pull request #${pullRequestNumber}`);
     }
 
-    const pageItems = await filesResponse.json();
+    const pageItems = (await filesResponse.json()) as Array<{
+      filename: string;
+      patch?: string;
+    }>;
     if (pageItems.length === 0) {
       break;
     }
@@ -107,13 +131,13 @@ export async function getPullRequestContext({ repo, pullRequestNumber, githubTok
   };
 }
 
-export function formatReviewComment(result) {
+export function formatReviewComment(result: GatedReviewResult) {
   const findings =
     result.findings.length === 0
       ? "No blocking issues found."
       : result.findings
           .map(
-            (finding) =>
+            (finding: ReviewFinding) =>
               `- \`${finding.severity}\` \`${finding.path}:${finding.line}\` (${finding.confidence}) ${finding.title}\n  ${finding.body}`,
           )
           .join("\n");
@@ -127,8 +151,16 @@ export function formatReviewComment(result) {
   ].join("\n");
 }
 
-export async function findExistingIssueComment({ repo, pullRequestNumber, githubToken }) {
-  let latest = null;
+export async function findExistingIssueComment({
+  repo,
+  pullRequestNumber,
+  githubToken,
+}: {
+  repo: string;
+  pullRequestNumber: number;
+  githubToken: string;
+}): Promise<IssueComment | null> {
+  let latest: IssueComment | null = null;
   let page = 1;
 
   while (true) {
@@ -143,7 +175,10 @@ export async function findExistingIssueComment({ repo, pullRequestNumber, github
       throw new Error(`Failed to list PR comments for pull request #${pullRequestNumber}`);
     }
 
-    const comments = await response.json();
+    const comments = (await response.json()) as Array<{
+      id: number;
+      body?: string;
+    }>;
     if (comments.length === 0) {
       break;
     }
@@ -172,6 +207,12 @@ export async function createOrUpdateIssueComment({
   githubToken,
   body,
   commentId,
+}: {
+  repo: string;
+  pullRequestNumber: number;
+  githubToken: string;
+  body: string;
+  commentId?: number;
 }) {
   const url = commentId
     ? `${GITHUB_API_BASE}/repos/${repo}/issues/comments/${commentId}`

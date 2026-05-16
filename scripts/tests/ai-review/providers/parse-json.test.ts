@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseModelJson } from "./parse-json.mjs";
+import { parseModelJson } from "../../../ai-review/providers/parse-json.ts";
 
 describe("parseModelJson", () => {
   it("parses raw JSON", () => {
