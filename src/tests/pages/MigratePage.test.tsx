@@ -60,7 +60,7 @@ describe("MigratePage", () => {
     fireEvent.click(await findByText("Scan"));
     await findByText("Skill A");
     fireEvent.click(getByLabelText("Select Skill A"));
-    expect(await findByText("Selected 1")).toBeInTheDocument();
+    expect(await findByText("Selected 1 / 2")).toBeInTheDocument();
   });
 
   it("shows Retry button on failed row after migrate", async () => {
@@ -173,12 +173,12 @@ describe("MigratePage", () => {
 
     await findByText("Skill A");
     await user.click(getByLabelText("Select Skill A"));
-    expect(await findByText("Selected 1")).toBeInTheDocument();
+    expect(await findByText("Selected 1 / 2")).toBeInTheDocument();
 
     await user.click(await findByRole("tab", { name: "Claude" }));
 
     await waitFor(() => {
-      expect(queryByText("Selected 1")).not.toBeInTheDocument();
+      expect(queryByText(/Selected/)).not.toBeInTheDocument();
     });
     expect(queryByText("Migrate selected (1)")).not.toBeInTheDocument();
   });
