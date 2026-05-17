@@ -13,7 +13,6 @@ import { useI18n } from "../shell/LanguageProvider";
 import { useToast } from "../hooks/useToast";
 import { Button } from "../components/primitives/Button";
 import { Select } from "../components/primitives/Select";
-import { Badge } from "../components/primitives/Badge";
 import { getSkillsDirPath, openFolder } from "../api";
 import { languageOptions, type Language } from "../lib/i18n";
 import appIcon from "../../assets/icon.png";
@@ -24,10 +23,9 @@ interface SettingRowProps {
   control: ReactNode;
   helper?: string;
   action?: ReactNode;
-  badge?: ReactNode;
 }
 
-function SettingRow({ label, control, helper, action, badge }: SettingRowProps) {
+function SettingRow({ label, control, helper, action }: SettingRowProps) {
   return (
     <div className="settings-row">
       <div className="min-w-0">
@@ -39,7 +37,6 @@ function SettingRow({ label, control, helper, action, badge }: SettingRowProps) 
       <div className="inline-flex shrink-0 items-center gap-2">
         {control}
         {action}
-        {badge}
       </div>
     </div>
   );
@@ -149,20 +146,6 @@ export function SettingsPage() {
             control={
               <Select<Language> options={languageOptions} value={language} onChange={setLanguage} />
             }
-          />
-        </section>
-
-        <section className="settings-group">
-          <div className="settings-group-title">{t("settings.sources")}</div>
-          <SettingRow
-            label={t("settings.skillSources")}
-            control={
-              <input
-                disabled
-                className="h-[30px] rounded-sm border border-border-subtle bg-surface-raised px-2 text-13"
-              />
-            }
-            badge={<Badge>{t("settings.comingSoon")}</Badge>}
           />
         </section>
 

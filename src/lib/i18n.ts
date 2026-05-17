@@ -406,7 +406,7 @@ const zhCN: Messages = {
   "migrate.rescan": "重新扫描",
   "migrate.groupTitle": "{name} 技能",
   "migrate.aria.select": "选择 {name}",
-  "migrate.badge.symlink": "符号链接",
+  "migrate.badge.symlink": "软链",
   "migrate.badge.done": "完成",
   "migrate.badge.failed": "失败",
   "migrate.badge.source": "{name} 来源",
