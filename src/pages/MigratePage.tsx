@@ -68,6 +68,7 @@ export function MigratePage() {
 
     setScanning(true);
     setSelected(new Set());
+    await yieldToBrowser();
 
     const results: ScanResult[] = [];
 
@@ -133,6 +134,7 @@ export function MigratePage() {
       if (!tool) return;
 
       setScanning(true);
+      await yieldToBrowser();
       try {
         const skills = await scanLocalSkills(toolId);
         for (const s of skills) {
@@ -181,7 +183,10 @@ export function MigratePage() {
         // Smart scan: automatically scan all detected & enabled tools
         const detected = data.filter((tool) => tool.is_detected && tool.is_enabled);
         if (detected.length > 0) {
-          smartScan(data);
+          void (async () => {
+            await yieldToBrowser();
+            await smartScan(data);
+          })();
         }
       })
       .catch((e) => toast({ variant: "error", title: String((e as Error).message ?? e) }));
@@ -228,6 +233,7 @@ export function MigratePage() {
 
     setMigrating(true);
     setProgress({ done: 0, total });
+    await yieldToBrowser();
     let success = 0,
       fail = 0,
       done = 0;
@@ -242,6 +248,8 @@ export function MigratePage() {
         if (!skill) {
           throw new Error(`Missing migration source for ${path}`);
         }
+        setProgress({ done, total, currentSkillName: skillName });
+        await yieldToBrowser();
         const skillId = skill.name.toLowerCase().replace(/\s+/g, "-");
         await migrateLocalSkill(path, skillId);
         nextStatus[path] = "success";
@@ -272,7 +280,6 @@ export function MigratePage() {
     });
     setProgress(null);
     setMigrating(false);
-    if (success > 0) smartScan(allTools);
   };
 
   const retry = async (path: string) => {
@@ -416,7 +423,10 @@ export function MigratePage() {
             />
             <span className="text-13 text-text-secondary">
               {selected.size > 0
-                ? t("migrate.selectedCount", { count: selected.size })
+                ? t("migrate.selectedOfTotal", {
+                    selected: selected.size,
+                    total: filteredSkills.length,
+                  })
                 : t("migrate.skillCount", { count: filteredSkills.length })}
             </span>
             {selected.size > 0 && (

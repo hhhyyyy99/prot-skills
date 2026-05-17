@@ -27,4 +27,6 @@ pub struct LocalSkill {
     pub path: String,
     pub is_symlink: bool,
     pub target_path: Option<String>,
+    pub tool_id: Option<String>,
+    pub tool_name: Option<String>,
 }

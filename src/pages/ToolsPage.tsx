@@ -37,16 +37,27 @@ export function ToolsPage() {
   const [showAdd, setShowAdd] = useState(false);
   const [newName, setNewName] = useState("");
   const [newPath, setNewPath] = useState("");
-  const confirmDeleteTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [popoverPos, setPopoverPos] = useState<{ top: number; right: number } | null>(null);
+  const popoverRef = useRef<HTMLDivElement | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
-    return () => {
-      if (confirmDeleteTimer.current) {
-        clearTimeout(confirmDeleteTimer.current);
+    if (!confirmDeleteId) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (popoverRef.current && !popoverRef.current.contains(e.target as Node)) {
+        setConfirmDeleteId(null);
       }
     };
-  }, []);
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setConfirmDeleteId(null);
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener("keydown", handleEscape);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleEscape);
+    };
+  }, [confirmDeleteId]);
 
   const refresh = () => {
     setLoading(true);
@@ -139,23 +150,6 @@ export function ToolsPage() {
       );
   };
 
-  const confirmDelete = (tool: AITool) => {
-    if (confirmDeleteId !== tool.id) {
-      setConfirmDeleteId(tool.id);
-      if (confirmDeleteTimer.current) {
-        clearTimeout(confirmDeleteTimer.current);
-      }
-      confirmDeleteTimer.current = setTimeout(() => setConfirmDeleteId(null), 3000);
-      return;
-    }
-
-    if (confirmDeleteTimer.current) {
-      clearTimeout(confirmDeleteTimer.current);
-    }
-    setConfirmDeleteId(null);
-    handleDelete(tool);
-  };
-
   const handleAdd = () => {
     if (!newName.trim() || !newPath.trim()) return;
     const id = newName.trim().toLowerCase().replace(/\s+/g, "-");
@@ -175,6 +169,21 @@ export function ToolsPage() {
         }),
       );
   };
+
+  const openConfirmDelete = (toolId: string, btn: HTMLElement) => {
+    if (confirmDeleteId === toolId) {
+      setConfirmDeleteId(null);
+      return;
+    }
+    const rect = btn.getBoundingClientRect();
+    const popoverHeight = 80;
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const top = spaceBelow < popoverHeight + 16 ? rect.top - popoverHeight - 8 : rect.bottom + 8;
+    setPopoverPos({ top, right: window.innerWidth - rect.right });
+    setConfirmDeleteId(toolId);
+  };
+
+  const confirmDeleteTool = tools.find((tool) => tool.id === confirmDeleteId) ?? null;
 
   const detectedCount = tools.filter((tool) => tool.is_detected).length;
   const enabledCount = tools.filter((tool) => tool.is_enabled).length;
@@ -357,15 +366,11 @@ export function ToolsPage() {
                       <IconButton
                         icon={<Trash2 size={14} />}
                         aria-label={t("tools.aria.deleteTool")}
-                        title={
-                          confirmDeleteId === tool.id ? t("tools.confirmDelete") : t("tools.delete")
-                        }
+                        title={t("tools.delete")}
                         variant="subtle"
                         size="sm"
-                        className={
-                          confirmDeleteId === tool.id ? "text-danger hover:text-danger" : undefined
-                        }
-                        onClick={() => confirmDelete(tool)}
+                        className="text-danger hover:text-danger"
+                        onClick={(e) => openConfirmDelete(tool.id, e.currentTarget)}
                       />
                     </span>
                   )
@@ -375,6 +380,32 @@ export function ToolsPage() {
           </ul>
         )}
       </main>
+      {confirmDeleteTool && popoverPos && (
+        <div
+          ref={popoverRef}
+          className="fixed z-50 w-52 rounded-lg border border-border-subtle bg-surface p-3 shadow-overlay"
+          style={{ top: popoverPos.top, right: popoverPos.right }}
+        >
+          <p className="text-12 text-text-secondary">
+            {t("tools.confirmRemove.body", { name: confirmDeleteTool.name })}
+          </p>
+          <div className="mt-2 flex justify-end gap-2">
+            <Button variant="ghost" size="sm" onClick={() => setConfirmDeleteId(null)}>
+              {t("common.cancel")}
+            </Button>
+            <Button
+              variant="danger"
+              size="sm"
+              onClick={() => {
+                setConfirmDeleteId(null);
+                handleDelete(confirmDeleteTool);
+              }}
+            >
+              {t("tools.remove")}
+            </Button>
+          </div>
+        </div>
+      )}
     </>
   );
 }
