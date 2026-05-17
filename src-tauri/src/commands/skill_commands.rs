@@ -154,7 +154,9 @@ pub async fn scan_all_local_skills(
 ) -> Result<Vec<LocalSkill>, String> {
     let db = db.lock().map_err(|e| e.to_string())?;
     let tools = ToolService::get_all_tools(&db).map_err(|e| e.to_string())?;
-    let selected_tool_ids = tool_ids.into_iter().collect::<std::collections::HashSet<_>>();
+    let selected_tool_ids = tool_ids
+        .into_iter()
+        .collect::<std::collections::HashSet<_>>();
     let mut all_skills = Vec::new();
 
     for tool in tools
