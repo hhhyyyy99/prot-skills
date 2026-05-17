@@ -17,6 +17,7 @@ Set `AI_REVIEW_PROVIDER` to one of:
 
 ### Variables
 
+- `AI_REVIEW_ENABLED`: set to `false` to disable AI review entirely (defaults to enabled)
 - `AI_REVIEW_PROVIDER`: `openai` or `anthropic`
 - `AI_REVIEW_MODEL`: the model name to call
 - `AI_REVIEW_BASE_URL`: optional override for the provider API base URL
