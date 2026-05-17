@@ -69,20 +69,18 @@ describe("ToolsPage", () => {
     expect(openFolder).toHaveBeenCalledWith("/custom/cursor");
   });
 
-  it("requires a confirmation click before deleting a tool", async () => {
+  it("shows a remove confirmation popover before deleting a tool", async () => {
     vi.mocked(getTools).mockResolvedValue([mockTool]);
     const user = userEvent.setup();
-    const { findByRole, queryByText } = renderPage();
+    const { findByRole, findByText } = renderPage();
     const deleteButton = await findByRole("button", { name: "Delete tool" });
 
     await user.click(deleteButton);
     expect(deleteTool).not.toHaveBeenCalled();
-    expect(queryByText("Cursor")).toBeInTheDocument();
 
-    await user.click(deleteButton);
+    expect(await findByText('Remove "Cursor"?')).toBeInTheDocument();
+    await user.click(await findByRole("button", { name: "Remove" }));
 
-    await waitFor(() => {
-      expect(deleteTool).toHaveBeenCalledWith("tool-1");
-    });
+    expect(deleteTool).toHaveBeenCalledWith("tool-1");
   });
 });
