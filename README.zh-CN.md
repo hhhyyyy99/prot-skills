@@ -265,3 +265,7 @@ cd src-tauri && cargo test
 ## 许可证
 
 Prot Skills 基于 [MIT License](LICENSE) 开源。
+
+## 友链
+
+- [Linux Do](https://linux.do/)
