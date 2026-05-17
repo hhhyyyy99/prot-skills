@@ -96,7 +96,7 @@ impl ToolService {
                 let config_path = config_path.to_string_lossy().into_owned();
                 conn.execute(
                     "INSERT INTO ai_tools (id, name, config_path, skills_subdir, is_detected, is_enabled, detected_at)
-                     VALUES (?1, ?2, ?3, ?4, 1, 1, CURRENT_TIMESTAMP)
+                     VALUES (?1, ?2, ?3, ?4, 1, 0, CURRENT_TIMESTAMP)
                      ON CONFLICT(id) DO UPDATE SET
                         name = excluded.name,
                         config_path = excluded.config_path,
@@ -181,9 +181,21 @@ impl ToolService {
         let conn = db.get_connection();
         let is_detected = crate::utils::expand_path(config_path).exists();
         conn.execute(
-            "INSERT OR REPLACE INTO ai_tools (id, name, config_path, skills_subdir, is_detected, is_enabled, detected_at)
-             VALUES (?1, ?2, ?3, 'skills', ?4, ?4, CASE WHEN ?4 = 1 THEN CURRENT_TIMESTAMP ELSE NULL END)",
-            rusqlite::params![id.to_string(), name.to_string(), config_path.to_string(), if is_detected { 1 } else { 0 }],
+            "INSERT INTO ai_tools (id, name, config_path, skills_subdir, is_detected, is_enabled, detected_at, custom_path)
+             VALUES (?1, ?2, ?3, 'skills', ?4, 0, CASE WHEN ?4 = 1 THEN CURRENT_TIMESTAMP ELSE NULL END, ?3)
+             ON CONFLICT(id) DO UPDATE SET
+                name = excluded.name,
+                config_path = excluded.config_path,
+                skills_subdir = excluded.skills_subdir,
+                is_detected = excluded.is_detected,
+                detected_at = excluded.detected_at,
+                custom_path = excluded.custom_path",
+            rusqlite::params![
+                id.to_string(),
+                name.to_string(),
+                config_path.to_string(),
+                if is_detected { 1 } else { 0 }
+            ],
         )?;
         Ok(())
     }
@@ -230,6 +242,7 @@ mod tests {
         assert_eq!(tools[0].name, "Cursor");
         assert_eq!(tools[0].config_path, home.join(".cursor").to_string_lossy());
         assert!(tools[0].is_detected);
+        assert!(!tools[0].is_enabled);
         assert_eq!(tools[0].skills_subdir, "skills");
     }
 
@@ -249,7 +262,34 @@ mod tests {
             tools[0].config_path,
             home.join(".trae-cn").to_string_lossy()
         );
+        assert!(!tools[0].is_enabled);
         assert_eq!(tools[0].skills_subdir, "skills");
+    }
+
+    #[test]
+    fn add_tool_keeps_new_detected_custom_tool_disabled_by_default() {
+        let root = temp_dir("add-custom-disabled");
+        let custom_path = root.join("custom-tool");
+        fs::create_dir_all(&custom_path).expect("create custom config");
+        let db = test_db(&root);
+
+        ToolService::add_tool(
+            &db,
+            "custom-agent",
+            "Custom Agent",
+            custom_path.to_str().expect("custom path"),
+        )
+        .expect("add custom tool");
+
+        let tools = ToolService::get_all_tools(&db).expect("load tools");
+        let tool = tools
+            .into_iter()
+            .find(|tool| tool.id == "custom-agent")
+            .expect("custom tool should exist");
+
+        assert!(tool.is_detected);
+        assert!(!tool.is_enabled);
+        assert_eq!(tool.custom_path.as_deref(), custom_path.to_str());
     }
 
     #[test]

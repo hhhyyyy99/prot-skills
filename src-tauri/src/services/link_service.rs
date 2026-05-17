@@ -404,6 +404,8 @@ mod tests {
         .expect("add claude");
         ToolService::add_tool(&db, "codex", "Codex", codex.to_str().expect("codex path"))
             .expect("add codex");
+        ToolService::toggle_tool(&db, "claude", true).expect("enable claude");
+        ToolService::toggle_tool(&db, "codex", true).expect("enable codex");
 
         let links =
             LinkService::set_all_detected_tool_links(&db, &skill.id, true).expect("link all tools");
@@ -449,6 +451,8 @@ mod tests {
         .expect("add claude");
         ToolService::add_tool(&db, "codex", "Codex", codex.to_str().expect("codex path"))
             .expect("add codex");
+        ToolService::toggle_tool(&db, "claude", true).expect("enable claude");
+        ToolService::toggle_tool(&db, "codex", true).expect("enable codex");
 
         set_dir_mode(&codex_skills, 0o555);
 
@@ -500,6 +504,8 @@ mod tests {
         .expect("add claude");
         ToolService::add_tool(&db, "codex", "Codex", codex.to_str().expect("codex path"))
             .expect("add codex");
+        ToolService::toggle_tool(&db, "claude", true).expect("enable claude");
+        ToolService::toggle_tool(&db, "codex", true).expect("enable codex");
 
         set_dir_mode(&claude_skills, 0o555);
         set_dir_mode(&codex_skills, 0o555);
@@ -564,6 +570,7 @@ mod tests {
             continue_dir.to_str().expect("continue path"),
         )
         .expect("add continue");
+        ToolService::toggle_tool(&db, "continue", true).expect("enable continue");
 
         set_dir_mode(&continue_skills, 0o555);
 
