@@ -287,3 +287,7 @@ schema explicitly in the pull request description.
 ## License
 
 Prot Skills is licensed under the [MIT License](LICENSE).
+
+## Friendly Links
+
+- [Linux Do](https://linux.do/)
