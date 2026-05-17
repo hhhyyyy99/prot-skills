@@ -40,6 +40,8 @@ interface BulkSyncSummary {
 }
 
 const LOCAL_SOURCE = "local";
+const LINK_BATCH_SIZE = 8;
+const BULK_SYNC_FEEDBACK_DURATION_MS = 4000;
 const STATUS_FLUSH_INTERVAL = 1;
 
 function isLocalSource(sourceType: string) {
@@ -91,35 +93,74 @@ export function MySkillsPage() {
   const [bulkSyncProgress, setBulkSyncProgress] = useState<BulkSyncProgress | null>(null);
   const [bulkSyncSummary, setBulkSyncSummary] = useState<BulkSyncSummary | null>(null);
   const confirmTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const bulkSyncFeedbackTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const refreshToken = useRef(0);
   const { toast } = useToast();
 
   const refresh = useCallback(() => {
+    const token = refreshToken.current + 1;
+    refreshToken.current = token;
     setLoading(true);
     setError(null);
     Promise.all([getSkills(), getTools()])
       .then(async ([nextSkills, nextTools]) => {
-        setSkills(nextSkills);
-        setTools(nextTools);
+        startTransition(() => {
+          setSkills(nextSkills);
+          setTools(nextTools);
+          setLinksBySkill({});
+          setLoading(false);
+        });
 
-        const linkEntries = await Promise.all(
-          nextSkills.map(async (skill) => {
-            try {
-              const links = await getSkillLinks(skill.id);
-              return [skill.id, links] as const;
-            } catch (e) {
-              toast({
-                variant: "error",
-                title: t("mySkills.error.links"),
-                description: String((e as Error).message ?? e),
-              });
-              return [skill.id, []] as const;
-            }
-          }),
-        );
-        setLinksBySkill(Object.fromEntries(linkEntries));
+        if (nextSkills.length === 0) {
+          return;
+        }
+
+        await yieldToBrowser();
+
+        for (let index = 0; index < nextSkills.length; index += LINK_BATCH_SIZE) {
+          const batch = nextSkills.slice(index, index + LINK_BATCH_SIZE);
+          const linkEntries = await Promise.all(
+            batch.map(async (skill) => {
+              try {
+                const links = await getSkillLinks(skill.id);
+                return [skill.id, links] as const;
+              } catch (e) {
+                toast({
+                  variant: "error",
+                  title: t("mySkills.error.links"),
+                  description: String((e as Error).message ?? e),
+                });
+                return [skill.id, []] as const;
+              }
+            }),
+          );
+
+          if (refreshToken.current !== token) {
+            return;
+          }
+
+          startTransition(() => {
+            setLinksBySkill((current) => ({
+              ...current,
+              ...Object.fromEntries(linkEntries),
+            }));
+          });
+
+          if (index + LINK_BATCH_SIZE < nextSkills.length) {
+            await yieldToBrowser();
+          }
+        }
       })
-      .catch((e: unknown) => setError(String((e as Error).message ?? e)))
-      .finally(() => setLoading(false));
+      .catch((e: unknown) => {
+        if (refreshToken.current === token) {
+          setError(String((e as Error).message ?? e));
+        }
+      })
+      .finally(() => {
+        if (refreshToken.current === token) {
+          setLoading(false);
+        }
+      });
   }, [toast, t]);
 
   useEffect(() => {
@@ -129,7 +170,30 @@ export function MySkillsPage() {
   useEffect(() => {
     return () => {
       if (confirmTimer.current) clearTimeout(confirmTimer.current);
+      if (bulkSyncFeedbackTimer.current) clearTimeout(bulkSyncFeedbackTimer.current);
     };
+  }, []);
+
+  const clearBulkSyncFeedback = useCallback(() => {
+    if (bulkSyncFeedbackTimer.current) {
+      clearTimeout(bulkSyncFeedbackTimer.current);
+      bulkSyncFeedbackTimer.current = null;
+    }
+
+    setBulkSyncProgress(null);
+    setBulkSyncSummary(null);
+  }, []);
+
+  const scheduleBulkSyncFeedbackClear = useCallback(() => {
+    if (bulkSyncFeedbackTimer.current) {
+      clearTimeout(bulkSyncFeedbackTimer.current);
+    }
+
+    bulkSyncFeedbackTimer.current = setTimeout(() => {
+      setBulkSyncProgress(null);
+      setBulkSyncSummary(null);
+      bulkSyncFeedbackTimer.current = null;
+    }, BULK_SYNC_FEEDBACK_DURATION_MS);
   }, []);
 
   const visible = useMemo(() => filterSkills(skills, q, sourceType), [skills, q, sourceType]);
@@ -376,10 +440,11 @@ export function MySkillsPage() {
       return;
     }
 
+    clearBulkSyncFeedback();
     setBulkSyncConfirmOpen(false);
     setBulkSyncing(true);
-    setBulkSyncSummary(null);
     setBulkSyncProgress({ done: 0, total: bulkSyncableSkills.length });
+    await yieldToBrowser();
 
     let success = 0;
     let fail = 0;
@@ -392,6 +457,7 @@ export function MySkillsPage() {
         total: bulkSyncableSkills.length,
         currentSkillName: skill.name,
       }));
+      await yieldToBrowser();
 
       try {
         const result = await setAllSkillToolLinks(skill.id, true);
@@ -438,6 +504,7 @@ export function MySkillsPage() {
 
     setBulkSyncing(false);
     setBulkSyncSummary({ success, fail });
+    scheduleBulkSyncFeedbackClear();
 
     if (fail === 0) {
       toast({
@@ -461,7 +528,15 @@ export function MySkillsPage() {
       title: t("mySkills.toast.bulkSyncFailed"),
       durationMs: 6000,
     });
-  }, [bulkSyncableSkills, bulkSyncing, enabledTools.length, t, toast]);
+  }, [
+    bulkSyncableSkills,
+    bulkSyncing,
+    clearBulkSyncFeedback,
+    enabledTools.length,
+    scheduleBulkSyncFeedbackClear,
+    t,
+    toast,
+  ]);
 
   const handleBulkSyncClick = useCallback(() => {
     if (bulkSyncing || enabledTools.length === 0 || bulkSyncableSkills.length === 0) {

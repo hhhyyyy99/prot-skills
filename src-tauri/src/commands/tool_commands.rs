@@ -5,14 +5,14 @@ use crate::utils::expand_path;
 use tauri::State;
 
 #[tauri::command]
-pub fn get_tools(db: State<std::sync::Mutex<Database>>) -> Result<Vec<AITool>, String> {
+pub async fn get_tools(db: State<'_, std::sync::Mutex<Database>>) -> Result<Vec<AITool>, String> {
     let db = db.lock().map_err(|e| e.to_string())?;
     ToolService::get_all_tools(&db).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-pub fn add_tool(
-    db: State<std::sync::Mutex<Database>>,
+pub async fn add_tool(
+    db: State<'_, std::sync::Mutex<Database>>,
     id: String,
     name: String,
     config_path: String,
@@ -31,14 +31,16 @@ pub fn add_tool(
 }
 
 #[tauri::command]
-pub fn detect_tools(db: State<std::sync::Mutex<Database>>) -> Result<Vec<AITool>, String> {
+pub async fn detect_tools(
+    db: State<'_, std::sync::Mutex<Database>>,
+) -> Result<Vec<AITool>, String> {
     let db = db.lock().map_err(|e| e.to_string())?;
     ToolService::detect_tools(&db).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-pub fn toggle_tool(
-    db: State<std::sync::Mutex<Database>>,
+pub async fn toggle_tool(
+    db: State<'_, std::sync::Mutex<Database>>,
     tool_id: String,
     enabled: bool,
 ) -> Result<(), String> {
@@ -53,8 +55,8 @@ pub fn toggle_tool(
 }
 
 #[tauri::command]
-pub fn update_tool_path(
-    db: State<std::sync::Mutex<Database>>,
+pub async fn update_tool_path(
+    db: State<'_, std::sync::Mutex<Database>>,
     tool_id: String,
     custom_path: String,
 ) -> Result<(), String> {
@@ -67,7 +69,10 @@ pub fn update_tool_path(
 }
 
 #[tauri::command]
-pub fn delete_tool(db: State<std::sync::Mutex<Database>>, tool_id: String) -> Result<(), String> {
+pub async fn delete_tool(
+    db: State<'_, std::sync::Mutex<Database>>,
+    tool_id: String,
+) -> Result<(), String> {
     let db = db.lock().map_err(|e| e.to_string())?;
     ToolService::delete_tool(&db, &tool_id).map_err(|e| e.to_string())
 }

@@ -1,6 +1,6 @@
 use crate::db::Database;
 use crate::models::{LocalSkill, Skill, SkillLink, SyncSkillTargetsResult};
-use crate::services::{DiscoveryService, LinkService, SkillService};
+use crate::services::{DiscoveryService, LinkService, SkillService, ToolService};
 use crate::utils::{get_skills_dir, is_in_manager_dir, is_symlink, resolve_symlink};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -12,7 +12,7 @@ pub fn get_skills_dir_path() -> Result<String, String> {
 }
 
 #[tauri::command]
-pub fn get_skills(db: State<std::sync::Mutex<Database>>) -> Result<Vec<Skill>, String> {
+pub async fn get_skills(db: State<'_, std::sync::Mutex<Database>>) -> Result<Vec<Skill>, String> {
     let db = db.lock().map_err(|e| e.to_string())?;
     SkillService::prune_missing_skills(&db).map_err(|e| e.to_string())?;
     SkillService::register_existing_skills(&db, &get_skills_dir()).map_err(|e| e.to_string())?;
@@ -71,8 +71,8 @@ pub fn uninstall_skill(
 }
 
 #[tauri::command]
-pub fn get_skill_links(
-    db: State<std::sync::Mutex<Database>>,
+pub async fn get_skill_links(
+    db: State<'_, std::sync::Mutex<Database>>,
     skill_id: String,
 ) -> Result<Vec<SkillLink>, String> {
     let db = db.lock().map_err(|e| e.to_string())?;
@@ -91,8 +91,8 @@ pub fn set_skill_tool_link(
 }
 
 #[tauri::command]
-pub fn set_all_skill_tool_links(
-    db: State<std::sync::Mutex<Database>>,
+pub async fn set_all_skill_tool_links(
+    db: State<'_, std::sync::Mutex<Database>>,
     skill_id: String,
     active: bool,
 ) -> Result<SyncSkillTargetsResult, String> {
@@ -128,13 +128,13 @@ pub fn open_folder(path: String) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub fn scan_local_skills(
-    db: State<std::sync::Mutex<Database>>,
+pub async fn scan_local_skills(
+    db: State<'_, std::sync::Mutex<Database>>,
     tool_id: String,
 ) -> Result<Vec<LocalSkill>, String> {
     let db = db.lock().map_err(|e| e.to_string())?;
 
-    let tools = crate::services::ToolService::get_all_tools(&db).map_err(|e| e.to_string())?;
+    let tools = ToolService::get_all_tools(&db).map_err(|e| e.to_string())?;
 
     let tool = tools
         .into_iter()
@@ -148,8 +148,33 @@ pub fn scan_local_skills(
 }
 
 #[tauri::command]
-pub fn migrate_local_skill(
-    db: State<std::sync::Mutex<Database>>,
+pub async fn scan_all_local_skills(
+    db: State<'_, std::sync::Mutex<Database>>,
+    tool_ids: Vec<String>,
+) -> Result<Vec<LocalSkill>, String> {
+    let db = db.lock().map_err(|e| e.to_string())?;
+    let tools = ToolService::get_all_tools(&db).map_err(|e| e.to_string())?;
+    let selected_tool_ids = tool_ids.into_iter().collect::<std::collections::HashSet<_>>();
+    let mut all_skills = Vec::new();
+
+    for tool in tools
+        .into_iter()
+        .filter(|tool| selected_tool_ids.contains(&tool.id))
+    {
+        let mut skills = DiscoveryService::scan_directory(&tool.skills_path(), &db);
+        for skill in &mut skills {
+            skill.tool_id = Some(tool.id.clone());
+            skill.tool_name = Some(tool.name.clone());
+        }
+        all_skills.extend(skills);
+    }
+
+    Ok(all_skills)
+}
+
+#[tauri::command]
+pub async fn migrate_local_skill(
+    db: State<'_, std::sync::Mutex<Database>>,
     source_path: String,
     skill_id: String,
 ) -> Result<Skill, String> {

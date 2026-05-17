@@ -108,9 +108,46 @@ describe("MigratePage", () => {
 
     const progressBar = await findByRole("progressbar", { name: "Migration progress" });
     expect(progressBar).toHaveAttribute("aria-valuenow", "0");
-    expect(await findByText("Preparing migration queue…")).toBeInTheDocument();
+    expect(await findByText("Working on Skill A")).toBeInTheDocument();
 
     resolveFirstMigration?.({} as Skill);
+  });
+
+  it("does not auto-rescan again after a successful migration batch", async () => {
+    vi.mocked(getTools).mockResolvedValue([mockTool]);
+    vi.mocked(scanAllLocalSkills).mockResolvedValue([
+      {
+        name: "Skill A",
+        path: "/skills/a",
+        is_symlink: false,
+        tool_id: "cursor",
+        tool_name: "Cursor",
+      },
+      {
+        name: "Skill B",
+        path: "/skills/b",
+        is_symlink: true,
+        target_path: "/real/b",
+        tool_id: "cursor",
+        tool_name: "Cursor",
+      },
+    ]);
+    vi.mocked(migrateLocalSkill).mockResolvedValue({} as Skill);
+
+    const user = userEvent.setup();
+    const { findByText, getByLabelText } = renderPage();
+
+    await findByText("Skill A");
+    await user.click(getByLabelText("Select Skill A"));
+    await user.click(getByLabelText("Select Skill B"));
+    await user.click(await findByText(/Migrate selected/));
+
+    await waitFor(() => {
+      expect(migrateLocalSkill).toHaveBeenCalledTimes(2);
+    });
+
+    expect(scanAllLocalSkills).toHaveBeenCalledTimes(1);
+    expect(scanLocalSkills).not.toHaveBeenCalled();
   });
 
   it("clears hidden selections when switching tool filters", async () => {

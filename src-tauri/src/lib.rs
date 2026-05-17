@@ -38,6 +38,7 @@ pub fn run() {
             commands::set_skill_tool_link,
             commands::set_all_skill_tool_links,
             commands::scan_local_skills,
+            commands::scan_all_local_skills,
             commands::migrate_local_skill,
             commands::open_folder,
             commands::get_skills_dir_path,

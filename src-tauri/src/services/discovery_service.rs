@@ -100,6 +100,8 @@ impl DiscoveryService {
                     path: path.to_str().unwrap_or("").to_string(),
                     is_symlink: is_symlink_flag,
                     target_path,
+                    tool_id: None,
+                    tool_name: None,
                 });
             }
         }
