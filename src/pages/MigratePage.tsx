@@ -423,7 +423,10 @@ export function MigratePage() {
             />
             <span className="text-13 text-text-secondary">
               {selected.size > 0
-                ? t("migrate.selectedCount", { count: selected.size })
+                ? t("migrate.selectedOfTotal", {
+                    selected: selected.size,
+                    total: filteredSkills.length,
+                  })
                 : t("migrate.skillCount", { count: filteredSkills.length })}
             </span>
             {selected.size > 0 && (
