@@ -117,7 +117,7 @@ describe("MySkillsPage", () => {
     const syncTargets = await findByRole("button", { name: "Manage sync for Test Skill" });
     expect(await findByRole("button", { name: "Sync all" })).toBeInTheDocument();
     expect(await findByRole("button", { name: "Open Test Skill folder" })).toBeInTheDocument();
-    expect(await findByRole("button", { name: "Uninstall Test Skill" })).toBeInTheDocument();
+    expect(await findByRole("button", { name: "Delete Test Skill" })).toBeInTheDocument();
     expect(syncTargets).toBeInTheDocument();
   });
 
@@ -228,14 +228,17 @@ describe("MySkillsPage", () => {
     expect(openFolder).toHaveBeenCalledWith("/path/to/skill");
   });
 
-  it("uninstalls from the row action after confirmation click", async () => {
+  it("uninstalls after confirming in the dialog", async () => {
     vi.mocked(getSkills).mockResolvedValue([mockSkill]);
     const user = userEvent.setup();
     const { findByRole } = renderPage();
-    const uninstall = await findByRole("button", { name: "Uninstall Test Skill" });
+    const uninstall = await findByRole("button", { name: "Delete Test Skill" });
 
     await user.click(uninstall);
-    await user.click(uninstall);
+
+    const dialog = await findByRole("alertdialog");
+    const confirm = within(dialog).getByRole("button", { name: "Delete" });
+    await user.click(confirm);
 
     expect(uninstallSkill).toHaveBeenCalledWith("skill-1");
   });

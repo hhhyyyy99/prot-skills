@@ -84,7 +84,7 @@ export function MySkillsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [refreshTick, setRefreshTick] = useState(0);
-  const [confirmSkillId, setConfirmSkillId] = useState<string | null>(null);
+  const [uninstallSkillId, setUninstallSkillId] = useState<string | null>(null);
   const [syncSkillId, setSyncSkillId] = useState<string | null>(null);
   const [toolQuery, setToolQuery] = useState("");
   const [linkFilter, setLinkFilter] = useState<LinkFilter>("all");
@@ -92,7 +92,6 @@ export function MySkillsPage() {
   const [bulkSyncConfirmOpen, setBulkSyncConfirmOpen] = useState(false);
   const [bulkSyncProgress, setBulkSyncProgress] = useState<BulkSyncProgress | null>(null);
   const [bulkSyncSummary, setBulkSyncSummary] = useState<BulkSyncSummary | null>(null);
-  const confirmTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const bulkSyncFeedbackTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const refreshToken = useRef(0);
   const { toast } = useToast();
@@ -169,7 +168,6 @@ export function MySkillsPage() {
 
   useEffect(() => {
     return () => {
-      if (confirmTimer.current) clearTimeout(confirmTimer.current);
       if (bulkSyncFeedbackTimer.current) clearTimeout(bulkSyncFeedbackTimer.current);
     };
   }, []);
@@ -210,6 +208,10 @@ export function MySkillsPage() {
   const syncSkill = useMemo(
     () => skills.find((skill) => skill.id === syncSkillId) ?? null,
     [skills, syncSkillId],
+  );
+  const uninstallTarget = useMemo(
+    () => skills.find((skill) => skill.id === uninstallSkillId) ?? null,
+    [skills, uninstallSkillId],
   );
 
   const sourceOptions = useMemo(() => {
@@ -276,37 +278,34 @@ export function MySkillsPage() {
     [toast, t],
   );
 
-  const confirmUninstall = useCallback(
-    (skill: Skill) => {
-      if (confirmSkillId !== skill.id) {
-        setConfirmSkillId(skill.id);
-        if (confirmTimer.current) clearTimeout(confirmTimer.current);
-        confirmTimer.current = setTimeout(() => setConfirmSkillId(null), 3000);
-        return;
-      }
+  const openUninstallDialog = useCallback((skillId: string) => {
+    setUninstallSkillId(skillId);
+  }, []);
 
-      if (confirmTimer.current) clearTimeout(confirmTimer.current);
-      setConfirmSkillId(null);
-      uninstallSkill(skill.id)
-        .then(() => {
-          setSkills((ss) => ss.filter((s) => s.id !== skill.id));
-          setLinksBySkill((current) => {
-            const next = { ...current };
-            delete next[skill.id];
-            return next;
-          });
-          if (syncSkillId === skill.id) setSyncSkillId(null);
-        })
-        .catch((e: unknown) => {
-          toast({
-            variant: "error",
-            title: t("mySkills.error.uninstall"),
-            description: String((e as Error).message ?? e),
-          });
+  const closeUninstallDialog = useCallback(() => setUninstallSkillId(null), []);
+
+  const executeUninstall = useCallback(() => {
+    if (!uninstallSkillId) return;
+    const id = uninstallSkillId;
+    setUninstallSkillId(null);
+    uninstallSkill(id)
+      .then(() => {
+        setSkills((ss) => ss.filter((s) => s.id !== id));
+        setLinksBySkill((current) => {
+          const next = { ...current };
+          delete next[id];
+          return next;
         });
-    },
-    [confirmSkillId, syncSkillId, toast, t],
-  );
+        if (syncSkillId === id) setSyncSkillId(null);
+      })
+      .catch((e: unknown) => {
+        toast({
+          variant: "error",
+          title: t("mySkills.error.uninstall"),
+          description: String((e as Error).message ?? e),
+        });
+      });
+  }, [uninstallSkillId, syncSkillId, toast, t]);
 
   const openSyncDialog = useCallback((skillId: string) => {
     setSyncSkillId(skillId);
@@ -643,15 +642,11 @@ export function MySkillsPage() {
                   <IconButton
                     icon={<Trash2 size={15} />}
                     aria-label={t("mySkills.aria.uninstall", { name: skill.name })}
-                    title={
-                      confirmSkillId === skill.id
-                        ? t("mySkills.confirmUninstall")
-                        : t("mySkills.uninstall")
-                    }
+                    title={t("mySkills.uninstall")}
                     variant="subtle"
                     size="sm"
                     className="text-danger hover:text-danger"
-                    onClick={() => confirmUninstall(skill)}
+                    onClick={() => openUninstallDialog(skill.id)}
                   />
                   <Button
                     variant="secondary"
@@ -934,6 +929,37 @@ export function MySkillsPage() {
                   )}
                 </div>
               </section>
+            </div>
+          </section>
+        </div>
+      )}
+      {uninstallTarget && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-text-primary/30 p-6"
+          role="alertdialog"
+          aria-modal="true"
+          aria-label={t("mySkills.uninstallDialog.title")}
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) closeUninstallDialog();
+          }}
+          onKeyDown={(event) => {
+            if (event.key === "Escape") closeUninstallDialog();
+          }}
+        >
+          <section className="w-[min(420px,calc(100vw-48px))] rounded-lg border border-border-subtle bg-surface p-5 shadow-overlay">
+            <h2 className="text-16 font-bold text-text-primary">
+              {t("mySkills.uninstallDialog.title")}
+            </h2>
+            <p className="mt-2 text-13 text-text-secondary">
+              {t("mySkills.uninstallDialog.body", { name: uninstallTarget.name })}
+            </p>
+            <div className="mt-5 flex justify-end gap-2">
+              <Button variant="ghost" size="sm" onClick={closeUninstallDialog}>
+                {t("common.cancel")}
+              </Button>
+              <Button variant="danger" size="sm" onClick={executeUninstall}>
+                {t("mySkills.uninstall")}
+              </Button>
             </div>
           </section>
         </div>
