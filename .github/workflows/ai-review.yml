@@ -18,7 +18,7 @@ concurrency:
 
 jobs:
   ai-review:
-    if: github.event.pull_request.draft == false
+    if: github.event.pull_request.draft == false && vars.AI_REVIEW_ENABLED != 'false'
     runs-on: ubuntu-22.04
 
     steps:
