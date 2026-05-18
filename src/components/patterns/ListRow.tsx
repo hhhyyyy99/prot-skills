@@ -81,7 +81,8 @@ function ListRow({
   );
 
   const className = [
-    "group mb-2 grid items-center gap-3 rounded-lg border px-4 py-3 outline-none shadow-card transition-colors duration-fast",
+    "group mb-2 grid items-center gap-3 rounded-lg border px-4 outline-none shadow-card transition-colors duration-fast",
+    density === "compact" ? "py-2" : "py-3",
     height,
     borderClass,
     disabled ? "opacity-50 pointer-events-none" : "hover:border-border-default",
