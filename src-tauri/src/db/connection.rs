@@ -38,10 +38,24 @@ impl Database {
                 is_detected BOOLEAN DEFAULT 0,
                 is_enabled BOOLEAN DEFAULT 0,
                 detected_at TIMESTAMP,
-                custom_path TEXT
+                custom_path TEXT,
+                sort_order INTEGER DEFAULT 0
             )",
             [],
         )?;
+
+        // Migration: add sort_order column if missing (existing databases)
+        let has_sort_order: bool = self
+            .conn
+            .prepare("SELECT COUNT(*) FROM pragma_table_info('ai_tools') WHERE name='sort_order'")?
+            .query_row([], |row| row.get::<_, i64>(0))
+            .map(|c| c > 0)?;
+        if !has_sort_order {
+            self.conn.execute(
+                "ALTER TABLE ai_tools ADD COLUMN sort_order INTEGER DEFAULT 0",
+                [],
+            )?;
+        }
 
         self.conn.execute(
             "CREATE TABLE IF NOT EXISTS skill_links (
