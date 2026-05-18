@@ -215,11 +215,14 @@ impl ToolService {
                 "UPDATE ai_tools SET sort_order = ?1 WHERE id = ?2",
                 rusqlite::params![i as i32, id],
             ) {
-                conn.execute_batch("ROLLBACK")?;
+                let _ = conn.execute_batch("ROLLBACK");
                 return Err(e);
             }
         }
-        conn.execute_batch("COMMIT")?;
+        if let Err(e) = conn.execute_batch("COMMIT") {
+            let _ = conn.execute_batch("ROLLBACK");
+            return Err(e);
+        }
         Ok(())
     }
 }
