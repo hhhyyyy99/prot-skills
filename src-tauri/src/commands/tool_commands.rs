@@ -77,7 +77,7 @@ pub async fn delete_tool(
     ToolService::delete_tool(&db, &tool_id).map_err(|e| e.to_string())
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "camelCase")]
 pub async fn reorder_tools(
     db: State<'_, std::sync::Mutex<Database>>,
     tool_ids: Vec<String>,
