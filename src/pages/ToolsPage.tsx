@@ -81,7 +81,6 @@ export function ToolsPage() {
   const [newPath, setNewPath] = useState("");
   const [popoverPos, setPopoverPos] = useState<{ top: number; right: number } | null>(null);
   const popoverRef = useRef<HTMLDivElement | null>(null);
-  const reorderRef = useRef(0);
   const { toast } = useToast();
 
   const sensors = useSensors(
@@ -95,16 +94,14 @@ export function ToolsPage() {
     const oldIndex = tools.findIndex((t) => t.id === active.id);
     const newIndex = tools.findIndex((t) => t.id === over.id);
     if (oldIndex === -1 || newIndex === -1) return;
-    const prev = [...tools];
     const reordered = [...tools];
     const [moved] = reordered.splice(oldIndex, 1);
     reordered.splice(newIndex, 0, moved);
-    const version = ++reorderRef.current;
     setTools(reordered);
     reorderTools(reordered.map((t) => t.id)).catch((e: unknown) => {
-      if (reorderRef.current === version) {
-        setTools(prev);
-      }
+      getTools()
+        .then(setTools)
+        .catch(() => {});
       toast({
         variant: "error",
         title: t("tools.error.reorder"),
