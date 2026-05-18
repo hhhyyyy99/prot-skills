@@ -79,6 +79,20 @@ const BUILTIN_TOOL_RULES: &[ToolScanRule] = &[
         config_dir: ".codeium",
         skills_subdir: "skills",
     },
+    ToolScanRule {
+        id: "gemini",
+        name: "Gemini",
+        config_dir: ".gemini",
+        skills_subdir: "skills",
+    },
+    // Pi coding agent (https://github.com/earendil-works/pi) stores its
+    // config and skills under `~/.pi/agent`, not `~/.pi`.
+    ToolScanRule {
+        id: "pi",
+        name: "Pi",
+        config_dir: ".pi/agent",
+        skills_subdir: "skills",
+    },
 ];
 
 impl ToolService {
@@ -284,6 +298,46 @@ mod tests {
         );
         assert!(!tools[0].is_enabled);
         assert_eq!(tools[0].skills_subdir, "skills");
+    }
+
+    #[test]
+    fn detects_gemini_cli_agent_tool() {
+        let root = temp_dir("detect-gemini");
+        let home = root.join("home");
+        fs::create_dir_all(home.join(".gemini")).expect("create gemini config");
+        let db = test_db(&root);
+
+        let tools = ToolService::detect_tools_in_home(&db, &home).expect("detect tools");
+
+        assert_eq!(tools.len(), 1);
+        assert_eq!(tools[0].id, "gemini");
+        assert_eq!(tools[0].name, "Gemini");
+        assert_eq!(tools[0].config_path, home.join(".gemini").to_string_lossy());
+        assert_eq!(tools[0].skills_subdir, "skills");
+        assert!(tools[0].is_detected);
+    }
+
+    #[test]
+    fn detects_pi_coding_agent_tool() {
+        let root = temp_dir("detect-pi");
+        let home = root.join("home");
+        // Pi nests its config one level deeper at ~/.pi/agent. Make sure the
+        // scanner walks into the sub-directory and resolves the skill path
+        // accordingly.
+        fs::create_dir_all(home.join(".pi").join("agent")).expect("create pi config");
+        let db = test_db(&root);
+
+        let tools = ToolService::detect_tools_in_home(&db, &home).expect("detect tools");
+
+        assert_eq!(tools.len(), 1);
+        assert_eq!(tools[0].id, "pi");
+        assert_eq!(tools[0].name, "Pi");
+        assert_eq!(
+            tools[0].config_path,
+            home.join(".pi").join("agent").to_string_lossy()
+        );
+        assert_eq!(tools[0].skills_subdir, "skills");
+        assert!(tools[0].is_detected);
     }
 
     #[test]

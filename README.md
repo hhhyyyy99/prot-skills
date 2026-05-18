@@ -47,6 +47,8 @@ Built-in detection rules:
 | Aider    | `~/.aider`         | `skills`   |
 | Continue | `~/.continue`      | `skills`   |
 | Codeium  | `~/.codeium`       | `skills`   |
+| Gemini   | `~/.gemini`        | `skills`   |
+| Pi       | `~/.pi/agent`      | `skills`   |
 
 You can also register custom tools from the **Tools** screen (currently they
 default to `skills/` as their subdirectory). Prot Skills is not affiliated with
@@ -97,16 +99,16 @@ xattr -d com.apple.quarantine "/Applications/Prot Skills.app"
 
 ## Development Commands
 
-| Command                      | Description                            |
-| ---------------------------- | -------------------------------------- |
-| `pnpm dev`                   | Start the Vite dev server.             |
-| `pnpm tauri:dev`             | Run the desktop app in dev mode.       |
-| `pnpm build`                 | TypeScript check + frontend build.     |
-| `pnpm preview`               | Preview the production build.          |
-| `pnpm test` / `test:watch`   | Run Vitest (single run / watch mode).  |
-| `pnpm test:tokens`           | Validate design token output.          |
-| `pnpm audit:visual`          | Run the visual audit script.           |
-| `cd src-tauri && cargo test` | Run Rust tests.                        |
+| Command                      | Description                           |
+| ---------------------------- | ------------------------------------- |
+| `pnpm dev`                   | Start the Vite dev server.            |
+| `pnpm tauri:dev`             | Run the desktop app in dev mode.      |
+| `pnpm build`                 | TypeScript check + frontend build.    |
+| `pnpm preview`               | Preview the production build.         |
+| `pnpm test` / `test:watch`   | Run Vitest (single run / watch mode). |
+| `pnpm test:tokens`           | Validate design token output.         |
+| `pnpm audit:visual`          | Run the visual audit script.          |
+| `cd src-tauri && cargo test` | Run Rust tests.                       |
 
 ## Releasing
 

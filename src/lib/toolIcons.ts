@@ -2,6 +2,7 @@ import type { AITool } from "../types";
 import aiderIcon from "../assets/tool-icons/aider.svg";
 import continueIcon from "../assets/tool-icons/continue.png";
 import kiroIcon from "../assets/tool-icons/kiro.svg";
+import piIcon from "../assets/tool-icons/pi.svg";
 
 type ToolIconDefinition = {
   slug: string;
@@ -21,12 +22,13 @@ const LOCAL_ICON_SOURCES: Record<string, string> = {
   aider: aiderIcon,
   continue: continueIcon,
   kiro: kiroIcon,
+  pi: piIcon,
 };
 
 const TOOL_ICON_DEFINITIONS: ToolIconDefinition[] = [
   { slug: "claude", aliases: ["claude", "anthropic", "claude-code", "claudecode"] },
   { slug: "openai", aliases: ["openai", "codex", "chatgpt", "gpt"], invertInDark: true },
-  { slug: "gemini", aliases: ["gemini", "google-gemini", "bard"] },
+  { slug: "gemini", aliases: ["gemini", "google-gemini", "bard", "gemini-cli", "geminicli"] },
   { slug: "cursor", aliases: ["cursor"] },
   { slug: "windsurf", aliases: ["windsurf", "codeium"] },
   { slug: "qwen", aliases: ["qwen", "tongyi"] },
@@ -34,6 +36,7 @@ const TOOL_ICON_DEFINITIONS: ToolIconDefinition[] = [
   { slug: "aider", aliases: ["aider"] },
   { slug: "continue", aliases: ["continue"] },
   { slug: "kiro", aliases: ["kiro"] },
+  { slug: "pi", aliases: ["pi", "pi-coding-agent", "picodingagent"], invertInDark: true },
   { slug: "opencode", aliases: ["opencode", "open-code"] },
   { slug: "openrouter", aliases: ["openrouter", "open-router"] },
 ];
