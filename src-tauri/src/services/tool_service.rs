@@ -138,8 +138,8 @@ impl ToolService {
     pub fn get_all_tools(db: &Database) -> Result<Vec<AITool>> {
         let conn = db.get_connection();
         let mut stmt = conn.prepare(
-            "SELECT id, name, config_path, skills_subdir, is_detected, is_enabled, detected_at, custom_path
-             FROM ai_tools WHERE is_detected = 1 ORDER BY name"
+            "SELECT id, name, config_path, skills_subdir, is_detected, is_enabled, detected_at, custom_path, sort_order
+             FROM ai_tools WHERE is_detected = 1 ORDER BY sort_order, name"
         )?;
 
         let tools = stmt.query_map([], |row| {
@@ -152,6 +152,7 @@ impl ToolService {
                 is_enabled: row.get(5)?,
                 detected_at: row.get(6)?,
                 custom_path: row.get(7)?,
+                sort_order: row.get(8)?,
             })
         })?;
 
@@ -203,6 +204,25 @@ impl ToolService {
     pub fn delete_tool(db: &Database, tool_id: &str) -> Result<()> {
         let conn = db.get_connection();
         conn.execute("DELETE FROM ai_tools WHERE id = ?1", [tool_id])?;
+        Ok(())
+    }
+
+    pub fn reorder_tools(db: &Database, tool_ids: &[String]) -> Result<()> {
+        let conn = db.get_connection();
+        conn.execute_batch("BEGIN")?;
+        for (i, id) in tool_ids.iter().enumerate() {
+            if let Err(e) = conn.execute(
+                "UPDATE ai_tools SET sort_order = ?1 WHERE id = ?2",
+                rusqlite::params![i as i32, id],
+            ) {
+                let _ = conn.execute_batch("ROLLBACK");
+                return Err(e);
+            }
+        }
+        if let Err(e) = conn.execute_batch("COMMIT") {
+            let _ = conn.execute_batch("ROLLBACK");
+            return Err(e);
+        }
         Ok(())
     }
 }

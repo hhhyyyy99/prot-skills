@@ -35,6 +35,7 @@ export interface AITool {
   is_enabled: boolean;
   detected_at?: string;
   custom_path?: string;
+  sort_order?: number;
 }
 
 export interface SkillLink {

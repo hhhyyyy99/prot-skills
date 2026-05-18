@@ -76,3 +76,12 @@ pub async fn delete_tool(
     let db = db.lock().map_err(|e| e.to_string())?;
     ToolService::delete_tool(&db, &tool_id).map_err(|e| e.to_string())
 }
+
+#[tauri::command(rename_all = "camelCase")]
+pub async fn reorder_tools(
+    db: State<'_, std::sync::Mutex<Database>>,
+    tool_ids: Vec<String>,
+) -> Result<(), String> {
+    let db = db.lock().map_err(|e| e.to_string())?;
+    ToolService::reorder_tools(&db, &tool_ids).map_err(|e| e.to_string())
+}

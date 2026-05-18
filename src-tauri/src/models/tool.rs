@@ -11,6 +11,7 @@ pub struct AITool {
     pub is_enabled: bool,
     pub detected_at: Option<String>,
     pub custom_path: Option<String>,
+    pub sort_order: i32,
 }
 
 impl AITool {
