@@ -14,6 +14,8 @@ const BUILTIN_TOOLS = [
   { id: "aider", name: "Aider" },
   { id: "continue", name: "Continue" },
   { id: "codeium", name: "Codeium" },
+  { id: "gemini", name: "Gemini" },
+  { id: "pi", name: "Pi" },
 ] as const;
 
 function makeTool(overrides: Partial<AITool> = {}): AITool {
