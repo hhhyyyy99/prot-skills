@@ -209,14 +209,18 @@ impl ToolService {
 
     pub fn reorder_tools(db: &Database, tool_ids: &[String]) -> Result<()> {
         let conn = db.get_connection();
-        let tx = conn.unchecked_transaction()?;
+        conn.execute_batch("BEGIN")?;
         for (i, id) in tool_ids.iter().enumerate() {
-            tx.execute(
+            if let Err(e) = conn.execute(
                 "UPDATE ai_tools SET sort_order = ?1 WHERE id = ?2",
                 rusqlite::params![i as i32, id],
-            )?;
+            ) {
+                conn.execute_batch("ROLLBACK")?;
+                return Err(e);
+            }
         }
-        tx.commit()
+        conn.execute_batch("COMMIT")?;
+        Ok(())
     }
 }
 
