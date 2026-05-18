@@ -60,9 +60,9 @@ function SortableToolRow({
     zIndex: isDragging ? 10 : undefined,
   };
   return (
-    <div ref={setNodeRef} style={style}>
+    <li ref={setNodeRef} style={style} role="presentation">
       {children({ dragHandleProps: { ...attributes, ...listeners } })}
-    </div>
+    </li>
   );
 }
 
@@ -81,6 +81,7 @@ export function ToolsPage() {
   const [newPath, setNewPath] = useState("");
   const [popoverPos, setPopoverPos] = useState<{ top: number; right: number } | null>(null);
   const popoverRef = useRef<HTMLDivElement | null>(null);
+  const reorderRef = useRef(0);
   const { toast } = useToast();
 
   const sensors = useSensors(
@@ -98,9 +99,12 @@ export function ToolsPage() {
     const reordered = [...tools];
     const [moved] = reordered.splice(oldIndex, 1);
     reordered.splice(newIndex, 0, moved);
+    const version = ++reorderRef.current;
     setTools(reordered);
     reorderTools(reordered.map((t) => t.id)).catch((e: unknown) => {
-      setTools(prev);
+      if (reorderRef.current === version) {
+        setTools(prev);
+      }
       toast({
         variant: "error",
         title: t("tools.error.reorder"),
