@@ -1,5 +1,22 @@
 import { useEffect, useRef, useState } from "react";
-import { ScanLine, FolderOpen, Plus, Pencil, Check, X, Trash2 } from "lucide-react";
+import { ScanLine, FolderOpen, Plus, Pencil, Check, X, Trash2, GripVertical } from "lucide-react";
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import { restrictToVerticalAxis } from "@dnd-kit/modifiers";
 import {
   getTools,
   detectTools,
@@ -8,6 +25,7 @@ import {
   updateToolPath,
   addTool,
   deleteTool,
+  reorderTools,
 } from "../api";
 import { useToast } from "../hooks/useToast";
 import { WorkspaceHeader } from "../shell/WorkspaceHeader";
@@ -23,6 +41,30 @@ import { EmptyState } from "../components/patterns/EmptyState";
 import { StatsStrip } from "../components/patterns/StatsStrip";
 import { middleEllipsis } from "../lib/truncate";
 import type { AITool } from "../types";
+
+function SortableToolRow({
+  id,
+  children,
+}: {
+  id: string;
+  children: (props: { dragHandleProps: Record<string, unknown> }) => React.ReactNode;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id,
+  });
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : undefined,
+    position: "relative" as const,
+    zIndex: isDragging ? 10 : undefined,
+  };
+  return (
+    <div ref={setNodeRef} style={style}>
+      {children({ dragHandleProps: { ...attributes, ...listeners } })}
+    </div>
+  );
+}
 
 export function ToolsPage() {
   const { t } = useI18n();
@@ -40,6 +82,32 @@ export function ToolsPage() {
   const [popoverPos, setPopoverPos] = useState<{ top: number; right: number } | null>(null);
   const popoverRef = useRef<HTMLDivElement | null>(null);
   const { toast } = useToast();
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 3 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const oldIndex = tools.findIndex((t) => t.id === active.id);
+    const newIndex = tools.findIndex((t) => t.id === over.id);
+    if (oldIndex === -1 || newIndex === -1) return;
+    const prev = [...tools];
+    const reordered = [...tools];
+    const [moved] = reordered.splice(oldIndex, 1);
+    reordered.splice(newIndex, 0, moved);
+    setTools(reordered);
+    reorderTools(reordered.map((t) => t.id)).catch((e: unknown) => {
+      setTools(prev);
+      toast({
+        variant: "error",
+        title: t("tools.error.reorder"),
+        description: String((e as Error).message ?? e),
+      });
+    });
+  };
 
   useEffect(() => {
     if (!confirmDeleteId) return;
@@ -291,93 +359,118 @@ export function ToolsPage() {
           </div>
         )}
         {tools.length > 0 && (
-          <ul role="rowgroup">
-            {tools.map((tool) => (
-              <ListRow
-                key={tool.id}
-                id={tool.id}
-                leading={
-                  <Switch
-                    checked={tool.is_enabled}
-                    onChange={(v) => toggleToolHandler(tool.id, v)}
-                    disabled={!tool.is_detected}
-                    aria-label={t("tools.aria.toggle", { name: tool.name })}
-                  />
-                }
-                primary={<span className="text-14 text-text-primary">{tool.name}</span>}
-                meta={[
-                  <Badge key="b" variant={tool.is_detected ? "success" : "neutral"}>
-                    {tool.is_detected ? t("tools.badge.detected") : t("tools.badge.notFound")}
-                  </Badge>,
-                  <Tooltip key="p" content={tool.config_path}>
-                    <code className="font-mono text-12 text-text-secondary">
-                      {middleEllipsis(tool.config_path, 40)}
-                    </code>
-                  </Tooltip>,
-                ]}
-                trailing={
-                  editingId === tool.id ? (
-                    <span
-                      className="flex items-center gap-1"
-                      onMouseDown={(e) => e.preventDefault()}
-                    >
-                      <input
-                        className="px-2 py-0.5 text-12 font-mono rounded border border-border-subtle bg-surface-primary text-text-primary focus:outline-none focus:ring-1 focus:ring-accent-primary w-64"
-                        value={editPath}
-                        onChange={(e) => setEditPath(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") saveEdit(tool.id);
-                          if (e.key === "Escape") setEditingId(null);
-                        }}
-                        onBlur={() => setEditingId(null)}
-                        autoFocus
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            modifiers={[restrictToVerticalAxis]}
+            onDragEnd={handleDragEnd}
+          >
+            <SortableContext items={tools.map((t) => t.id)} strategy={verticalListSortingStrategy}>
+              <ul role="rowgroup">
+                {tools.map((tool) => (
+                  <SortableToolRow key={tool.id} id={tool.id}>
+                    {({ dragHandleProps }) => (
+                      <ListRow
+                        id={tool.id}
+                        density="compact"
+                        leading={
+                          <span className="flex items-center gap-2">
+                            <span
+                              className="cursor-grab touch-none text-text-tertiary hover:text-text-primary"
+                              {...dragHandleProps}
+                            >
+                              <GripVertical size={16} />
+                            </span>
+                            <Switch
+                              checked={tool.is_enabled}
+                              onChange={(v) => toggleToolHandler(tool.id, v)}
+                              disabled={!tool.is_detected}
+                              aria-label={t("tools.aria.toggle", { name: tool.name })}
+                            />
+                          </span>
+                        }
+                        primary={<span className="text-14 text-text-primary">{tool.name}</span>}
+                        meta={[
+                          <Badge key="b" variant={tool.is_detected ? "success" : "neutral"}>
+                            {tool.is_detected
+                              ? t("tools.badge.detected")
+                              : t("tools.badge.notFound")}
+                          </Badge>,
+                          <Tooltip key="p" content={tool.config_path}>
+                            <code className="font-mono text-12 text-text-secondary">
+                              {middleEllipsis(tool.config_path, 40)}
+                            </code>
+                          </Tooltip>,
+                        ]}
+                        trailing={
+                          editingId === tool.id ? (
+                            <span
+                              className="flex items-center gap-1"
+                              onMouseDown={(e) => e.preventDefault()}
+                            >
+                              <input
+                                className="px-2 py-0.5 text-12 font-mono rounded border border-border-subtle bg-surface-primary text-text-primary focus:outline-none focus:ring-1 focus:ring-accent-primary w-64"
+                                value={editPath}
+                                onChange={(e) => setEditPath(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter") saveEdit(tool.id);
+                                  if (e.key === "Escape") setEditingId(null);
+                                }}
+                                onBlur={() => setEditingId(null)}
+                                autoFocus
+                              />
+                              <IconButton
+                                icon={<Check size={14} />}
+                                aria-label={t("common.save")}
+                                variant="subtle"
+                                size="sm"
+                                onClick={() => saveEdit(tool.id)}
+                              />
+                              <IconButton
+                                icon={<X size={14} />}
+                                aria-label={t("common.cancel")}
+                                variant="subtle"
+                                size="sm"
+                                onClick={() => setEditingId(null)}
+                              />
+                            </span>
+                          ) : (
+                            <span className="flex items-center gap-1">
+                              <IconButton
+                                icon={<Pencil size={14} />}
+                                aria-label={t("tools.aria.editPath")}
+                                variant="subtle"
+                                size="sm"
+                                onClick={() => startEdit(tool)}
+                              />
+                              <IconButton
+                                icon={<FolderOpen size={16} />}
+                                aria-label={t("tools.aria.openPath")}
+                                variant="subtle"
+                                size="sm"
+                                onClick={() =>
+                                  handleOpenFolder(tool.custom_path || tool.config_path)
+                                }
+                              />
+                              <IconButton
+                                icon={<Trash2 size={14} />}
+                                aria-label={t("tools.aria.deleteTool")}
+                                title={t("tools.delete")}
+                                variant="subtle"
+                                size="sm"
+                                className="text-danger hover:text-danger"
+                                onClick={(e) => openConfirmDelete(tool.id, e.currentTarget)}
+                              />
+                            </span>
+                          )
+                        }
                       />
-                      <IconButton
-                        icon={<Check size={14} />}
-                        aria-label={t("common.save")}
-                        variant="subtle"
-                        size="sm"
-                        onClick={() => saveEdit(tool.id)}
-                      />
-                      <IconButton
-                        icon={<X size={14} />}
-                        aria-label={t("common.cancel")}
-                        variant="subtle"
-                        size="sm"
-                        onClick={() => setEditingId(null)}
-                      />
-                    </span>
-                  ) : (
-                    <span className="flex items-center gap-1">
-                      <IconButton
-                        icon={<Pencil size={14} />}
-                        aria-label={t("tools.aria.editPath")}
-                        variant="subtle"
-                        size="sm"
-                        onClick={() => startEdit(tool)}
-                      />
-                      <IconButton
-                        icon={<FolderOpen size={16} />}
-                        aria-label={t("tools.aria.openPath")}
-                        variant="subtle"
-                        size="sm"
-                        onClick={() => handleOpenFolder(tool.custom_path || tool.config_path)}
-                      />
-                      <IconButton
-                        icon={<Trash2 size={14} />}
-                        aria-label={t("tools.aria.deleteTool")}
-                        title={t("tools.delete")}
-                        variant="subtle"
-                        size="sm"
-                        className="text-danger hover:text-danger"
-                        onClick={(e) => openConfirmDelete(tool.id, e.currentTarget)}
-                      />
-                    </span>
-                  )
-                }
-              />
-            ))}
-          </ul>
+                    )}
+                  </SortableToolRow>
+                ))}
+              </ul>
+            </SortableContext>
+          </DndContext>
         )}
       </main>
       {confirmDeleteTool && popoverPos && (

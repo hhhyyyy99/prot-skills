@@ -105,6 +105,10 @@ export const deleteTool = (toolId: string): Promise<void> => {
   return invoke("delete_tool", { toolId });
 };
 
+export const reorderTools = (toolIds: string[]): Promise<void> => {
+  return invoke("reorder_tools", { toolIds });
+};
+
 // Filesystem / path APIs
 export const openFolder = (path: string): Promise<void> => {
   return invoke("open_folder", { path });
