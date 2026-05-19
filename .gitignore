@@ -50,5 +50,9 @@ Thumbs.db
 .kiro/
 .cursor/
 .trae/
+.opencode/
+.kilocode/
+.claude/
+openspec/
 CLAUDE.md
 AGENTS.md
