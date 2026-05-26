@@ -2,9 +2,9 @@
 
 Read these rules before starting any task that may create a branch or commit.
 
-- [branching.md](/Users/apple/Desktop/project/mySpace/demo/prot-skills/.agents/rules/branching.md): task branch creation and naming rules
-- [coding.md](/Users/apple/Desktop/project/mySpace/demo/prot-skills/.agents/rules/coding.md): coding and execution rules derived from Karpathy-style agent guidelines
-- [commits.md](/Users/apple/Desktop/project/mySpace/demo/prot-skills/.agents/rules/commits.md): commit message rules aligned with `commitlint.config.js`
+- [branching.md](branching.md): task branch creation and naming rules
+- [coding.md](coding.md): coding and execution rules derived from Karpathy-style agent guidelines
+- [commits.md](commits.md): commit message rules aligned with `commitlint.config.js`
 
 Order of operations:
 
