@@ -79,8 +79,5 @@
       "oxfmt --no-error-on-unmatched-pattern"
     ]
   },
-  "pnpm": {
-    "onlyBuiltDependencies": []
-  },
   "productName": "Prot Skills"
 }
