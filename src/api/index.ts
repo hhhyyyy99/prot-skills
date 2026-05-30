@@ -114,6 +114,10 @@ export const openFolder = (path: string): Promise<void> => {
   return invoke("open_folder", { path });
 };
 
+export const openUrl = (url: string): Promise<void> => {
+  return invoke("open_url", { url });
+};
+
 export const getSkillsDirPath = (): Promise<string> => {
   return invoke("get_skills_dir_path");
 };

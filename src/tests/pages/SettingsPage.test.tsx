@@ -6,6 +6,7 @@ import { LanguageProvider } from "@/shell/LanguageProvider";
 import { ToastProvider } from "@/shell/ToastProvider";
 import { SettingsPage } from "@/pages/SettingsPage";
 import { checkForUpdates } from "@/lib/updateCheck";
+import { openUrl } from "@/api";
 import packageJson from "../../../package.json";
 
 const appName = packageJson.productName ?? packageJson.name;
@@ -13,6 +14,7 @@ const appName = packageJson.productName ?? packageJson.name;
 vi.mock("../../api", () => ({
   getSkillsDirPath: vi.fn(() => Promise.resolve("/Users/test/.prot-skills/skills")),
   openFolder: vi.fn(() => Promise.resolve()),
+  openUrl: vi.fn(() => Promise.resolve()),
 }));
 
 vi.mock("@/lib/updateCheck", () => ({
@@ -20,6 +22,7 @@ vi.mock("@/lib/updateCheck", () => ({
 }));
 
 const checkForUpdatesMock = vi.mocked(checkForUpdates);
+const openUrlMock = vi.mocked(openUrl);
 
 function Wrapper({ children }: { children: React.ReactNode }) {
   return (
@@ -35,6 +38,7 @@ describe("SettingsPage", () => {
   beforeEach(() => {
     localStorage.clear();
     checkForUpdatesMock.mockReset();
+    openUrlMock.mockReset();
     vi.spyOn(window, "open").mockImplementation(() => null);
   });
 
@@ -106,10 +110,8 @@ describe("SettingsPage", () => {
 
     expect(await findByText("Version 9.9.9 is available.")).toBeInTheDocument();
     await user.click(getByRole("button", { name: "Open release" }));
-    expect(window.open).toHaveBeenCalledWith(
+    expect(openUrlMock).toHaveBeenCalledWith(
       "https://github.com/hhhyyyy99/prot-skills/releases/tag/v9.9.9",
-      "_blank",
-      "noopener,noreferrer",
     );
   });
 

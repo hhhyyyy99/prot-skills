@@ -13,7 +13,7 @@ import { useI18n } from "../shell/LanguageProvider";
 import { useToast } from "../hooks/useToast";
 import { Button } from "../components/primitives/Button";
 import { Select } from "../components/primitives/Select";
-import { getSkillsDirPath, openFolder } from "../api";
+import { getSkillsDirPath, openFolder, openUrl } from "../api";
 import { languageOptions, type Language } from "../lib/i18n";
 import { checkForUpdates, type UpdateCheckResult } from "../lib/updateCheck";
 import appIcon from "../../assets/icon.png";
@@ -95,9 +95,13 @@ export function SettingsPage() {
     setIsCheckingUpdates(false);
   };
 
-  const handleOpenRelease = () => {
+  const handleOpenRelease = async () => {
     if (updateCheck?.status !== "available") return;
-    window.open(updateCheck.releaseUrl, "_blank", "noopener,noreferrer");
+    try {
+      await openUrl(updateCheck.releaseUrl);
+    } catch {
+      window.open(updateCheck.releaseUrl, "_blank", "noopener,noreferrer");
+    }
   };
 
   const getUpdateHelper = () => {
