@@ -146,11 +146,13 @@ impl SkillService {
                 source_type,
                 source_url.unwrap_or(""),
                 target_path.to_str().unwrap(),
-                &serde_json::to_string(&metadata).unwrap(),
+                &serde_json::to_string(&metadata)
+                    .map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(e)))?,
             ],
         )?;
 
-        Self::get_skill_by_id(db, skill_id).map(|s| s.expect("Skill should exist after insertion"))
+        Self::get_skill_by_id(db, skill_id)?
+            .ok_or(rusqlite::Error::QueryReturnedNoRows)
     }
 
     pub fn get_skill_by_id(db: &Database, skill_id: &str) -> Result<Option<Skill>> {
