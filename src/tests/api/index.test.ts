@@ -1,10 +1,17 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { invoke } from "@tauri-apps/api/core";
-import { getTools } from "@/api/index";
+import { getTools, openUrl } from "@/api/index";
 
 vi.mock("@tauri-apps/api/core", () => ({
   invoke: vi.fn(),
 }));
+
+function enableTauriRuntime() {
+  // eslint-disable-next-line eslint/no-underscore-dangle -- Tauri runtime global
+  (globalThis as { __TAURI_INTERNALS__?: { invoke: () => void } }).__TAURI_INTERNALS__ = {
+    invoke: () => undefined,
+  };
+}
 
 describe("api invoke wrapper", () => {
   beforeEach(() => {
@@ -23,12 +30,20 @@ describe("api invoke wrapper", () => {
   });
 
   it("calls tauri invoke when runtime is available", async () => {
-    (globalThis as { __TAURI_INTERNALS__?: { invoke: () => void } }).__TAURI_INTERNALS__ = {
-      invoke: () => undefined,
-    };
+    enableTauriRuntime();
     vi.mocked(invoke).mockResolvedValueOnce([{ id: "cursor" }]);
 
     await expect(getTools()).resolves.toEqual([{ id: "cursor" }]);
     expect(invoke).toHaveBeenCalledWith("get_tools", undefined);
+  });
+
+  it("opens URLs through the desktop command", async () => {
+    enableTauriRuntime();
+    vi.mocked(invoke).mockResolvedValueOnce(undefined);
+
+    await expect(openUrl("https://github.com/hhhyyyy99/prot-skills")).resolves.toBeUndefined();
+    expect(invoke).toHaveBeenCalledWith("open_url", {
+      url: "https://github.com/hhhyyyy99/prot-skills",
+    });
   });
 });

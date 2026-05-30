@@ -6,15 +6,16 @@ import {
   useRef,
   useState,
 } from "react";
-import { FolderOpen, Moon, Monitor, Sun } from "lucide-react";
+import { ExternalLink, FolderOpen, Moon, Monitor, RefreshCw, Sun } from "lucide-react";
 import { WorkspaceHeader } from "../shell/WorkspaceHeader";
 import { useTheme } from "../shell/ThemeProvider";
 import { useI18n } from "../shell/LanguageProvider";
 import { useToast } from "../hooks/useToast";
 import { Button } from "../components/primitives/Button";
 import { Select } from "../components/primitives/Select";
-import { getSkillsDirPath, openFolder } from "../api";
+import { getSkillsDirPath, openFolder, openUrl } from "../api";
 import { languageOptions, type Language } from "../lib/i18n";
+import { checkForUpdates, type UpdateCheckResult } from "../lib/updateCheck";
 import appIcon from "../../assets/icon.png";
 import type { ThemePreference } from "../lib/theme";
 
@@ -50,6 +51,8 @@ export function SettingsPage() {
   const appVersion = import.meta.env.VITE_APP_VERSION;
   const [skillsPath, setSkillsPath] = useState<string>("");
   const [pathError, setPathError] = useState<string | null>(null);
+  const [updateCheck, setUpdateCheck] = useState<UpdateCheckResult | null>(null);
+  const [isCheckingUpdates, setIsCheckingUpdates] = useState(false);
   const pointerOriginRef = useRef<{ x: number; y: number } | null>(null);
 
   const themeOptions: { value: ThemePreference; label: string; icon: ReactNode }[] = [
@@ -83,6 +86,37 @@ export function SettingsPage() {
         description: String((e as { message?: string })?.message ?? e),
       });
     }
+  };
+
+  const handleCheckUpdates = async () => {
+    setIsCheckingUpdates(true);
+    const result = await checkForUpdates(appVersion);
+    setUpdateCheck(result);
+    setIsCheckingUpdates(false);
+  };
+
+  const handleOpenRelease = async () => {
+    if (updateCheck?.status !== "available") return;
+    try {
+      await openUrl(updateCheck.releaseUrl);
+    } catch {
+      window.open(updateCheck.releaseUrl, "_blank", "noopener,noreferrer");
+    }
+  };
+
+  const getUpdateHelper = () => {
+    if (isCheckingUpdates) return t("settings.updateCheck.checking");
+    if (!updateCheck) return t("settings.updateCheck.idle");
+
+    if (updateCheck.status === "current") {
+      return t("settings.updateCheck.current", { version: updateCheck.latestVersion });
+    }
+
+    if (updateCheck.status === "available") {
+      return t("settings.updateCheck.available", { version: updateCheck.latestVersion });
+    }
+
+    return t("settings.updateCheck.failed", { error: updateCheck.error });
   };
 
   const handleThemePointerDown = (event: PointerEvent<HTMLButtonElement>) => {
@@ -195,6 +229,33 @@ export function SettingsPage() {
           >
             {t("settings.documentation")}
           </a>
+          <SettingRow
+            label={t("settings.updateCheck")}
+            helper={getUpdateHelper()}
+            control={
+              <Button
+                variant="secondary"
+                size="sm"
+                leadingIcon={<RefreshCw size={14} />}
+                loading={isCheckingUpdates}
+                onClick={handleCheckUpdates}
+              >
+                {t("settings.updateCheck.action")}
+              </Button>
+            }
+            action={
+              updateCheck?.status === "available" ? (
+                <Button
+                  variant="primary"
+                  size="sm"
+                  leadingIcon={<ExternalLink size={14} />}
+                  onClick={handleOpenRelease}
+                >
+                  {t("settings.updateCheck.download")}
+                </Button>
+              ) : null
+            }
+          />
         </section>
 
         <div className="compact-card mb-4 flex items-center gap-3">
