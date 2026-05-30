@@ -228,29 +228,9 @@ impl LinkService {
         skill_id: &str,
         active: bool,
     ) -> AppResult<Vec<SkillLink>> {
-        let skill = SkillService::get_skill_by_id(db, skill_id)?
-            .ok_or_else(|| AppError::NotFound(format!("skill {}", skill_id)))?;
-
-        let tools: Vec<AITool> = ToolService::get_all_tools(db)?
-            .into_iter()
-            .filter(|tool| tool.is_detected && tool.is_enabled)
-            .collect();
-
-        if !active {
-            for tool in tools {
-                Self::remove_link(db, skill_id, &tool.id)?;
-            }
-            return Self::get_links_for_skill(db, skill_id);
-        }
-
-        if !skill.is_enabled {
-            return Err(AppError::Path(format!("skill {} is disabled", skill_id)));
-        }
-
-        for tool in tools {
-            Self::create_link(db, &skill, &tool).ok();
-        }
-
+        // Delegate to the result-tracking variant so per-tool failures are
+        // captured instead of silently discarded.
+        let _result = Self::set_all_detected_tool_links_result(db, skill_id, active)?;
         Self::get_links_for_skill(db, skill_id)
     }
 

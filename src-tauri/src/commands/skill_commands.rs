@@ -39,8 +39,21 @@ pub fn install_skill_from_local(
     SkillService::install_skill(&db, &skill_id, &name, "local", None, &source_path)
         .map_err(|e| e.to_string())
         .and_then(|skill| {
-            LinkService::set_all_detected_tool_links(&db, &skill.id, true)
+            let result = LinkService::set_all_detected_tool_links_result(&db, &skill.id, true)
                 .map_err(|e| e.to_string())?;
+            if result.failure_count > 0 {
+                let failures: Vec<String> = result
+                    .failed_tools
+                    .iter()
+                    .map(|f| format!("{} ({})", f.tool_name, f.reason))
+                    .collect();
+                eprintln!(
+                    "Sync failed for skill '{}': {} tool(s) could not be linked: {}",
+                    skill.name,
+                    result.failure_count,
+                    failures.join(", ")
+                );
+            }
             Ok(skill)
         })
 }
@@ -294,7 +307,21 @@ pub async fn migrate_local_skill(
         }
     }
 
-    LinkService::set_all_detected_tool_links(&db, &skill.id, true).map_err(|e| e.to_string())?;
+    let result = LinkService::set_all_detected_tool_links_result(&db, &skill.id, true)
+        .map_err(|e| e.to_string())?;
+    if result.failure_count > 0 {
+        let failures: Vec<String> = result
+            .failed_tools
+            .iter()
+            .map(|f| format!("{} ({})", f.tool_name, f.reason))
+            .collect();
+        eprintln!(
+            "Sync failed for skill '{}': {} tool(s) could not be linked: {}",
+            skill.name,
+            result.failure_count,
+            failures.join(", ")
+        );
+    }
 
     Ok(skill)
 }
