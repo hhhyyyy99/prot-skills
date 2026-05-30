@@ -9,8 +9,11 @@ function mockResponse(body: unknown, ok = true, status = 200) {
   } as Response;
 }
 
-function mockFetch(response: Response): typeof fetch {
-  return vi.fn(() => Promise.resolve(response)) as unknown as typeof fetch;
+function mockFetch(...responses: Response[]): typeof fetch {
+  return vi.fn(() => {
+    const response = responses.shift() ?? mockResponse({}, false, 404);
+    return Promise.resolve(response);
+  }) as unknown as typeof fetch;
 }
 
 describe("updateCheck", () => {
@@ -32,8 +35,7 @@ describe("updateCheck", () => {
   it("returns available when the latest release is newer", async () => {
     const fetcher = mockFetch(
       mockResponse({
-        tag_name: "v1.2.4",
-        html_url: "https://github.com/hhhyyyy99/prot-skills/releases/tag/v1.2.4",
+        version: "1.2.4",
       }),
     );
 
@@ -47,8 +49,7 @@ describe("updateCheck", () => {
   it("returns current when the latest release is not newer", async () => {
     const fetcher = mockFetch(
       mockResponse({
-        tag_name: "v1.2.3",
-        html_url: "https://github.com/hhhyyyy99/prot-skills/releases/tag/v1.2.3",
+        version: "1.2.3",
       }),
     );
 
@@ -59,10 +60,25 @@ describe("updateCheck", () => {
   });
 
   it("returns failed when release metadata is unusable", async () => {
-    const fetcher = mockFetch(mockResponse({ tag_name: "latest" }));
+    const fetcher = mockFetch(mockResponse({ version: "latest" }));
 
     await expect(checkForUpdates("1.2.3", fetcher)).resolves.toMatchObject({
       status: "failed",
+    });
+  });
+
+  it("falls back to a second static metadata source when the first one fails", async () => {
+    const fetcher = mockFetch(
+      mockResponse({}, false, 503),
+      mockResponse({
+        version: "1.2.4",
+      }),
+    );
+
+    await expect(checkForUpdates("1.2.3", fetcher)).resolves.toEqual({
+      status: "available",
+      latestVersion: "1.2.4",
+      releaseUrl: "https://github.com/hhhyyyy99/prot-skills/releases/tag/v1.2.4",
     });
   });
 });

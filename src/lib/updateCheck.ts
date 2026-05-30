@@ -1,8 +1,11 @@
-const LATEST_RELEASE_URL = "https://api.github.com/repos/hhhyyyy99/prot-skills/releases/latest";
+const RELEASE_PAGE_BASE_URL = "https://github.com/hhhyyyy99/prot-skills/releases/tag";
+const REMOTE_PACKAGE_URLS = [
+  "https://cdn.jsdelivr.net/gh/hhhyyyy99/prot-skills@main/package.json",
+  "https://raw.githubusercontent.com/hhhyyyy99/prot-skills/main/package.json",
+];
 
-type ReleaseResponse = {
-  tag_name?: unknown;
-  html_url?: unknown;
+type RemotePackageResponse = {
+  version?: unknown;
 };
 
 export type VersionParts = {
@@ -51,37 +54,55 @@ export function compareVersions(current: string, latest: string): number | null 
   return 0;
 }
 
+async function fetchPackageVersion(url: string, fetcher: typeof fetch) {
+  const response = await fetcher(url, {
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    throw new Error(`Update metadata request failed with ${response.status}`);
+  }
+
+  const remotePackage = (await response.json()) as RemotePackageResponse;
+  if (typeof remotePackage.version !== "string") {
+    throw new Error("Remote package metadata is incomplete");
+  }
+
+  return remotePackage.version;
+}
+
+async function fetchRemotePackageVersion(
+  fetcher: typeof fetch,
+  sourceIndex = 0,
+  firstError?: unknown,
+): Promise<string> {
+  const url = REMOTE_PACKAGE_URLS[sourceIndex];
+  if (!url) throw firstError ?? new Error("Update metadata request failed");
+
+  try {
+    return await fetchPackageVersion(url, fetcher);
+  } catch (error) {
+    return fetchRemotePackageVersion(fetcher, sourceIndex + 1, firstError ?? error);
+  }
+}
+
 export async function checkForUpdates(
   currentVersion: string,
   fetcher: typeof fetch = fetch,
 ): Promise<UpdateCheckResult> {
   try {
-    const response = await fetcher(LATEST_RELEASE_URL, {
-      headers: {
-        Accept: "application/vnd.github+json",
-      },
-    });
-
-    if (!response.ok) {
-      throw new Error(`Release request failed with ${response.status}`);
-    }
-
-    const release = (await response.json()) as ReleaseResponse;
-    if (typeof release.tag_name !== "string" || typeof release.html_url !== "string") {
-      throw new Error("Latest release metadata is incomplete");
-    }
-
-    const comparison = compareVersions(currentVersion, release.tag_name);
-    const latestVersion = release.tag_name.replace(/^v/, "");
+    const remoteVersion = await fetchRemotePackageVersion(fetcher);
+    const comparison = compareVersions(currentVersion, remoteVersion);
+    const latestVersion = remoteVersion.replace(/^v/, "");
     if (comparison === null || !parseReleaseVersion(latestVersion)) {
-      throw new Error("Latest release version is invalid");
+      throw new Error("Remote package version is invalid");
     }
 
     if (comparison > 0) {
       return {
         status: "available",
         latestVersion,
-        releaseUrl: release.html_url,
+        releaseUrl: `${RELEASE_PAGE_BASE_URL}/v${latestVersion}`,
       };
     }
 
