@@ -1,6 +1,12 @@
 import { startTransition, useEffect, useState, useCallback, useMemo } from "react";
 import { Search, ArrowRight, RefreshCw, Filter } from "lucide-react";
-import { getTools, scanLocalSkills, scanAllLocalSkills, migrateLocalSkill } from "../api";
+import {
+  getTools,
+  scanLocalSkills,
+  scanAllLocalSkills,
+  migrateLocalSkill,
+  preflightMigrateLocalSkill,
+} from "../api";
 import { useToast } from "../hooks/useToast";
 import { WorkspaceHeader } from "../shell/WorkspaceHeader";
 import { useI18n } from "../shell/LanguageProvider";
@@ -12,7 +18,7 @@ import { EmptyState } from "../components/patterns/EmptyState";
 import { FilterPills } from "../components/patterns/FilterPills";
 import { StatsStrip } from "../components/patterns/StatsStrip";
 import { middleEllipsis } from "../lib/truncate";
-import type { AITool, LocalSkill } from "../types";
+import type { AITool, LifecycleIssue, LocalSkill, MigrationPreflight } from "../types";
 
 type ScanFilter = string;
 
@@ -43,6 +49,14 @@ function yieldToBrowser() {
   });
 }
 
+function getFailureDescription(failures: LifecycleIssue[]) {
+  if (failures.length === 0) return undefined;
+  return failures
+    .slice(0, 3)
+    .map((failure) => failure.message)
+    .join("; ");
+}
+
 export function MigratePage() {
   const { t } = useI18n();
   const [allTools, setAllTools] = useState<AITool[]>([]);
@@ -53,6 +67,9 @@ export function MigratePage() {
   const [migrating, setMigrating] = useState(false);
   const [progress, setProgress] = useState<MigrationProgress | null>(null);
   const [rowStatus, setRowStatus] = useState<Record<string, "idle" | "success" | "error">>({});
+  const [rowIssues, setRowIssues] = useState<Record<string, LifecycleIssue[]>>({});
+  const [rowRetryable, setRowRetryable] = useState<Record<string, boolean>>({});
+  const [preflightByPath, setPreflightByPath] = useState<Record<string, MigrationPreflight>>({});
   const [hasScannedOnce, setHasScannedOnce] = useState(false);
   const { toast } = useToast();
 
@@ -221,13 +238,79 @@ export function MigratePage() {
     });
   };
 
-  const toggleAll = () => {
-    if (selected.size === filteredSkills.length) setSelected(new Set());
-    else setSelected(new Set(filteredSkills.map((s) => s.path)));
+  const getSkillId = (skill: LocalSkill) => skill.name.toLowerCase().replace(/\s+/g, "-");
+
+  const isBlocked = (skill: LocalSkill) => preflightByPath[skill.path]?.report.status === "blocked";
+
+  const getBlockingReason = (skill: LocalSkill) => {
+    const failure = preflightByPath[skill.path]?.report.failures[0];
+    return failure?.message;
   };
 
+  const getRowDetail = (skill: LocalSkill) => {
+    const blockingReason = getBlockingReason(skill);
+    if (blockingReason) return blockingReason;
+
+    const failures = rowIssues[skill.path] ?? [];
+    if (failures.length === 0) return undefined;
+
+    const first = failures[0];
+    const path = first.path ?? first.target_path;
+    return path ? `${first.message} (${path})` : first.message;
+  };
+
+  const canRetry = (skill: LocalSkill) => {
+    if (rowStatus[skill.path] !== "error") return false;
+    const report = preflightByPath[skill.path]?.report;
+    if (report?.status === "blocked") return false;
+    return rowRetryable[skill.path] === true;
+  };
+
+  const toggleAll = () => {
+    if (selected.size === filteredSkills.length) setSelected(new Set());
+    else setSelected(new Set(filteredSkills.filter((s) => !isBlocked(s)).map((s) => s.path)));
+  };
+
+  useEffect(() => {
+    let cancelled = false;
+    const targets = filteredSkills.filter(
+      (skill) => selected.has(skill.path) && !preflightByPath[skill.path],
+    );
+    if (targets.length === 0) return;
+
+    void (async () => {
+      const entries = await Promise.all(
+        targets.map(async (skill) => {
+          try {
+            const preflight = await preflightMigrateLocalSkill(skill.path, getSkillId(skill));
+            return [skill.path, preflight] as const;
+          } catch {
+            return null;
+          }
+        }),
+      );
+
+      if (cancelled) return;
+
+      setPreflightByPath((prev) => {
+        const next = { ...prev };
+        for (const entry of entries) {
+          if (entry) next[entry[0]] = entry[1];
+        }
+        return next;
+      });
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [filteredSkills, preflightByPath, selected]);
+
   const migrateSelected = async () => {
-    const paths = Array.from(selected);
+    const paths = Array.from(selected).filter((path) => {
+      const skill = filteredSkills.find((sk) => sk.path === path);
+      return skill ? !isBlocked(skill) : true;
+    });
     const total = paths.length;
     if (total === 0) return;
 
@@ -250,12 +333,20 @@ export function MigratePage() {
         }
         setProgress({ done, total, currentSkillName: skillName });
         await yieldToBrowser();
-        const skillId = skill.name.toLowerCase().replace(/\s+/g, "-");
-        await migrateLocalSkill(path, skillId);
-        nextStatus[path] = "success";
-        success++;
+        const skillId = getSkillId(skill);
+        const result = await migrateLocalSkill(path, skillId);
+        setRowIssues((prev) => ({ ...prev, [path]: result.report.failures }));
+        setRowRetryable((prev) => ({ ...prev, [path]: result.report.retryable }));
+        if (result.report.status === "success") {
+          nextStatus[path] = "success";
+          success++;
+        } else {
+          nextStatus[path] = "error";
+          fail++;
+        }
       } catch {
         nextStatus[path] = "error";
+        setRowRetryable((prev) => ({ ...prev, [path]: true }));
         fail++;
       } finally {
         done++;
@@ -284,10 +375,24 @@ export function MigratePage() {
 
   const retry = async (path: string) => {
     const s = filteredSkills.find((sk) => sk.path === path);
-    const skillId = s!.name.toLowerCase().replace(/\s+/g, "-");
+    const skillId = getSkillId(s!);
     try {
-      await migrateLocalSkill(path, skillId);
-      setRowStatus((prev) => ({ ...prev, [path]: "success" }));
+      const result = await migrateLocalSkill(path, skillId);
+      setRowIssues((prev) => ({ ...prev, [path]: result.report.failures }));
+      setRowRetryable((prev) => ({ ...prev, [path]: result.report.retryable }));
+      setRowStatus((prev) => ({
+        ...prev,
+        [path]: result.report.status === "success" ? "success" : "error",
+      }));
+      if (result.report.status !== "success") {
+        toast({
+          variant: "error",
+          title: t("migrate.toast.failed", { name: s!.name }),
+          description: getFailureDescription(result.report.failures),
+          durationMs: 6000,
+        });
+        return;
+      }
       toast({
         variant: "success",
         title: t("migrate.toast.success", { name: s!.name }),
@@ -320,6 +425,43 @@ export function MigratePage() {
     return opts;
   }, [detectedTools, t]);
 
+  const renderSkillMeta = (skill: LocalSkill, includeSource: boolean) =>
+    [
+      <code key="p" className="font-mono text-12 text-text-secondary">
+        {middleEllipsis(skill.path, 48)}
+      </code>,
+      includeSource && skill.tool_name ? (
+        <Badge key="tool" variant="accent">
+          {t("migrate.badge.source", { name: skill.tool_name })}
+        </Badge>
+      ) : null,
+      skill.is_symlink ? (
+        <Badge key="sym" variant="warning">
+          {t("migrate.badge.symlink")}
+        </Badge>
+      ) : null,
+      ...(skill.scan_warnings ?? []).map((warning) => (
+        <Badge key={`warning-${warning.code}`} variant="warning">
+          {t(`migrate.warning.${warning.code}`)}
+        </Badge>
+      )),
+      rowStatus[skill.path] === "success" ? (
+        <Badge key="ok" variant="success">
+          {t("migrate.badge.done")}
+        </Badge>
+      ) : null,
+      rowStatus[skill.path] === "error" ? (
+        <Badge key="err" variant="danger">
+          {t("migrate.badge.failed")}
+        </Badge>
+      ) : null,
+      isBlocked(skill) ? (
+        <Badge key="blocked" variant="danger">
+          {t("migrate.badge.blocked")}
+        </Badge>
+      ) : null,
+    ].filter(Boolean) as React.ReactNode[];
+
   return (
     <>
       <WorkspaceHeader
@@ -351,6 +493,10 @@ export function MigratePage() {
             { label: t("migrate.stats.selected"), value: selected.size },
           ]}
         />
+
+        <div className="compact-card mb-4">
+          <p className="text-13 text-text-secondary">{t("migrate.safetyCopy")}</p>
+        </div>
 
         {/* Filter bar */}
         <div className="mb-4">
@@ -453,6 +599,39 @@ export function MigratePage() {
           </div>
         )}
 
+        {selected.size > 0 && (
+          <div className="compact-card mb-4">
+            <p className="text-12 font-semibold text-text-primary">{t("migrate.affectedPaths")}</p>
+            <ul className="mt-2 space-y-1">
+              {filteredSkills
+                .filter((skill) => selected.has(skill.path))
+                .slice(0, 4)
+                .map((skill) => {
+                  const preflight = preflightByPath[skill.path];
+                  const target = preflight?.managed_target_path;
+                  return (
+                    <li key={skill.path} className="text-12 text-text-tertiary">
+                      <span className="font-medium text-text-secondary">{skill.name}</span>
+                      <span className="mx-1">-</span>
+                      <code className="font-mono">{middleEllipsis(skill.path, 36)}</code>
+                      {target && (
+                        <>
+                          <span className="mx-1">to</span>
+                          <code className="font-mono">{middleEllipsis(target, 36)}</code>
+                        </>
+                      )}
+                    </li>
+                  );
+                })}
+            </ul>
+            {selected.size > 4 && (
+              <p className="mt-2 text-12 text-text-tertiary">
+                {t("migrate.affectedPathsMore", { count: selected.size - 4 })}
+              </p>
+            )}
+          </div>
+        )}
+
         {progress && (
           <div className="compact-card mb-4">
             <div className="flex items-center justify-between gap-4">
@@ -542,34 +721,14 @@ export function MigratePage() {
                           checked={selected.has(s.path)}
                           onChange={() => toggleSelected(s.path)}
                           aria-label={t("migrate.aria.select", { name: s.name })}
-                          disabled={migrating}
+                          disabled={migrating || isBlocked(s)}
                         />
                       }
                       primary={<span className="text-14 text-text-primary">{s.name}</span>}
-                      meta={
-                        [
-                          <code key="p" className="font-mono text-12 text-text-secondary">
-                            {middleEllipsis(s.path, 48)}
-                          </code>,
-                          s.is_symlink ? (
-                            <Badge key="sym" variant="warning">
-                              {t("migrate.badge.symlink")}
-                            </Badge>
-                          ) : null,
-                          rowStatus[s.path] === "success" ? (
-                            <Badge key="ok" variant="success">
-                              {t("migrate.badge.done")}
-                            </Badge>
-                          ) : null,
-                          rowStatus[s.path] === "error" ? (
-                            <Badge key="err" variant="danger">
-                              {t("migrate.badge.failed")}
-                            </Badge>
-                          ) : null,
-                        ].filter(Boolean) as React.ReactNode[]
-                      }
+                      secondary={getRowDetail(s)}
+                      meta={renderSkillMeta(s, false)}
                       trailing={
-                        rowStatus[s.path] === "error" ? (
+                        canRetry(s) ? (
                           <Button
                             variant="ghost"
                             size="sm"
@@ -601,39 +760,14 @@ export function MigratePage() {
                       checked={selected.has(s.path)}
                       onChange={() => toggleSelected(s.path)}
                       aria-label={t("migrate.aria.select", { name: s.name })}
-                      disabled={migrating}
+                      disabled={migrating || isBlocked(s)}
                     />
                   }
                   primary={<span className="text-14 text-text-primary">{s.name}</span>}
-                  meta={
-                    [
-                      <code key="p" className="font-mono text-12 text-text-secondary">
-                        {middleEllipsis(s.path, 48)}
-                      </code>,
-                      s.tool_name && filter === ALL_TOOLS_FILTER ? (
-                        <Badge key="tool" variant="accent">
-                          {t("migrate.badge.source", { name: s.tool_name })}
-                        </Badge>
-                      ) : null,
-                      s.is_symlink ? (
-                        <Badge key="sym" variant="warning">
-                          {t("migrate.badge.symlink")}
-                        </Badge>
-                      ) : null,
-                      rowStatus[s.path] === "success" ? (
-                        <Badge key="ok" variant="success">
-                          {t("migrate.badge.done")}
-                        </Badge>
-                      ) : null,
-                      rowStatus[s.path] === "error" ? (
-                        <Badge key="err" variant="danger">
-                          {t("migrate.badge.failed")}
-                        </Badge>
-                      ) : null,
-                    ].filter(Boolean) as React.ReactNode[]
-                  }
+                  secondary={getRowDetail(s)}
+                  meta={renderSkillMeta(s, filter === ALL_TOOLS_FILTER)}
                   trailing={
-                    rowStatus[s.path] === "error" ? (
+                    canRetry(s) ? (
                       <Button
                         variant="ghost"
                         size="sm"

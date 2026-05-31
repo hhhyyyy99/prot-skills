@@ -22,8 +22,16 @@ export interface LocalSkill {
   path: string;
   is_symlink: boolean;
   target_path?: string;
+  scan_warnings?: LocalSkillScanWarning[];
   tool_id?: string;
   tool_name?: string;
+}
+
+export interface LocalSkillScanWarning {
+  code: string;
+  message: string;
+  path: string;
+  target_path?: string;
 }
 
 export interface AITool {
@@ -59,6 +67,7 @@ export interface SyncFailureItem {
   tool_name: string;
   reason_code: string;
   reason: string;
+  path?: string;
 }
 
 export interface SyncSkillTargetsResult {
@@ -67,4 +76,51 @@ export interface SyncSkillTargetsResult {
   failure_count: number;
   success_tools: SyncSuccessItem[];
   failed_tools: SyncFailureItem[];
+}
+
+export type LifecycleReportStatus = "success" | "partial" | "failed" | "blocked";
+
+export type LifecycleActionStatus = "planned" | "completed" | "failed" | "skipped";
+
+export interface LifecycleAction {
+  action_type: string;
+  status: LifecycleActionStatus;
+  path?: string;
+  target_path?: string;
+  skill_id?: string;
+  skill_name?: string;
+  tool_id?: string;
+  tool_name?: string;
+}
+
+export interface LifecycleIssue {
+  code: string;
+  message: string;
+  path?: string;
+  target_path?: string;
+  skill_id?: string;
+  skill_name?: string;
+  tool_id?: string;
+  tool_name?: string;
+}
+
+export interface LifecycleReport {
+  status: LifecycleReportStatus;
+  retryable: boolean;
+  actions: LifecycleAction[];
+  warnings: LifecycleIssue[];
+  failures: LifecycleIssue[];
+}
+
+export interface MigrationPreflight {
+  skill_id: string;
+  source_path: string;
+  managed_target_path: string;
+  original_replacement_path: string;
+  report: LifecycleReport;
+}
+
+export interface MigrationResult {
+  skill?: Skill;
+  report: LifecycleReport;
 }
