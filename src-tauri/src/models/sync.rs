@@ -20,6 +20,7 @@ pub struct SyncFailureItem {
     pub tool_name: String,
     pub reason_code: String,
     pub reason: String,
+    pub path: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]

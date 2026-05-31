@@ -1,5 +1,8 @@
 use crate::db::Database;
-use crate::models::{LocalSkill, Skill, SkillLink, SyncSkillTargetsResult};
+use crate::models::{
+    LifecycleAction, LifecycleActionStatus, LifecycleIssue, LifecycleReport, LocalSkill,
+    MigrationPreflight, MigrationResult, Skill, SkillLink, SyncSkillTargetsResult,
+};
 use crate::services::{DiscoveryService, LinkService, SkillService, ToolService};
 use crate::utils::{get_skills_dir, is_in_manager_dir, is_symlink, resolve_symlink};
 use std::fs;
@@ -78,7 +81,7 @@ pub fn toggle_skill(
 pub fn uninstall_skill(
     db: State<std::sync::Mutex<Database>>,
     skill_id: String,
-) -> Result<(), String> {
+) -> Result<LifecycleReport, String> {
     let db = db.lock().map_err(|e| e.to_string())?;
     SkillService::uninstall_skill(&db, &skill_id).map_err(|e| e.to_string())
 }
@@ -170,6 +173,71 @@ pub fn open_url(url: String) -> Result<(), String> {
     Ok(())
 }
 
+fn create_skill_symlink(target: &Path, link_path: &Path) -> std::io::Result<()> {
+    #[cfg(unix)]
+    {
+        std::os::unix::fs::symlink(target, link_path)
+    }
+    #[cfg(windows)]
+    {
+        std::os::windows::fs::symlink_dir(target, link_path)
+    }
+}
+
+fn replace_with_validated_symlink(original_location: &Path, managed_target: &Path) -> Result<(), String> {
+    let expected_target = managed_target
+        .canonicalize()
+        .map_err(|e| format!("Managed target cannot be resolved: {}", e))?;
+    let parent = original_location
+        .parent()
+        .ok_or_else(|| format!("Cannot determine parent for {}", original_location.display()))?;
+    fs::create_dir_all(parent).map_err(|e| format!("Failed to create parent directory: {}", e))?;
+
+    let temp_link = parent.join(format!(
+        ".{}.prot-skills-link-tmp",
+        original_location
+            .file_name()
+            .and_then(|name| name.to_str())
+            .unwrap_or("skill")
+    ));
+    if temp_link.exists() || is_symlink(&temp_link) {
+        if is_symlink(&temp_link) || temp_link.is_file() {
+            fs::remove_file(&temp_link)
+                .map_err(|e| format!("Failed to remove stale temp link: {}", e))?;
+        } else {
+            fs::remove_dir_all(&temp_link)
+                .map_err(|e| format!("Failed to remove stale temp link directory: {}", e))?;
+        }
+    }
+
+    create_skill_symlink(managed_target, &temp_link)
+        .map_err(|e| format!("Failed to create symlink: {}", e))?;
+
+    let temp_target = resolve_symlink(&temp_link)
+        .ok_or_else(|| format!("Failed to verify symlink: {}", temp_link.display()))?;
+    if temp_target.canonicalize().ok() != Some(expected_target) {
+        fs::remove_file(&temp_link).ok();
+        return Err(format!(
+            "Symlink target mismatch: {} does not point to {}",
+            temp_link.display(),
+            managed_target.display()
+        ));
+    }
+
+    if original_location.exists() || is_symlink(original_location) {
+        if is_symlink(original_location) || original_location.is_file() {
+            fs::remove_file(original_location)
+                .map_err(|e| format!("Failed to remove original path: {}", e))?;
+        } else if original_location.is_dir() {
+            fs::remove_dir_all(original_location)
+                .map_err(|e| format!("Failed to remove original directory: {}", e))?;
+        }
+    }
+
+    fs::rename(&temp_link, original_location)
+        .map_err(|e| format!("Failed to install replacement symlink: {}", e))
+}
+
 #[tauri::command]
 pub async fn scan_local_skills(
     db: State<'_, std::sync::Mutex<Database>>,
@@ -222,13 +290,30 @@ pub async fn migrate_local_skill(
     db: State<'_, std::sync::Mutex<Database>>,
     source_path: String,
     skill_id: String,
-) -> Result<Skill, String> {
+) -> Result<MigrationResult, String> {
     let db = db.lock().map_err(|e| e.to_string())?;
     let path = Path::new(&source_path);
+    let mut actions = Vec::new();
+    let mut failures = Vec::new();
 
     // Determine actual source and original location
     let (actual_source, original_location) = if is_symlink(path) {
-        let target = resolve_symlink(path).ok_or("Cannot resolve symlink")?;
+        let Some(target) = resolve_symlink(path) else {
+            failures.push(lifecycle_issue(
+                "path_missing",
+                "Cannot resolve symlink",
+                Some(source_path.clone()),
+                None,
+                Some(skill_id.clone()),
+                None,
+                None,
+            ));
+            return Ok(MigrationResult {
+                skill: None,
+                report: LifecycleReport::from_parts(actions, vec![], failures, false)
+                    .with_retryable(false),
+            });
+        };
         (target, path.to_path_buf())
     } else {
         (path.to_path_buf(), path.to_path_buf())
@@ -252,15 +337,42 @@ pub async fn migrate_local_skill(
 
     let skill = if already_managed {
         // Reuse the existing managed skill; don't copy again.
-        existing.ok_or_else(|| {
+        match existing {
+            Some(skill) => {
+                actions.push(LifecycleAction {
+                    action_type: "reuse_managed_copy".to_string(),
+                    status: LifecycleActionStatus::Completed,
+                    path: Some(actual_source.to_string_lossy().into_owned()),
+                    target_path: Some(skill.local_path.clone()),
+                    skill_id: Some(skill_id.clone()),
+                    skill_name: Some(skill.name.clone()),
+                    tool_id: None,
+                    tool_name: None,
+                });
+                skill
+            }
+            None => {
             // If the caller's path was already in the manager dir but no DB
             // row exists, that's an inconsistent state we can't silently fix.
-            format!(
-                "Skill '{}' appears to live under the manager directory but \
-                 is not registered in the database",
-                skill_id
-            )
-        })?
+                failures.push(lifecycle_issue(
+                    "database_error",
+                    &format!(
+                        "Skill '{}' appears to live under the manager directory but is not registered in the database",
+                        skill_id
+                    ),
+                    Some(actual_source.to_string_lossy().into_owned()),
+                    None,
+                    Some(skill_id.clone()),
+                    None,
+                    None,
+                ));
+                return Ok(MigrationResult {
+                    skill: None,
+                    report: LifecycleReport::from_parts(actions, vec![], failures, false)
+                        .with_retryable(false),
+                });
+            }
+        }
     } else {
         // First-time migration: copy into the manager directory.
         let name = actual_source
@@ -269,8 +381,49 @@ pub async fn migrate_local_skill(
             .unwrap_or(&skill_id)
             .to_string();
 
-        SkillService::install_skill(&db, &skill_id, &name, "local", None, &actual_source)
-            .map_err(|e| e.to_string())?
+        let target_path = get_skills_dir().join(&skill_id);
+        match SkillService::install_skill(&db, &skill_id, &name, "local", None, &actual_source) {
+            Ok(skill) => {
+                actions.push(LifecycleAction {
+                    action_type: "copy_to_managed".to_string(),
+                    status: LifecycleActionStatus::Completed,
+                    path: Some(actual_source.to_string_lossy().into_owned()),
+                    target_path: Some(target_path.to_string_lossy().into_owned()),
+                    skill_id: Some(skill_id.clone()),
+                    skill_name: Some(skill.name.clone()),
+                    tool_id: None,
+                    tool_name: None,
+                });
+                skill
+            }
+            Err(error) => {
+                let message = error.to_string();
+                actions.push(LifecycleAction {
+                    action_type: "copy_to_managed".to_string(),
+                    status: LifecycleActionStatus::Failed,
+                    path: Some(actual_source.to_string_lossy().into_owned()),
+                    target_path: Some(target_path.to_string_lossy().into_owned()),
+                    skill_id: Some(skill_id.clone()),
+                    skill_name: Some(name),
+                    tool_id: None,
+                    tool_name: None,
+                });
+                failures.push(lifecycle_issue(
+                    reason_code_from_message(&message),
+                    &message,
+                    Some(actual_source.to_string_lossy().into_owned()),
+                    Some(target_path.to_string_lossy().into_owned()),
+                    Some(skill_id.clone()),
+                    None,
+                    None,
+                ));
+                return Ok(MigrationResult {
+                    skill: None,
+                    report: LifecycleReport::from_parts(actions, vec![], failures, false)
+                        .with_retryable(true),
+                });
+            }
+        }
     };
 
     // Point the caller's agent directory at the managed copy via symlink.
@@ -283,34 +436,79 @@ pub async fn migrate_local_skill(
     };
 
     if needs_relink {
-        if original_location.exists() || is_symlink(&original_location) {
-            if is_symlink(&original_location) || original_location.is_file() {
-                fs::remove_file(&original_location).ok();
-            } else if original_location.is_dir() {
-                fs::remove_dir_all(&original_location).ok();
+        match replace_with_validated_symlink(&original_location, &managed_target) {
+            Ok(()) => actions.push(LifecycleAction {
+                action_type: "replace_original_with_symlink".to_string(),
+                status: LifecycleActionStatus::Completed,
+                path: Some(original_location.to_string_lossy().into_owned()),
+                target_path: Some(managed_target.to_string_lossy().into_owned()),
+                skill_id: Some(skill.id.clone()),
+                skill_name: Some(skill.name.clone()),
+                tool_id: None,
+                tool_name: None,
+            }),
+            Err(message) => {
+                actions.push(LifecycleAction {
+                    action_type: "replace_original_with_symlink".to_string(),
+                    status: LifecycleActionStatus::Failed,
+                    path: Some(original_location.to_string_lossy().into_owned()),
+                    target_path: Some(managed_target.to_string_lossy().into_owned()),
+                    skill_id: Some(skill.id.clone()),
+                    skill_name: Some(skill.name.clone()),
+                    tool_id: None,
+                    tool_name: None,
+                });
+                failures.push(lifecycle_issue(
+                    reason_code_from_message(&message),
+                    &format!(
+                        "{}. Original preserved at {}; managed copy is at {}",
+                        message,
+                        original_location.display(),
+                        managed_target.display()
+                    ),
+                    Some(original_location.to_string_lossy().into_owned()),
+                    Some(managed_target.to_string_lossy().into_owned()),
+                    Some(skill.id.clone()),
+                    Some(skill.name.clone()),
+                    None,
+                ));
+                return Ok(MigrationResult {
+                    skill: Some(skill),
+                    report: LifecycleReport::from_parts(actions, vec![], failures, false)
+                        .with_retryable(true),
+                });
             }
         }
-
-        if let Some(parent) = original_location.parent() {
-            fs::create_dir_all(parent).ok();
-        }
-
-        #[cfg(unix)]
-        {
-            std::os::unix::fs::symlink(&managed_target, &original_location)
-                .map_err(|e| format!("Failed to create symlink: {}", e))?;
-        }
-        #[cfg(windows)]
-        {
-            std::os::windows::fs::symlink_dir(&managed_target, &original_location)
-                .map_err(|e| format!("Failed to create symlink: {}", e))?;
-        }
+    } else {
+        actions.push(LifecycleAction {
+            action_type: "replace_original_with_symlink".to_string(),
+            status: LifecycleActionStatus::Skipped,
+            path: Some(original_location.to_string_lossy().into_owned()),
+            target_path: Some(managed_target.to_string_lossy().into_owned()),
+            skill_id: Some(skill.id.clone()),
+            skill_name: Some(skill.name.clone()),
+            tool_id: None,
+            tool_name: None,
+        });
     }
 
     let result = LinkService::set_all_detected_tool_links_result(&db, &skill.id, true)
         .map_err(|e| e.to_string())?;
-    if result.failure_count > 0 {
-        let failures: Vec<String> = result
+    for success in &result.success_tools {
+        actions.push(LifecycleAction {
+            action_type: "sync_tool_link".to_string(),
+            status: LifecycleActionStatus::Completed,
+            path: None,
+            target_path: None,
+            skill_id: Some(skill.id.clone()),
+            skill_name: Some(skill.name.clone()),
+            tool_id: Some(success.tool_id.clone()),
+            tool_name: Some(success.tool_name.clone()),
+        });
+    }
+    let had_sync_failures = result.failure_count > 0;
+    if had_sync_failures {
+        let sync_failure_messages: Vec<String> = result
             .failed_tools
             .iter()
             .map(|f| format!("{} ({})", f.tool_name, f.reason))
@@ -319,9 +517,143 @@ pub async fn migrate_local_skill(
             "Sync failed for skill '{}': {} tool(s) could not be linked: {}",
             skill.name,
             result.failure_count,
-            failures.join(", ")
+            sync_failure_messages.join(", ")
         );
+        for failure in &result.failed_tools {
+            actions.push(LifecycleAction {
+                action_type: "sync_tool_link".to_string(),
+                status: LifecycleActionStatus::Failed,
+                path: failure.path.clone(),
+                target_path: None,
+                skill_id: Some(skill.id.clone()),
+                skill_name: Some(skill.name.clone()),
+                tool_id: Some(failure.tool_id.clone()),
+                tool_name: Some(failure.tool_name.clone()),
+            });
+        }
+        for failure in result.failed_tools {
+            push_sync_issue(&mut failures, &skill, failure);
+        }
     }
 
-    Ok(skill)
+    Ok(MigrationResult {
+        skill: Some(skill),
+        report: LifecycleReport::from_parts(actions, vec![], failures, false)
+            .with_retryable(had_sync_failures),
+    })
+}
+
+fn lifecycle_issue(
+    code: &str,
+    message: &str,
+    path: Option<String>,
+    target_path: Option<String>,
+    skill_id: Option<String>,
+    skill_name: Option<String>,
+    tool_id: Option<String>,
+) -> LifecycleIssue {
+    LifecycleIssue {
+        code: code.to_string(),
+        message: message.to_string(),
+        path,
+        target_path,
+        skill_id,
+        skill_name,
+        tool_id,
+        tool_name: None,
+    }
+}
+
+fn push_sync_issue(
+    failures: &mut Vec<LifecycleIssue>,
+    skill: &Skill,
+    failure: crate::models::SyncFailureItem,
+) {
+    failures.push(LifecycleIssue {
+        code: failure.reason_code,
+        message: failure.reason,
+        path: failure.path,
+        target_path: None,
+        skill_id: Some(skill.id.clone()),
+        skill_name: Some(skill.name.clone()),
+        tool_id: Some(failure.tool_id),
+        tool_name: Some(failure.tool_name),
+    });
+}
+
+fn reason_code_from_message(message: &str) -> &str {
+    let lower = message.to_lowercase();
+    if lower.contains("permission denied") {
+        "permission_denied"
+    } else if lower.contains("already exists") || lower.contains("conflict") {
+        "conflict"
+    } else if lower.contains("no such file") || lower.contains("not found") {
+        "path_missing"
+    } else {
+        "filesystem_error"
+    }
+}
+
+#[tauri::command]
+pub async fn preflight_migrate_local_skill(
+    db: State<'_, std::sync::Mutex<Database>>,
+    source_path: String,
+    skill_id: String,
+) -> Result<MigrationPreflight, String> {
+    let db = db.lock().map_err(|e| e.to_string())?;
+    SkillService::preflight_migration(&db, &skill_id, Path::new(&source_path), &get_skills_dir())
+        .map_err(|e| e.to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::replace_with_validated_symlink;
+    use crate::utils::is_symlink;
+    use std::fs;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    fn unique_test_dir(name: &str) -> std::path::PathBuf {
+        let nonce = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("system time before Unix epoch")
+            .as_nanos();
+        std::env::temp_dir().join(format!("prot-skills-{name}-{nonce}"))
+    }
+
+    #[test]
+    fn safe_replace_creates_validated_symlink_after_removing_original() {
+        let root = unique_test_dir("safe-replace-success");
+        let original = root.join("tool").join("skills").join("alpha");
+        let managed = root.join("managed").join("alpha");
+        fs::create_dir_all(&original).expect("create original");
+        fs::write(original.join("SKILL.md"), "---\nname: Local\n---\n").expect("write original");
+        fs::create_dir_all(&managed).expect("create managed");
+        fs::write(managed.join("SKILL.md"), "---\nname: Managed\n---\n").expect("write managed");
+
+        replace_with_validated_symlink(&original, &managed).expect("replace with symlink");
+
+        assert!(is_symlink(&original));
+        assert!(original.join("SKILL.md").exists());
+
+        fs::remove_dir_all(root).ok();
+    }
+
+    #[test]
+    fn safe_replace_preserves_original_when_symlink_creation_fails() {
+        let root = unique_test_dir("safe-replace-fail");
+        let original = root.join("alpha");
+        let managed = root.join("missing").join("alpha");
+        fs::create_dir_all(&original).expect("create original");
+        fs::write(original.join("SKILL.md"), "---\nname: Local\n---\n").expect("write original");
+
+        let err = replace_with_validated_symlink(&original, &managed)
+            .expect_err("replacement should fail verification");
+
+        assert!(err.contains("Managed target cannot be resolved"));
+        assert!(original.is_dir());
+        assert!(!is_symlink(&original));
+        assert!(original.join("SKILL.md").exists());
+
+        fs::remove_dir_all(root).ok();
+    }
 }

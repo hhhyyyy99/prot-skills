@@ -43,7 +43,7 @@ impl LinkService {
         match error {
             AppError::Io(io_error) if io_error.kind() == ErrorKind::PermissionDenied => (
                 "permission_denied".to_string(),
-                "No write permission".to_string(),
+                io_error.to_string(),
             ),
             AppError::Path(message) if message.contains("does not exist") => (
                 "path_missing".to_string(),
@@ -66,12 +66,14 @@ impl LinkService {
 
     fn build_failure(tool: &AITool, error: &AppError) -> SyncFailureItem {
         let (reason_code, reason) = Self::map_sync_error(error);
+        let path = Some(tool.skills_path().to_string_lossy().into_owned());
 
         SyncFailureItem {
             tool_id: tool.id.to_string(),
             tool_name: tool.name.to_string(),
             reason_code,
             reason,
+            path,
         }
     }
 
@@ -122,25 +124,7 @@ impl LinkService {
     }
 
     pub fn remove_link(db: &Database, skill_id: &str, tool_id: &str) -> AppResult<()> {
-        if let Some(link) = Self::get_link(db, skill_id, tool_id)? {
-            let p = Path::new(&link.link_path);
-            if p.exists() || is_symlink(p) {
-                if is_symlink(p) {
-                    fs::remove_file(p).ok();
-                } else if p.is_dir() {
-                    fs::remove_dir_all(p).ok();
-                } else {
-                    fs::remove_file(p).ok();
-                }
-            }
-
-            let conn = db.get_connection();
-            conn.execute(
-                "DELETE FROM skill_links WHERE skill_id = ?1 AND tool_id = ?2",
-                rusqlite::params![skill_id, tool_id],
-            )?;
-        }
-        Ok(())
+        Self::remove_link_strict(db, skill_id, tool_id)
     }
 
     pub fn get_link(db: &Database, skill_id: &str, tool_id: &str) -> AppResult<Option<SkillLink>> {
@@ -361,6 +345,19 @@ mod tests {
         fs::set_permissions(path, permissions).expect("set directory permissions");
     }
 
+    fn install_test_skill(db: &Database, root: &std::path::Path, source: &std::path::Path) -> crate::models::Skill {
+        SkillService::install_skill_into_dir(
+            db,
+            "alpha",
+            "Alpha",
+            "local",
+            None,
+            source,
+            &root.join("managed-skills"),
+        )
+        .expect("install skill")
+    }
+
     #[test]
     fn bulk_link_targets_all_detected_enabled_tools() {
         let root = unique_test_dir("bulk-link");
@@ -373,8 +370,7 @@ mod tests {
         fs::create_dir_all(&codex).expect("create codex config");
         let db = Database::new(root.join("metadata.db")).expect("create test database");
 
-        let skill = SkillService::install_skill(&db, "alpha", "Alpha", "local", None, &source)
-            .expect("install skill");
+        let skill = install_test_skill(&db, &root, &source);
         ToolService::add_tool(
             &db,
             "claude",
@@ -420,8 +416,7 @@ mod tests {
         fs::create_dir_all(&codex_skills).expect("create codex skills");
         let db = Database::new(root.join("metadata.db")).expect("create test database");
 
-        let skill = SkillService::install_skill(&db, "alpha", "Alpha", "local", None, &source)
-            .expect("install skill");
+        let skill = install_test_skill(&db, &root, &source);
         ToolService::add_tool(
             &db,
             "claude",
@@ -451,7 +446,11 @@ mod tests {
         assert_eq!(result.failed_tools[0].tool_id, "codex");
         assert_eq!(result.failed_tools[0].tool_name, "Codex");
         assert_eq!(result.failed_tools[0].reason_code, "permission_denied");
-        assert_eq!(result.failed_tools[0].reason, "No write permission");
+        assert!(!result.failed_tools[0].reason.is_empty());
+        assert_eq!(
+            result.failed_tools[0].path.as_deref(),
+            Some(codex_skills.to_str().expect("codex skills path"))
+        );
         assert!(claude.join("skills").join("alpha").exists());
         assert!(!codex.join("skills").join("alpha").exists());
 
@@ -473,8 +472,7 @@ mod tests {
         fs::create_dir_all(&codex_skills).expect("create codex skills");
         let db = Database::new(root.join("metadata.db")).expect("create test database");
 
-        let skill = SkillService::install_skill(&db, "alpha", "Alpha", "local", None, &source)
-            .expect("install skill");
+        let skill = install_test_skill(&db, &root, &source);
         ToolService::add_tool(
             &db,
             "claude",
@@ -508,7 +506,11 @@ mod tests {
         assert!(result
             .failed_tools
             .iter()
-            .all(|failure| failure.reason == "No write permission"));
+            .all(|failure| !failure.reason.is_empty()));
+        assert!(result
+            .failed_tools
+            .iter()
+            .all(|failure| failure.path.as_deref().is_some()));
         assert!(result
             .failed_tools
             .iter()
@@ -541,8 +543,7 @@ mod tests {
         fs::create_dir_all(&existing_target).expect("create existing target");
         let db = Database::new(root.join("metadata.db")).expect("create test database");
 
-        let skill = SkillService::install_skill(&db, "alpha", "Alpha", "local", None, &source)
-            .expect("install skill");
+        let skill = install_test_skill(&db, &root, &source);
         ToolService::add_tool(
             &db,
             "continue",
@@ -564,8 +565,25 @@ mod tests {
         assert_eq!(result.failed_tools[0].tool_id, "continue");
         assert_eq!(result.failed_tools[0].tool_name, "Continue");
         assert_eq!(result.failed_tools[0].reason_code, "permission_denied");
-        assert_eq!(result.failed_tools[0].reason, "No write permission");
+        assert!(!result.failed_tools[0].reason.is_empty());
+        assert_eq!(
+            result.failed_tools[0].path.as_deref(),
+            Some(continue_skills.to_str().expect("continue skills path"))
+        );
 
         fs::remove_dir_all(root).ok();
+    }
+
+    #[test]
+    fn map_sync_error_preserves_permission_error_message() {
+        let error = std::io::Error::new(
+            std::io::ErrorKind::PermissionDenied,
+            "permission denied for /tmp/example",
+        );
+
+        let (reason_code, reason) = LinkService::map_sync_error(&crate::error::AppError::Io(error));
+
+        assert_eq!(reason_code, "permission_denied");
+        assert_eq!(reason, "permission denied for /tmp/example");
     }
 }
