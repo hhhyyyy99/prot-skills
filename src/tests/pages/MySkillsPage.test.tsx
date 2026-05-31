@@ -12,7 +12,7 @@ import {
 } from "@/api";
 import { AppProviders } from "@/shell/AppProviders";
 import { MySkillsPage } from "@/pages/MySkillsPage";
-import type { AITool, Skill, SkillLink, SyncSkillTargetsResult } from "@/types";
+import type { AITool, LifecycleReport, Skill, SkillLink, SyncSkillTargetsResult } from "@/types";
 
 vi.mock("../../api", () => ({
   getSkillLinks: vi.fn(),
@@ -82,6 +82,14 @@ const mockSyncSuccess: SyncSkillTargetsResult = {
   failed_tools: [],
 };
 
+const uninstallSuccess: LifecycleReport = {
+  status: "success",
+  retryable: false,
+  actions: [],
+  warnings: [],
+  failures: [],
+};
+
 function renderPage() {
   return render(<MySkillsPage />, { wrapper: AppProviders });
 }
@@ -94,7 +102,7 @@ describe("MySkillsPage", () => {
     vi.mocked(openFolder).mockResolvedValue();
     vi.mocked(setAllSkillToolLinks).mockResolvedValue(mockSyncSuccess);
     vi.mocked(setSkillToolLink).mockResolvedValue(null);
-    vi.mocked(uninstallSkill).mockResolvedValue();
+    vi.mocked(uninstallSkill).mockResolvedValue(uninstallSuccess);
   });
 
   it("shows empty state when no skills returned", async () => {
@@ -203,6 +211,44 @@ describe("MySkillsPage", () => {
     });
   });
 
+  it("shows skill and tool details for partial bulk sync failures", async () => {
+    vi.mocked(getSkills).mockResolvedValue([mockSkill, secondMockSkill]);
+    vi.mocked(getTools).mockResolvedValue(mockTools.map((tool) => ({ ...tool, is_enabled: true })));
+    vi.mocked(getSkillLinks).mockResolvedValue([]);
+    vi.mocked(setAllSkillToolLinks)
+      .mockResolvedValueOnce({
+        status: "partial",
+        success_count: 1,
+        failure_count: 1,
+        success_tools: [{ tool_id: "claude", tool_name: "Claude" }],
+        failed_tools: [
+          {
+            tool_id: "codex",
+            tool_name: "Codex",
+            reason_code: "permission_denied",
+            reason: "Permission denied: /home/user/.codex/skills",
+            path: "/home/user/.codex/skills",
+          },
+        ],
+      })
+      .mockResolvedValueOnce(mockSyncSuccess);
+
+    const user = userEvent.setup();
+    const { findAllByText, findByRole, findByText } = renderPage();
+
+    const syncAll = await findByRole("button", { name: "Sync all" });
+    await waitFor(() => {
+      expect(syncAll).toBeEnabled();
+    });
+    await user.click(syncAll);
+    await user.click(await findByRole("button", { name: "Confirm sync" }));
+
+    expect(await findByText("Sync complete")).toBeInTheDocument();
+    expect(
+      await findAllByText("Test Skill -> Codex (Permission denied: /home/user/.codex/skills)"),
+    ).not.toHaveLength(0);
+  });
+
   it("rolls back bulk sync action when syncing all tools rejects", async () => {
     vi.mocked(getSkills).mockResolvedValue([mockSkill]);
     vi.mocked(getTools).mockResolvedValue(mockTools);
@@ -241,6 +287,35 @@ describe("MySkillsPage", () => {
     await user.click(confirm);
 
     expect(uninstallSkill).toHaveBeenCalledWith("skill-1");
+  });
+
+  it("keeps the row visible and shows details when uninstall reports failure", async () => {
+    vi.mocked(getSkills).mockResolvedValue([mockSkill]);
+    vi.mocked(uninstallSkill).mockResolvedValue({
+      status: "failed",
+      retryable: true,
+      actions: [],
+      warnings: [],
+      failures: [
+        {
+          code: "permission_denied",
+          message: "Permission denied: /path/to/skill",
+          path: "/path/to/skill",
+          skill_id: "skill-1",
+          skill_name: "Test Skill",
+        },
+      ],
+    });
+    const user = userEvent.setup();
+    const { findAllByText, findByRole, findByText } = renderPage();
+
+    await user.click(await findByRole("button", { name: "Delete Test Skill" }));
+    const dialog = await findByRole("alertdialog");
+    await user.click(within(dialog).getByRole("button", { name: "Delete" }));
+
+    expect(await findByText("Test Skill")).toBeInTheDocument();
+    expect(await findByText("Delete issue")).toBeInTheDocument();
+    expect(await findAllByText("Permission denied: /path/to/skill")).not.toHaveLength(0);
   });
 
   it("opens sync targets dialog and toggles a tool link", async () => {
