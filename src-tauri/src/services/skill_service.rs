@@ -771,16 +771,24 @@ fn read_skill_frontmatter(skill_path: &Path) -> (Option<String>, Option<String>,
             continue;
         };
         let key = key.trim();
-        let mut value: String = value.trim().trim_matches('"').trim_matches('\'').to_string();
+        let mut value: String = value
+            .trim()
+            .trim_matches('"')
+            .trim_matches('\'')
+            .to_string();
 
-        let is_block = value == ">" || value.starts_with(">") || value == "|" || value.starts_with("|");
+        let is_block =
+            value == ">" || value.starts_with(">") || value == "|" || value.starts_with("|");
         if is_block && !value.is_empty() {
             let folded = value.starts_with('>');
             let mut block_lines: Vec<&str> = Vec::new();
             i += 1;
             while i < lines.len() {
                 let next = lines[i];
-                if next.trim().is_empty() || next.trim() == "---" || !next.starts_with(' ') && !next.starts_with('\t') {
+                if next.trim().is_empty()
+                    || next.trim() == "---"
+                    || !next.starts_with(' ') && !next.starts_with('\t')
+                {
                     break;
                 }
                 block_lines.push(next.trim());
@@ -800,7 +808,10 @@ fn read_skill_frontmatter(skill_path: &Path) -> (Option<String>, Option<String>,
 
         if key.eq_ignore_ascii_case("version") && version.is_none() && !value.is_empty() {
             version = Some(value.to_string());
-        } else if key.eq_ignore_ascii_case("description") && description.is_none() && !value.is_empty() {
+        } else if key.eq_ignore_ascii_case("description")
+            && description.is_none()
+            && !value.is_empty()
+        {
             description = Some(value.to_string());
         } else if key.eq_ignore_ascii_case("author") && author.is_none() && !value.is_empty() {
             author = Some(value.to_string());
