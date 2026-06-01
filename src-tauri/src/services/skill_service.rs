@@ -780,10 +780,7 @@ fn read_skill_frontmatter(skill_path: &Path) -> (Option<String>, Option<String>,
             .trim_matches('\'')
             .to_string();
 
-        let is_block = matches!(
-            value.as_str(),
-            ">" | ">-" | ">+" | "|" | "|-" | "|+"
-        );
+        let is_block = matches!(value.as_str(), ">" | ">-" | ">+" | "|" | "|-" | "|+");
         if is_block && !value.is_empty() {
             let folded = value.starts_with('>');
             let mut block_lines: Vec<&str> = Vec::new();
