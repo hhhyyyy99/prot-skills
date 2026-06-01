@@ -790,10 +790,10 @@ fn read_skill_frontmatter(skill_path: &Path) -> (Option<String>, Option<String>,
             i += 1;
             while i < lines.len() {
                 let next = lines[i];
-                if next.trim().is_empty()
-                    || next.trim() == "---"
-                    || !next.starts_with(' ') && !next.starts_with('\t')
-                {
+                if next.trim() == "---" {
+                    break;
+                }
+                if !next.trim().is_empty() && !next.starts_with(' ') && !next.starts_with('\t') {
                     break;
                 }
                 block_lines.push(next.trim());
