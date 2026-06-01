@@ -37,6 +37,12 @@ interface MigrationProgress {
   currentSkillName?: string;
 }
 
+interface MigrationBatchSummary {
+  success: number;
+  fail: number;
+  skipped: number;
+}
+
 const STATUS_FLUSH_INTERVAL = 8;
 
 function yieldToBrowser() {
@@ -70,6 +76,7 @@ export function MigratePage() {
   const [rowIssues, setRowIssues] = useState<Record<string, LifecycleIssue[]>>({});
   const [rowRetryable, setRowRetryable] = useState<Record<string, boolean>>({});
   const [preflightByPath, setPreflightByPath] = useState<Record<string, MigrationPreflight>>({});
+  const [migrationSummary, setMigrationSummary] = useState<MigrationBatchSummary | null>(null);
   const [hasScannedOnce, setHasScannedOnce] = useState(false);
   const { toast } = useToast();
 
@@ -78,6 +85,31 @@ export function MigratePage() {
     [allTools],
   );
 
+  const removeCandidatePaths = useCallback((paths: string[]) => {
+    if (paths.length === 0) return;
+
+    const removed = new Set(paths);
+    setScanResults((prev) =>
+      prev.map((result) => ({
+        ...result,
+        skills: result.skills.filter((skill) => !removed.has(skill.path)),
+      })),
+    );
+    setSelected((prev) => new Set([...prev].filter((path) => !removed.has(path))));
+    setRowStatus((prev) =>
+      Object.fromEntries(Object.entries(prev).filter(([path]) => !removed.has(path))),
+    );
+    setRowIssues((prev) =>
+      Object.fromEntries(Object.entries(prev).filter(([path]) => !removed.has(path))),
+    );
+    setRowRetryable((prev) =>
+      Object.fromEntries(Object.entries(prev).filter(([path]) => !removed.has(path))),
+    );
+    setPreflightByPath((prev) =>
+      Object.fromEntries(Object.entries(prev).filter(([path]) => !removed.has(path))),
+    );
+  }, []);
+
   // Smart scan: scan all detected & enabled tools
   const smartScan = useCallback(async (tools: AITool[]) => {
     const targets = tools.filter((tool) => tool.is_detected && tool.is_enabled);
@@ -85,6 +117,7 @@ export function MigratePage() {
 
     setScanning(true);
     setSelected(new Set());
+    setMigrationSummary(null);
     await yieldToBrowser();
 
     const results: ScanResult[] = [];
@@ -140,6 +173,9 @@ export function MigratePage() {
         status[s.path] = "idle";
       });
     setRowStatus(status);
+    setRowIssues({});
+    setRowRetryable({});
+    setPreflightByPath({});
     setScanning(false);
     setHasScannedOnce(true);
   }, []);
@@ -151,6 +187,7 @@ export function MigratePage() {
       if (!tool) return;
 
       setScanning(true);
+      setMigrationSummary(null);
       await yieldToBrowser();
       try {
         const skills = await scanLocalSkills(toolId);
@@ -179,6 +216,25 @@ export function MigratePage() {
           );
           return { ...cleaned, ...status };
         });
+        const nextPaths = new Set(skills.map((skill) => skill.path));
+        const isPathFromRescannedTool = (path: string) =>
+          scanResults.find((r) => r.toolId === toolId)?.skills.some((s) => s.path === path) ||
+          nextPaths.has(path);
+        setRowIssues((prev) =>
+          Object.fromEntries(
+            Object.entries(prev).filter(([path]) => !isPathFromRescannedTool(path)),
+          ),
+        );
+        setRowRetryable((prev) =>
+          Object.fromEntries(
+            Object.entries(prev).filter(([path]) => !isPathFromRescannedTool(path)),
+          ),
+        );
+        setPreflightByPath((prev) =>
+          Object.fromEntries(
+            Object.entries(prev).filter(([path]) => !isPathFromRescannedTool(path)),
+          ),
+        );
       } catch (e) {
         toast({
           variant: "error",
@@ -251,6 +307,9 @@ export function MigratePage() {
     const blockingReason = getBlockingReason(skill);
     if (blockingReason) return blockingReason;
 
+    const warning = preflightByPath[skill.path]?.report.warnings[0];
+    if (warning) return warning.message;
+
     const failures = rowIssues[skill.path] ?? [];
     if (failures.length === 0) return undefined;
 
@@ -307,12 +366,18 @@ export function MigratePage() {
   }, [filteredSkills, preflightByPath, selected]);
 
   const migrateSelected = async () => {
-    const paths = Array.from(selected).filter((path) => {
+    const requestedPaths = Array.from(selected);
+    const paths = requestedPaths.filter((path) => {
       const skill = filteredSkills.find((sk) => sk.path === path);
       return skill ? !isBlocked(skill) : true;
     });
     const total = paths.length;
-    if (total === 0) return;
+    const skipped = requestedPaths.length - paths.length;
+    if (total === 0) {
+      setMigrationSummary({ success: 0, fail: 0, skipped });
+      setSelected(new Set());
+      return;
+    }
 
     setMigrating(true);
     setProgress({ done: 0, total });
@@ -321,6 +386,7 @@ export function MigratePage() {
       fail = 0,
       done = 0;
     const nextStatus = { ...rowStatus };
+    const successfulPaths: string[] = [];
     let lastStatusFlush = 0;
 
     /* eslint-disable eslint/no-await-in-loop -- sequential migration with progress tracking */
@@ -339,6 +405,7 @@ export function MigratePage() {
         setRowRetryable((prev) => ({ ...prev, [path]: result.report.retryable }));
         if (result.report.status === "success") {
           nextStatus[path] = "success";
+          successfulPaths.push(path);
           success++;
         } else {
           nextStatus[path] = "error";
@@ -364,6 +431,8 @@ export function MigratePage() {
     /* eslint-enable eslint/no-await-in-loop */
 
     setSelected(new Set());
+    removeCandidatePaths(successfulPaths);
+    setMigrationSummary({ success, fail, skipped });
     toast({
       variant: fail === 0 ? "success" : "info",
       title: t("migrate.toast.summary", { success, fail }),
@@ -393,6 +462,8 @@ export function MigratePage() {
         });
         return;
       }
+      removeCandidatePaths([path]);
+      setMigrationSummary({ success: 1, fail: 0, skipped: 0 });
       toast({
         variant: "success",
         title: t("migrate.toast.success", { name: s!.name }),
@@ -400,6 +471,7 @@ export function MigratePage() {
       });
     } catch {
       setRowStatus((prev) => ({ ...prev, [path]: "error" }));
+      setRowRetryable((prev) => ({ ...prev, [path]: true }));
       toast({ variant: "error", title: t("migrate.toast.failed", { name: s!.name }) });
     }
   };
@@ -629,6 +701,19 @@ export function MigratePage() {
                 {t("migrate.affectedPathsMore", { count: selected.size - 4 })}
               </p>
             )}
+          </div>
+        )}
+
+        {migrationSummary && (
+          <div className="compact-card mb-4">
+            <p className="text-13 font-semibold text-text-primary">{t("migrate.summary.title")}</p>
+            <p className="mt-1 text-12 text-text-tertiary">
+              {t("migrate.summary.body", {
+                success: migrationSummary.success,
+                fail: migrationSummary.fail,
+                skipped: migrationSummary.skipped,
+              })}
+            </p>
           </div>
         )}
 

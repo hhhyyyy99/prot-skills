@@ -1,4 +1,4 @@
-import { render, waitFor, fireEvent } from "@testing-library/react";
+import { render, waitFor, fireEvent, act } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import {
@@ -61,7 +61,7 @@ function renderPage() {
 
 describe("MigratePage", () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    vi.resetAllMocks();
     vi.mocked(scanAllLocalSkills).mockRejectedValue(new Error("batch unavailable"));
     vi.mocked(preflightMigrateLocalSkill).mockResolvedValue({
       skill_id: "alpha",
@@ -122,14 +122,12 @@ describe("MigratePage", () => {
     let resolveFirstMigration:
       | ((value: MigrationResult | PromiseLike<MigrationResult>) => void)
       | undefined;
-    vi.mocked(migrateLocalSkill)
-      .mockImplementationOnce(
-        () =>
-          new Promise((resolve) => {
-            resolveFirstMigration = resolve;
-          }),
-      )
-      .mockResolvedValueOnce(successMigration);
+    vi.mocked(migrateLocalSkill).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveFirstMigration = resolve;
+        }),
+    );
     const user = userEvent.setup();
     const { findByText, getByLabelText, findByRole } = renderPage();
 
@@ -137,14 +135,18 @@ describe("MigratePage", () => {
     await user.click(await findByText("Scan"));
     await findByText("Skill A");
     await user.click(getByLabelText("Select Skill A"));
-    await user.click(getByLabelText("Select Skill B"));
     await user.click(await findByText(/Migrate selected/));
 
     const progressBar = await findByRole("progressbar", { name: "Migration progress" });
     expect(progressBar).toHaveAttribute("aria-valuenow", "0");
     expect(await findByText("Working on Skill A")).toBeInTheDocument();
 
-    resolveFirstMigration?.(successMigration);
+    await act(async () => {
+      resolveFirstMigration?.(successMigration);
+    });
+    await waitFor(() => {
+      expect(migrateLocalSkill).toHaveBeenCalledTimes(1);
+    });
   });
 
   it("does not auto-rescan again after a successful migration batch", async () => {
@@ -169,7 +171,7 @@ describe("MigratePage", () => {
     vi.mocked(migrateLocalSkill).mockResolvedValue(successMigration);
 
     const user = userEvent.setup();
-    const { findByText, getByLabelText } = renderPage();
+    const { findByText, getByLabelText, queryByText } = renderPage();
 
     await findByText("Skill A");
     await user.click(getByLabelText("Select Skill A"));
@@ -182,6 +184,55 @@ describe("MigratePage", () => {
 
     expect(scanAllLocalSkills).toHaveBeenCalledTimes(1);
     expect(scanLocalSkills).not.toHaveBeenCalled();
+    await waitFor(() => {
+      expect(queryByText("Skill A")).not.toBeInTheDocument();
+      expect(queryByText("Skill B")).not.toBeInTheDocument();
+    });
+    expect(await findByText("Migration summary")).toBeInTheDocument();
+    expect(await findByText("Migrated 2, failed 0, skipped 0")).toBeInTheDocument();
+  });
+
+  it("keeps failed rows visible when a migration batch has mixed outcomes", async () => {
+    vi.mocked(getTools).mockResolvedValue([mockTool]);
+    vi.mocked(scanLocalSkills).mockResolvedValue(mockSkills);
+    vi.mocked(migrateLocalSkill)
+      .mockResolvedValueOnce(successMigration)
+      .mockResolvedValueOnce({
+        report: {
+          status: "failed",
+          retryable: true,
+          actions: [],
+          warnings: [],
+          failures: [
+            {
+              code: "permission_denied",
+              message: "Permission denied while replacing original",
+              path: "/skills/b",
+              skill_id: "skill-b",
+            },
+          ],
+        },
+      });
+
+    const user = userEvent.setup();
+    const { findByText, getByLabelText, queryByText, findByRole } = renderPage();
+
+    await findByText("Cursor");
+    fireEvent.click(await findByText("Scan"));
+    await findByText("Skill A");
+    await user.click(getByLabelText("Select Skill A"));
+    await user.click(getByLabelText("Select Skill B"));
+    await user.click(await findByText(/Migrate selected/));
+
+    await waitFor(() => {
+      expect(queryByText("Skill A")).not.toBeInTheDocument();
+    });
+    expect(await findByText("Skill B")).toBeInTheDocument();
+    expect(
+      await findByText("Permission denied while replacing original (/skills/b)"),
+    ).toBeInTheDocument();
+    expect(await findByRole("button", { name: "Retry" })).toBeInTheDocument();
+    expect(await findByText("Migrated 1, failed 1, skipped 0")).toBeInTheDocument();
   });
 
   it("clears hidden selections when switching tool filters", async () => {
@@ -327,7 +378,7 @@ describe("MigratePage", () => {
     vi.mocked(migrateLocalSkill).mockResolvedValue(successMigration);
 
     const user = userEvent.setup();
-    const { findByText, getByLabelText } = renderPage();
+    const { findByText, getByLabelText, queryByText } = renderPage();
 
     await findByText("Cursor");
     fireEvent.click(await findByText("Scan"));
@@ -344,6 +395,135 @@ describe("MigratePage", () => {
       expect(migrateLocalSkill).toHaveBeenCalledTimes(1);
     });
     expect(migrateLocalSkill).toHaveBeenCalledWith("/skills/b", "skill-b");
+    expect(await findByText("Skill A")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(queryByText("Skill B")).not.toBeInTheDocument();
+    });
+    expect(await findByText("Migrated 1, failed 0, skipped 1")).toBeInTheDocument();
+  });
+
+  it("clears stale blocked preflight state when rescanning the same path", async () => {
+    vi.mocked(getTools).mockResolvedValue([mockTool]);
+    vi.mocked(scanLocalSkills).mockResolvedValue(mockSkills.slice(0, 1));
+    let shouldBlock = true;
+    vi.mocked(preflightMigrateLocalSkill).mockImplementation(async () => {
+      if (shouldBlock) {
+        return {
+          skill_id: "skill-a",
+          source_path: "/skills/a",
+          managed_target_path: "/managed/skill-a",
+          original_replacement_path: "/skills/a",
+          report: {
+            status: "blocked",
+            retryable: false,
+            actions: [],
+            warnings: [],
+            failures: [
+              {
+                code: "conflict",
+                message: "Skill ID already exists: skill-a",
+                target_path: "/managed/skill-a",
+                skill_id: "skill-a",
+              },
+            ],
+          },
+        };
+      }
+
+      return {
+        skill_id: "skill-a",
+        source_path: "/skills/a",
+        managed_target_path: "/managed/skill-a",
+        original_replacement_path: "/skills/a",
+        report: {
+          status: "success",
+          retryable: false,
+          actions: [],
+          warnings: [],
+          failures: [],
+        },
+      };
+    });
+
+    const user = userEvent.setup();
+    const { findByText, getByLabelText, queryByText } = renderPage();
+
+    await findByText("Cursor");
+    fireEvent.click(await findByText("Scan"));
+    await findByText("Skill A");
+    await user.click(getByLabelText("Select Skill A"));
+    expect(await findByText("Blocked")).toBeInTheDocument();
+    expect(getByLabelText("Select Skill A")).toBeDisabled();
+
+    shouldBlock = false;
+    fireEvent.click(await findByText("Scan"));
+    await waitFor(() => {
+      expect(queryByText("Blocked")).not.toBeInTheDocument();
+    });
+    expect(getByLabelText("Select Skill A")).toBeEnabled();
+
+    await waitFor(() => {
+      expect(preflightMigrateLocalSkill).toHaveBeenCalledTimes(2);
+    });
+    expect(getByLabelText("Select Skill A")).toBeEnabled();
+  });
+
+  it("allows version-checked managed duplicates to migrate and relink", async () => {
+    vi.mocked(getTools).mockResolvedValue([mockTool]);
+    vi.mocked(scanLocalSkills).mockResolvedValue(mockSkills.slice(0, 1));
+    vi.mocked(preflightMigrateLocalSkill).mockResolvedValue({
+      skill_id: "skill-a",
+      source_path: "/skills/a",
+      managed_target_path: "/managed/skill-a",
+      original_replacement_path: "/skills/a",
+      report: {
+        status: "success",
+        retryable: false,
+        actions: [],
+        warnings: [
+          {
+            code: "already_managed_version_checked",
+            message:
+              "Managed Skill version 2.0.0 is newer than local version 1.0.0; local copy will be replaced with a symlink",
+            path: "/skills/a",
+            target_path: "/managed/skill-a",
+            skill_id: "skill-a",
+          },
+        ],
+        failures: [],
+      },
+    });
+    vi.mocked(migrateLocalSkill).mockResolvedValue({
+      report: {
+        status: "success",
+        retryable: false,
+        actions: [],
+        warnings: [],
+        failures: [],
+      },
+    });
+
+    const user = userEvent.setup();
+    const { findByText, getByLabelText, queryByText } = renderPage();
+
+    await findByText("Cursor");
+    fireEvent.click(await findByText("Scan"));
+    await findByText("Skill A");
+
+    expect(getByLabelText("Select Skill A")).toBeEnabled();
+    await user.click(getByLabelText("Select Skill A"));
+    expect(
+      await findByText(
+        "Managed Skill version 2.0.0 is newer than local version 1.0.0; local copy will be replaced with a symlink",
+      ),
+    ).toBeInTheDocument();
+
+    await user.click(await findByText(/Migrate selected/));
+
+    await waitFor(() => {
+      expect(migrateLocalSkill).toHaveBeenCalledWith("/skills/a", "skill-a");
+      expect(queryByText("Skill A")).not.toBeInTheDocument();
+    });
   });
 
   it("shows migration report failure details and hides retry when not retryable", async () => {
@@ -381,5 +561,52 @@ describe("MigratePage", () => {
       await findByText("Permission denied while replacing original (/skills/a)"),
     ).toBeInTheDocument();
     expect(queryByRole("button", { name: "Retry" })).not.toBeInTheDocument();
+  });
+
+  it("removes a failed row when retry succeeds", async () => {
+    vi.mocked(getTools).mockResolvedValue([mockTool]);
+    vi.mocked(scanLocalSkills).mockResolvedValue(mockSkills.slice(0, 1));
+    vi.mocked(migrateLocalSkill)
+      .mockResolvedValueOnce({
+        report: {
+          status: "failed",
+          retryable: true,
+          actions: [],
+          warnings: [],
+          failures: [
+            {
+              code: "filesystem_error",
+              message: "Failed to create symlink",
+              path: "/skills/a",
+              skill_id: "skill-a",
+            },
+          ],
+        },
+      })
+      .mockResolvedValueOnce(successMigration);
+
+    const user = userEvent.setup();
+    const { findByText, getByLabelText, findByRole, queryByText } = renderPage();
+
+    await findByText("Cursor");
+    fireEvent.click(await findByText("Scan"));
+    await findByText("Skill A");
+    await user.click(getByLabelText("Select Skill A"));
+    await user.click(await findByText(/Migrate selected/));
+
+    await findByText("Failed to create symlink (/skills/a)");
+    const retryButton = await findByRole("button", { name: "Retry" });
+    await waitFor(() => {
+      expect(retryButton).toBeEnabled();
+    });
+    await user.click(retryButton);
+
+    await waitFor(() => {
+      expect(migrateLocalSkill).toHaveBeenCalledTimes(2);
+    });
+    await waitFor(() => {
+      expect(queryByText("Skill A")).not.toBeInTheDocument();
+    });
+    expect(await findByText("Migrated 1, failed 0, skipped 0")).toBeInTheDocument();
   });
 });
