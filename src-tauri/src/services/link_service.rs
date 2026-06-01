@@ -41,10 +41,9 @@ impl LinkService {
 
     fn map_sync_error(error: &AppError) -> (String, String) {
         match error {
-            AppError::Io(io_error) if io_error.kind() == ErrorKind::PermissionDenied => (
-                "permission_denied".to_string(),
-                io_error.to_string(),
-            ),
+            AppError::Io(io_error) if io_error.kind() == ErrorKind::PermissionDenied => {
+                ("permission_denied".to_string(), io_error.to_string())
+            }
             AppError::Path(message) if message.contains("does not exist") => (
                 "path_missing".to_string(),
                 "Tool directory does not exist".to_string(),
@@ -64,13 +63,14 @@ impl LinkService {
         }
     }
 
-    fn build_failure(tool: &AITool, error: &AppError) -> SyncFailureItem {
+    fn build_failure(skill: &Skill, tool: &AITool, error: &AppError) -> SyncFailureItem {
         let (reason_code, reason) = Self::map_sync_error(error);
         let path = Some(tool.skills_path().to_string_lossy().into_owned());
 
         SyncFailureItem {
             tool_id: tool.id.to_string(),
             tool_name: tool.name.to_string(),
+            failed_skill_name: skill.name.to_string(),
             reason_code,
             reason,
             path,
@@ -245,7 +245,7 @@ impl LinkService {
                         tool_id: tool.id.clone(),
                         tool_name: tool.name.clone(),
                     }),
-                    Err(error) => failed_tools.push(Self::build_failure(&tool, &error)),
+                    Err(error) => failed_tools.push(Self::build_failure(&skill, &tool, &error)),
                 }
             } else {
                 match Self::remove_link_strict(db, skill_id, &tool.id) {
@@ -253,7 +253,7 @@ impl LinkService {
                         tool_id: tool.id.clone(),
                         tool_name: tool.name.clone(),
                     }),
-                    Err(error) => failed_tools.push(Self::build_failure(&tool, &error)),
+                    Err(error) => failed_tools.push(Self::build_failure(&skill, &tool, &error)),
                 }
             }
         }
@@ -345,7 +345,11 @@ mod tests {
         fs::set_permissions(path, permissions).expect("set directory permissions");
     }
 
-    fn install_test_skill(db: &Database, root: &std::path::Path, source: &std::path::Path) -> crate::models::Skill {
+    fn install_test_skill(
+        db: &Database,
+        root: &std::path::Path,
+        source: &std::path::Path,
+    ) -> crate::models::Skill {
         SkillService::install_skill_into_dir(
             db,
             "alpha",
@@ -445,6 +449,7 @@ mod tests {
         assert_eq!(result.success_tools[0].tool_name, "Claude");
         assert_eq!(result.failed_tools[0].tool_id, "codex");
         assert_eq!(result.failed_tools[0].tool_name, "Codex");
+        assert_eq!(result.failed_tools[0].failed_skill_name, "Alpha");
         assert_eq!(result.failed_tools[0].reason_code, "permission_denied");
         assert!(!result.failed_tools[0].reason.is_empty());
         assert_eq!(
@@ -506,6 +511,10 @@ mod tests {
         assert!(result
             .failed_tools
             .iter()
+            .all(|failure| failure.failed_skill_name == "Alpha"));
+        assert!(result
+            .failed_tools
+            .iter()
             .all(|failure| !failure.reason.is_empty()));
         assert!(result
             .failed_tools
@@ -564,6 +573,7 @@ mod tests {
         assert_eq!(result.failure_count, 1);
         assert_eq!(result.failed_tools[0].tool_id, "continue");
         assert_eq!(result.failed_tools[0].tool_name, "Continue");
+        assert_eq!(result.failed_tools[0].failed_skill_name, "Alpha");
         assert_eq!(result.failed_tools[0].reason_code, "permission_denied");
         assert!(!result.failed_tools[0].reason.is_empty());
         assert_eq!(

@@ -65,6 +65,7 @@ export interface SyncSuccessItem {
 export interface SyncFailureItem {
   tool_id: string;
   tool_name: string;
+  failed_skill_name?: string;
   reason_code: string;
   reason: string;
   path?: string;

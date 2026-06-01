@@ -520,7 +520,7 @@ export function MySkillsPage() {
 
         for (const failure of result.failed_tools) {
           failures.push({
-            skillName: skill.name,
+            skillName: failure.failed_skill_name || skill.name,
             toolName: failure.tool_name,
             reason: failure.reason,
           });
