@@ -117,7 +117,8 @@ describe("MySkillsPage", () => {
     vi.mocked(getSkillLinks).mockResolvedValue([mockLink]);
     const { findByRole, findByText, queryByRole, queryByText, findByLabelText } = renderPage();
     expect(await findByText("Test Skill")).toBeInTheDocument();
-    expect(await findByText("1.0.0 · A test skill")).toBeInTheDocument();
+    expect(await findByText("A test skill")).toBeInTheDocument();
+    expect(await findByText("1.0.0")).toBeInTheDocument();
     expect(queryByText("local")).not.toBeInTheDocument();
     expect(queryByText("Claude")).not.toBeInTheDocument();
     expect(queryByRole("tablist", { name: "Installed skill filters" })).not.toBeInTheDocument();
