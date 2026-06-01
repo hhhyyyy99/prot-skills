@@ -780,14 +780,23 @@ fn read_skill_frontmatter(skill_path: &Path) -> (Option<String>, Option<String>,
             .trim_matches('\'')
             .to_string();
 
-        let is_block = matches!(value.as_str(), ">" | ">-" | ">+" | "|" | "|-" | "|+");
+        let block_indicator = value
+            .split('#')
+            .next()
+            .unwrap_or(value.as_str())
+            .trim()
+            .to_string();
+        let is_block = matches!(
+            block_indicator.as_str(),
+            ">" | ">-" | ">+" | "|" | "|-" | "|+"
+        );
         if is_block && !value.is_empty() {
-            let folded = value.starts_with('>');
+            let folded = block_indicator.starts_with('>');
             let mut block_lines: Vec<&str> = Vec::new();
             i += 1;
             while i < lines.len() {
                 let next = lines[i];
-                if next.trim() == "---" {
+                if next.trim() == "---" && !next.starts_with(' ') && !next.starts_with('\t') {
                     break;
                 }
                 if !next.trim().is_empty() && !next.starts_with(' ') && !next.starts_with('\t') {
@@ -1494,6 +1503,38 @@ mod tests {
             metadata.description.as_deref(),
             Some("Paragraph one.\nParagraph two.")
         );
+
+        fs::remove_dir_all(dir).ok();
+    }
+
+    #[test]
+    fn parses_block_description_with_indicator_comment() {
+        let dir = unique_test_dir("parse-block-description-comment");
+        fs::create_dir_all(&dir).expect("create test dir");
+        fs::write(
+            dir.join("SKILL.md"),
+            "---\ndescription: > # summary text\n  A helpful\n  skill\n---\n",
+        )
+        .expect("write skill file");
+
+        let metadata = read_skill_metadata(&dir);
+        assert_eq!(metadata.description.as_deref(), Some("A helpful skill"));
+
+        fs::remove_dir_all(dir).ok();
+    }
+
+    #[test]
+    fn preserves_indented_document_marker_in_literal_description() {
+        let dir = unique_test_dir("parse-block-description-marker");
+        fs::create_dir_all(&dir).expect("create test dir");
+        fs::write(
+            dir.join("SKILL.md"),
+            "---\ndescription: |\n  Before\n  ---\n  After\n---\n",
+        )
+        .expect("write skill file");
+
+        let metadata = read_skill_metadata(&dir);
+        assert_eq!(metadata.description.as_deref(), Some("Before\n---\nAfter"));
 
         fs::remove_dir_all(dir).ok();
     }
