@@ -391,7 +391,10 @@ mod tests {
         let mut ids: Vec<_> = tools.iter().map(|tool| tool.id.as_str()).collect();
         ids.sort_unstable();
 
-        assert_eq!(ids, vec!["claude", "cursor", "custom-agent", "missing-custom"]);
+        assert_eq!(
+            ids,
+            vec!["claude", "cursor", "custom-agent", "missing-custom"]
+        );
         assert!(tools
             .iter()
             .any(|tool| tool.id == "custom-agent"
