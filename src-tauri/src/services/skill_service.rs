@@ -118,6 +118,9 @@ impl SkillService {
             let mut fresh = read_skill_metadata(skill_path);
             if let Some(ref existing_meta) = skill.metadata {
                 fresh.tags = existing_meta.tags.clone();
+                if fresh.version.is_none() {
+                    fresh.version = existing_meta.version.clone();
+                }
             }
             if fresh.description.is_some() || fresh.author.is_some() {
                 conn.execute(
@@ -1007,6 +1010,45 @@ mod tests {
             .expect("alpha still exists");
         assert_eq!(current.name, "Alpha");
         assert_eq!(current.local_path, first.local_path);
+
+        fs::remove_dir_all(root).ok();
+    }
+
+    #[test]
+    fn metadata_backfill_preserves_existing_version() {
+        let root = unique_test_dir("backfill-preserve-version");
+        let skill_dir = root.join("skills").join("alpha");
+        fs::create_dir_all(&skill_dir).expect("create skill dir");
+        fs::write(
+            skill_dir.join("SKILL.md"),
+            "---\nname: Alpha\ndescription: A helpful skill\n---\n",
+        )
+        .expect("write skill file");
+        let db = Database::new(root.join("metadata.db")).expect("create test database");
+        let conn = db.get_connection();
+        let metadata = crate::models::SkillMetadata {
+            author: None,
+            description: None,
+            tags: vec!["utility".to_string()],
+            version: Some("1.2.3".to_string()),
+        };
+        conn.execute(
+            "INSERT INTO skills (id, name, source_type, source_url, local_path, metadata)
+             VALUES (?1, ?2, 'local', NULL, ?3, ?4)",
+            rusqlite::params![
+                "alpha",
+                "Alpha",
+                skill_dir.to_string_lossy().into_owned(),
+                serde_json::to_string(&metadata).expect("serialize metadata")
+            ],
+        )
+        .expect("insert skill");
+
+        let skills = SkillService::get_all_skills(&db).expect("load skills");
+        let metadata = skills[0].metadata.as_ref().expect("metadata");
+        assert_eq!(metadata.description.as_deref(), Some("A helpful skill"));
+        assert_eq!(metadata.version.as_deref(), Some("1.2.3"));
+        assert_eq!(metadata.tags, vec!["utility"]);
 
         fs::remove_dir_all(root).ok();
     }
