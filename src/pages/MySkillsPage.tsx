@@ -104,6 +104,10 @@ export function MySkillsPage() {
   const [uninstallSkillId, setUninstallSkillId] = useState<string | null>(null);
   const [uninstallIssuesBySkill, setUninstallIssuesBySkill] = useState<Record<string, string>>({});
   const [syncSkillId, setSyncSkillId] = useState<string | null>(null);
+  const [descTooltip, setDescTooltip] = useState<{ text: string; x: number; y: number } | null>(
+    null,
+  );
+  const descTimerRef = useRef<number>(0);
   const [toolQuery, setToolQuery] = useState("");
   const [linkFilter, setLinkFilter] = useState<LinkFilter>("all");
   const [bulkSyncing, setBulkSyncing] = useState(false);
@@ -601,15 +605,46 @@ export function MySkillsPage() {
   }, [bulkSyncableSkills.length, bulkSyncing, enabledTools.length]);
 
   const renderSkillSubtitle = (skill: Skill) => {
-    const parts = [
+    const description = skill.metadata?.description?.trim();
+    const subtitleParts = [
       isLocalSource(skill.source_type) ? null : skill.source_type,
       skill.metadata?.version,
-      skill.metadata?.description,
     ].filter(Boolean);
 
-    return parts.length > 0 ? (
-      <span className="text-12 text-text-tertiary truncate">{parts.join(" · ")}</span>
-    ) : undefined;
+    const subtitleLine =
+      subtitleParts.length > 0 ? (
+        <span className="text-12 text-text-tertiary truncate">{subtitleParts.join(" · ")}</span>
+      ) : null;
+
+    const descriptionLine = description ? (
+      <span
+        className="block text-12 text-text-tertiary truncate"
+        onMouseEnter={(e) => {
+          descTimerRef.current = window.setTimeout(() => {
+            setDescTooltip({ text: description, x: e.clientX, y: e.clientY });
+          }, 1000);
+        }}
+        onMouseMove={(e) => {
+          if (descTooltip) {
+            setDescTooltip((prev) => (prev ? { ...prev, x: e.clientX, y: e.clientY } : null));
+          }
+        }}
+        onMouseLeave={() => {
+          clearTimeout(descTimerRef.current);
+          setDescTooltip(null);
+        }}
+      >
+        {description}
+      </span>
+    ) : null;
+
+    if (!descriptionLine && !subtitleLine) return undefined;
+    return (
+      <span className="flex flex-col">
+        {descriptionLine}
+        {subtitleLine}
+      </span>
+    );
   };
 
   const renderLinkedToolIcons = (skill: Skill) => {
@@ -1032,6 +1067,14 @@ export function MySkillsPage() {
               </Button>
             </div>
           </section>
+        </div>
+      )}
+      {descTooltip && (
+        <div
+          className="pointer-events-none fixed z-50 max-w-64 rounded-md bg-text-primary px-2 py-1 text-12 text-canvas shadow-md leading-relaxed"
+          style={{ left: descTooltip.x + 12, top: descTooltip.y + 12 }}
+        >
+          {descTooltip.text}
         </div>
       )}
     </>

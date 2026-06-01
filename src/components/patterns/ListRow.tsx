@@ -1,4 +1,4 @@
-import { type KeyboardEvent, type ReactNode } from "react";
+import { isValidElement, type KeyboardEvent, type ReactNode } from "react";
 import { Skeleton } from "../primitives/Skeleton";
 
 interface ListRowProps {
@@ -61,12 +61,19 @@ function ListRow({
     }
   };
 
+  const secondaryContent =
+    secondary === undefined ? null : isValidElement(secondary) ? (
+      secondary
+    ) : (
+      <span className="truncate text-12 text-text-tertiary">{secondary}</span>
+    );
+
   const content = (
     <>
       {leading && <span className="flex items-center">{leading}</span>}
       <span className="flex min-w-0 flex-col justify-center gap-0.5">
         <span className="truncate text-14 font-semibold text-text-primary">{primary}</span>
-        {secondary && <span className="truncate text-12 text-text-tertiary">{secondary}</span>}
+        {secondaryContent}
       </span>
       {meta && meta.length > 0 && (
         <span className="flex min-w-0 items-center gap-2 text-12 text-text-tertiary">

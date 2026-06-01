@@ -31,6 +31,7 @@ pub struct LocalSkill {
     pub scan_warnings: Vec<LocalSkillScanWarning>,
     pub tool_id: Option<String>,
     pub tool_name: Option<String>,
+    pub metadata: Option<SkillMetadata>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
