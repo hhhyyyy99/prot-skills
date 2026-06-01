@@ -1,5 +1,6 @@
 use crate::db::Database;
 use crate::models::{LocalSkill, LocalSkillScanWarning};
+use crate::services::skill_service::read_skill_metadata;
 use crate::services::SkillService;
 use crate::utils::{is_in_manager_dir, is_symlink, resolve_symlink};
 use std::collections::HashSet;
@@ -109,6 +110,7 @@ impl DiscoveryService {
                     scan_warnings,
                     tool_id: None,
                     tool_name: None,
+                    metadata: Some(read_skill_metadata(&path)),
                 });
             }
         }

@@ -98,7 +98,34 @@ impl SkillService {
             })
         })?;
 
-        skills.collect()
+        let mut skills: Vec<Skill> = skills.collect::<Result<Vec<_>>>()?;
+
+        for skill in &mut skills {
+            let desc = skill
+                .metadata
+                .as_ref()
+                .and_then(|m| m.description.as_deref())
+                .map(|d| d.trim())
+                .unwrap_or("");
+            let is_missing = desc.is_empty() || desc == ">" || desc == "|";
+            if !is_missing {
+                continue;
+            }
+            let skill_path = Path::new(&skill.local_path);
+            if !skill_path.join("SKILL.md").exists() {
+                continue;
+            }
+            let fresh = read_skill_metadata(skill_path);
+            if fresh.description.is_some() || fresh.author.is_some() {
+                conn.execute(
+                    "UPDATE skills SET metadata = ?1, updated_at = CURRENT_TIMESTAMP WHERE id = ?2",
+                    params![serde_json::to_string(&fresh).unwrap(), skill.id],
+                )?;
+                skill.metadata = Some(fresh);
+            }
+        }
+
+        Ok(skills)
     }
 
     pub fn install_skill(
@@ -707,36 +734,80 @@ fn remove_path_if_exists(path: &Path) -> std::io::Result<()> {
 }
 
 pub fn read_skill_metadata(skill_path: &Path) -> SkillMetadata {
-    let version = read_skill_version(skill_path);
+    let (version, description, author) = read_skill_frontmatter(skill_path);
 
     SkillMetadata {
-        author: None,
-        description: None,
+        author,
+        description,
         tags: vec![],
         version,
     }
 }
 
 pub fn read_skill_version(skill_path: &Path) -> Option<String> {
-    let content = fs::read_to_string(skill_path.join("SKILL.md")).ok()?;
+    read_skill_frontmatter(skill_path).0
+}
 
-    for line in content.lines().take(80) {
-        let trimmed = line.trim();
+fn read_skill_frontmatter(skill_path: &Path) -> (Option<String>, Option<String>, Option<String>) {
+    let content = match fs::read_to_string(skill_path.join("SKILL.md")) {
+        Ok(c) => c,
+        Err(_) => return (None, None, None),
+    };
+
+    let mut version = None;
+    let mut description = None;
+    let mut author = None;
+
+    let lines: Vec<&str> = content.lines().take(80).collect();
+    let mut i = 0;
+    while i < lines.len() {
+        let trimmed = lines[i].trim();
         if trimmed == "---" || trimmed.is_empty() {
+            i += 1;
             continue;
         }
         let Some((key, value)) = trimmed.split_once(':') else {
+            i += 1;
             continue;
         };
-        if key.trim().eq_ignore_ascii_case("version") {
-            let version = value.trim().trim_matches('"').trim_matches('\'');
-            if !version.is_empty() {
-                return Some(version.to_string());
+        let key = key.trim();
+        let mut value: String = value.trim().trim_matches('"').trim_matches('\'').to_string();
+
+        let is_block = value == ">" || value.starts_with(">") || value == "|" || value.starts_with("|");
+        if is_block && !value.is_empty() {
+            let folded = value.starts_with('>');
+            let mut block_lines: Vec<&str> = Vec::new();
+            i += 1;
+            while i < lines.len() {
+                let next = lines[i];
+                if next.trim().is_empty() || next.trim() == "---" || !next.starts_with(' ') && !next.starts_with('\t') {
+                    break;
+                }
+                block_lines.push(next.trim());
+                i += 1;
             }
+            value = if folded {
+                block_lines.join(" ")
+            } else {
+                block_lines.join("\n")
+            };
+            if value.is_empty() {
+                continue;
+            }
+        } else {
+            i += 1;
+        }
+
+        if key.eq_ignore_ascii_case("version") && version.is_none() && !value.is_empty() {
+            version = Some(value.to_string());
+        } else if key.eq_ignore_ascii_case("description") && description.is_none() && !value.is_empty() {
+            description = Some(value.to_string());
+        } else if key.eq_ignore_ascii_case("author") && author.is_none() && !value.is_empty() {
+            author = Some(value.to_string());
         }
     }
 
-    None
+    (version, description, author)
 }
 
 pub fn compare_skill_versions(left: &str, right: &str) -> Option<Ordering> {
@@ -772,7 +843,7 @@ fn parse_version(version: &str) -> Option<Vec<u64>> {
 
 #[cfg(test)]
 mod tests {
-    use super::{compare_skill_versions, SkillService};
+    use super::{compare_skill_versions, read_skill_metadata, read_skill_version, SkillService};
     use crate::db::Database;
     use std::fs;
     use std::time::{SystemTime, UNIX_EPOCH};
@@ -1307,5 +1378,80 @@ mod tests {
             Some(std::cmp::Ordering::Equal)
         );
         assert_eq!(compare_skill_versions("latest", "1.0.0"), None);
+    }
+
+    #[test]
+    fn parses_description_from_frontmatter() {
+        let dir = unique_test_dir("parse-description");
+        fs::create_dir_all(&dir).expect("create test dir");
+        fs::write(
+            dir.join("SKILL.md"),
+            "---\nname: Test\ndescription: A helpful skill\n---\n",
+        )
+        .expect("write skill file");
+
+        let metadata = read_skill_metadata(&dir);
+        assert_eq!(metadata.description.as_deref(), Some("A helpful skill"));
+
+        fs::remove_dir_all(dir).ok();
+    }
+
+    #[test]
+    fn parses_author_from_frontmatter() {
+        let dir = unique_test_dir("parse-author");
+        fs::create_dir_all(&dir).expect("create test dir");
+        fs::write(
+            dir.join("SKILL.md"),
+            "---\nname: Test\nauthor: Anthropic\n---\n",
+        )
+        .expect("write skill file");
+
+        let metadata = read_skill_metadata(&dir);
+        assert_eq!(metadata.author.as_deref(), Some("Anthropic"));
+
+        fs::remove_dir_all(dir).ok();
+    }
+
+    #[test]
+    fn returns_none_for_missing_fields() {
+        let dir = unique_test_dir("parse-missing");
+        fs::create_dir_all(&dir).expect("create test dir");
+        fs::write(dir.join("SKILL.md"), "---\nname: Test\n---\n").expect("write skill file");
+
+        let metadata = read_skill_metadata(&dir);
+        assert_eq!(metadata.description, None);
+        assert_eq!(metadata.author, None);
+        assert_eq!(metadata.version, None);
+
+        fs::remove_dir_all(dir).ok();
+    }
+
+    #[test]
+    fn trims_whitespace_from_values() {
+        let dir = unique_test_dir("parse-trim");
+        fs::create_dir_all(&dir).expect("create test dir");
+        fs::write(
+            dir.join("SKILL.md"),
+            "---\ndescription:   A helpful skill   \nauthor:  Someone \n---\n",
+        )
+        .expect("write skill file");
+
+        let metadata = read_skill_metadata(&dir);
+        assert_eq!(metadata.description.as_deref(), Some("A helpful skill"));
+        assert_eq!(metadata.author.as_deref(), Some("Someone"));
+
+        fs::remove_dir_all(dir).ok();
+    }
+
+    #[test]
+    fn read_skill_version_returns_none_when_no_version() {
+        let dir = unique_test_dir("parse-no-version");
+        fs::create_dir_all(&dir).expect("create test dir");
+        fs::write(dir.join("SKILL.md"), "---\ndescription: Test\n---\n").expect("write skill file");
+
+        let version = read_skill_version(&dir);
+        assert_eq!(version, None);
+
+        fs::remove_dir_all(dir).ok();
     }
 }
