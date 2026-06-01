@@ -115,7 +115,10 @@ impl SkillService {
             if !skill_path.join("SKILL.md").exists() {
                 continue;
             }
-            let fresh = read_skill_metadata(skill_path);
+            let mut fresh = read_skill_metadata(skill_path);
+            if let Some(ref existing_meta) = skill.metadata {
+                fresh.tags = existing_meta.tags.clone();
+            }
             if fresh.description.is_some() || fresh.author.is_some() {
                 conn.execute(
                     "UPDATE skills SET metadata = ?1, updated_at = CURRENT_TIMESTAMP WHERE id = ?2",
@@ -777,8 +780,10 @@ fn read_skill_frontmatter(skill_path: &Path) -> (Option<String>, Option<String>,
             .trim_matches('\'')
             .to_string();
 
-        let is_block =
-            value == ">" || value.starts_with(">") || value == "|" || value.starts_with("|");
+        let is_block = matches!(
+            value.as_str(),
+            ">" | ">-" | ">+" | "|" | "|-" | "|+"
+        );
         if is_block && !value.is_empty() {
             let folded = value.starts_with('>');
             let mut block_lines: Vec<&str> = Vec::new();
