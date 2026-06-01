@@ -48,6 +48,23 @@ describe("ToolsPage", () => {
     expect(await findByText("Detected")).toBeInTheDocument();
   });
 
+  it("shows not found tools with disabled toggle", async () => {
+    vi.mocked(getTools).mockResolvedValue([
+      {
+        ...mockTool,
+        id: "missing",
+        name: "Missing Tool",
+        is_detected: false,
+        is_enabled: false,
+      },
+    ]);
+    const { findByText, findByRole } = renderPage();
+
+    expect(await findByText("Missing Tool")).toBeInTheDocument();
+    expect(await findByText("Not found")).toBeInTheDocument();
+    expect(await findByRole("switch", { name: "Toggle Missing Tool" })).toBeDisabled();
+  });
+
   it("calls detectTools when Scan tools is clicked", async () => {
     vi.mocked(getTools).mockResolvedValue([mockTool]);
     vi.mocked(detectTools).mockResolvedValue([mockTool]);

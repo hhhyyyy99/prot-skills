@@ -18,8 +18,11 @@ pub struct SyncSuccessItem {
 pub struct SyncFailureItem {
     pub tool_id: String,
     pub tool_name: String,
+    #[serde(default)]
+    pub failed_skill_name: String,
     pub reason_code: String,
     pub reason: String,
+    pub path: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]

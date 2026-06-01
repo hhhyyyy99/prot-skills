@@ -40,6 +40,7 @@ pub fn run() {
             commands::scan_local_skills,
             commands::scan_all_local_skills,
             commands::migrate_local_skill,
+            commands::preflight_migrate_local_skill,
             commands::open_folder,
             commands::open_url,
             commands::get_skills_dir_path,

@@ -121,7 +121,7 @@ impl ToolService {
                 )?;
             } else {
                 conn.execute(
-                    "DELETE FROM ai_tools WHERE id = ?1 AND custom_path IS NULL",
+                    "UPDATE ai_tools SET is_detected = 0, is_enabled = 0 WHERE id = ?1 AND custom_path IS NULL",
                     [rule.id],
                 )?;
             }
@@ -153,7 +153,7 @@ impl ToolService {
         let conn = db.get_connection();
         let mut stmt = conn.prepare(
             "SELECT id, name, config_path, skills_subdir, is_detected, is_enabled, detected_at, custom_path, sort_order
-             FROM ai_tools WHERE is_detected = 1 ORDER BY sort_order, name"
+             FROM ai_tools ORDER BY sort_order, name"
         )?;
 
         let tools = stmt.query_map([], |row| {
@@ -367,7 +367,7 @@ mod tests {
     }
 
     #[test]
-    fn scan_removes_missing_tools_but_preserves_existing_custom_tools() {
+    fn scan_marks_missing_tools_not_detected_and_preserves_configured_tools() {
         let root = temp_dir("preserve-custom");
         let home = root.join("home");
         let custom_path = root.join("custom-agent");
@@ -391,12 +391,22 @@ mod tests {
         let mut ids: Vec<_> = tools.iter().map(|tool| tool.id.as_str()).collect();
         ids.sort_unstable();
 
-        assert_eq!(ids, vec!["cursor", "custom-agent"]);
+        assert_eq!(
+            ids,
+            vec!["claude", "cursor", "custom-agent", "missing-custom"]
+        );
         assert!(tools
             .iter()
             .any(|tool| tool.id == "custom-agent"
                 && tool.config_path == custom_path.to_string_lossy()));
-        assert!(!tools.iter().any(|tool| tool.id == "claude"));
-        assert!(!tools.iter().any(|tool| tool.id == "missing-custom"));
+        assert!(tools
+            .iter()
+            .any(|tool| tool.id == "cursor" && tool.is_detected));
+        assert!(tools
+            .iter()
+            .any(|tool| tool.id == "claude" && !tool.is_detected && !tool.is_enabled));
+        assert!(tools
+            .iter()
+            .any(|tool| tool.id == "missing-custom" && !tool.is_detected));
     }
 }

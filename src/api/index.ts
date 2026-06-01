@@ -1,5 +1,14 @@
 import { invoke as tauriInvoke } from "@tauri-apps/api/core";
-import type { Skill, LocalSkill, AITool, SkillLink, SyncSkillTargetsResult } from "../types";
+import type {
+  Skill,
+  LocalSkill,
+  AITool,
+  SkillLink,
+  SyncSkillTargetsResult,
+  MigrationPreflight,
+  LifecycleReport,
+  MigrationResult,
+} from "../types";
 
 type InvokeArgs = Record<string, unknown> | undefined;
 
@@ -45,7 +54,7 @@ export const toggleSkill = (skillId: string, enabled: boolean): Promise<void> =>
   return invoke("toggle_skill", { skillId, enabled });
 };
 
-export const uninstallSkill = (skillId: string): Promise<void> => {
+export const uninstallSkill = (skillId: string): Promise<LifecycleReport> => {
   return invoke("uninstall_skill", { skillId });
 };
 
@@ -76,8 +85,18 @@ export const scanAllLocalSkills = (toolIds: string[]): Promise<LocalSkill[]> => 
   return invoke("scan_all_local_skills", { toolIds });
 };
 
-export const migrateLocalSkill = (sourcePath: string, skillId: string): Promise<Skill> => {
+export const migrateLocalSkill = (
+  sourcePath: string,
+  skillId: string,
+): Promise<MigrationResult> => {
   return invoke("migrate_local_skill", { sourcePath, skillId });
+};
+
+export const preflightMigrateLocalSkill = (
+  sourcePath: string,
+  skillId: string,
+): Promise<MigrationPreflight> => {
+  return invoke("preflight_migrate_local_skill", { sourcePath, skillId });
 };
 
 // Tool APIs

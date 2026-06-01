@@ -27,6 +27,16 @@ pub struct LocalSkill {
     pub path: String,
     pub is_symlink: bool,
     pub target_path: Option<String>,
+    #[serde(default)]
+    pub scan_warnings: Vec<LocalSkillScanWarning>,
     pub tool_id: Option<String>,
     pub tool_name: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct LocalSkillScanWarning {
+    pub code: String,
+    pub message: String,
+    pub path: String,
+    pub target_path: Option<String>,
 }

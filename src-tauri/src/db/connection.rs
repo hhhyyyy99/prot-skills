@@ -72,18 +72,6 @@ impl Database {
             [],
         )?;
 
-        self.conn.execute(
-            "CREATE TABLE IF NOT EXISTS skill_sources (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT NOT NULL,
-                type TEXT NOT NULL,
-                url TEXT NOT NULL,
-                is_enabled BOOLEAN DEFAULT 1,
-                added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )",
-            [],
-        )?;
-
         Ok(())
     }
 

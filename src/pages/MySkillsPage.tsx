@@ -37,6 +37,7 @@ interface BulkSyncProgress {
 interface BulkSyncSummary {
   success: number;
   fail: number;
+  failureDescription?: string;
 }
 
 const LOCAL_SOURCE = "local";
@@ -74,6 +75,22 @@ function buildSyncFailureDescription(
   return t("mySkills.toast.syncFailures", { items, more });
 }
 
+function buildBulkSyncFailureDescription(
+  failures: { skillName: string; toolName: string; reason: string }[],
+  t: (key: string, params?: Record<string, string | number>) => string,
+) {
+  if (failures.length === 0) return undefined;
+
+  const visibleFailures = failures.slice(0, 3);
+  const items = visibleFailures
+    .map((failure) => `${failure.skillName} -> ${failure.toolName} (${failure.reason})`)
+    .join(", ");
+  const extraCount = failures.length - visibleFailures.length;
+  const more = extraCount > 0 ? t("mySkills.toast.syncFailuresMore", { count: extraCount }) : "";
+
+  return t("mySkills.toast.syncFailures", { items, more });
+}
+
 export function MySkillsPage() {
   const { t } = useI18n();
   const [skills, setSkills] = useState<Skill[]>([]);
@@ -85,6 +102,7 @@ export function MySkillsPage() {
   const [error, setError] = useState<string | null>(null);
   const [refreshTick, setRefreshTick] = useState(0);
   const [uninstallSkillId, setUninstallSkillId] = useState<string | null>(null);
+  const [uninstallIssuesBySkill, setUninstallIssuesBySkill] = useState<Record<string, string>>({});
   const [syncSkillId, setSyncSkillId] = useState<string | null>(null);
   const [toolQuery, setToolQuery] = useState("");
   const [linkFilter, setLinkFilter] = useState<LinkFilter>("all");
@@ -289,9 +307,34 @@ export function MySkillsPage() {
     const id = uninstallSkillId;
     setUninstallSkillId(null);
     uninstallSkill(id)
-      .then(() => {
+      .then((report) => {
+        if (report.status !== "success") {
+          const description = report.failures
+            .slice(0, 3)
+            .map((failure) => failure.message)
+            .join("; ");
+          setUninstallIssuesBySkill((current) => ({
+            ...current,
+            [id]: description || t("mySkills.uninstallPartial"),
+          }));
+          toast({
+            variant: report.status === "partial" ? "warning" : "error",
+            title:
+              report.status === "partial"
+                ? t("mySkills.uninstallPartial")
+                : t("mySkills.error.uninstall"),
+            description,
+            durationMs: 6000,
+          });
+          return;
+        }
         setSkills((ss) => ss.filter((s) => s.id !== id));
         setLinksBySkill((current) => {
+          const next = { ...current };
+          delete next[id];
+          return next;
+        });
+        setUninstallIssuesBySkill((current) => {
           const next = { ...current };
           delete next[id];
           return next;
@@ -448,6 +491,7 @@ export function MySkillsPage() {
     let success = 0;
     let fail = 0;
     let flushedDone = 0;
+    const failures: { skillName: string; toolName: string; reason: string }[] = [];
 
     /* eslint-disable eslint/no-await-in-loop -- sequential execution required for progress tracking */
     for (const skill of bulkSyncableSkills) {
@@ -472,6 +516,14 @@ export function MySkillsPage() {
           if (result.status === "partial") {
             fail += 1;
           }
+        }
+
+        for (const failure of result.failed_tools) {
+          failures.push({
+            skillName: failure.failed_skill_name || skill.name,
+            toolName: failure.tool_name,
+            reason: failure.reason,
+          });
         }
       } catch (e: unknown) {
         fail += 1;
@@ -502,7 +554,8 @@ export function MySkillsPage() {
     /* eslint-enable eslint/no-await-in-loop */
 
     setBulkSyncing(false);
-    setBulkSyncSummary({ success, fail });
+    const failureDescription = buildBulkSyncFailureDescription(failures, t);
+    setBulkSyncSummary({ success, fail, failureDescription });
     scheduleBulkSyncFeedbackClear();
 
     if (fail === 0) {
@@ -517,6 +570,7 @@ export function MySkillsPage() {
       toast({
         variant: "warning",
         title: t("mySkills.toast.bulkSyncPartial", { success, failed: fail }),
+        description: failureDescription,
         durationMs: 6000,
       });
       return;
@@ -525,6 +579,7 @@ export function MySkillsPage() {
     toast({
       variant: "error",
       title: t("mySkills.toast.bulkSyncFailed"),
+      description: failureDescription,
       durationMs: 6000,
     });
   }, [
@@ -626,10 +681,15 @@ export function MySkillsPage() {
               primary={<span className="text-14 text-text-primary">{skill.name}</span>}
               secondary={renderSkillSubtitle(skill)}
               meta={[
+                uninstallIssuesBySkill[skill.id] ? (
+                  <Badge key="uninstall-issue" variant="danger">
+                    {t("mySkills.uninstallIssue")}
+                  </Badge>
+                ) : null,
                 <span key="linked-tools" className="flex items-center">
                   {renderLinkedToolIcons(skill)}
                 </span>,
-              ]}
+              ].filter(Boolean)}
               trailing={
                 <span className="flex items-center gap-2">
                   <IconButton
@@ -659,6 +719,11 @@ export function MySkillsPage() {
                 </span>
               }
             />
+            {uninstallIssuesBySkill[skill.id] && (
+              <p className="ml-4 mt-[-6px] pb-2 text-12 text-danger">
+                {uninstallIssuesBySkill[skill.id]}
+              </p>
+            )}
           </li>
         ))}
       </ul>
@@ -845,6 +910,11 @@ export function MySkillsPage() {
                     failed: bulkSyncSummary.fail,
                   })}
             </p>
+            {bulkSyncSummary.failureDescription && (
+              <p className="mt-1 text-12 text-text-tertiary">
+                {bulkSyncSummary.failureDescription}
+              </p>
+            )}
           </div>
         )}
         <div className="section-kicker">{t("mySkills.section.all", { count: skills.length })}</div>

@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { invoke } from "@tauri-apps/api/core";
-import { getTools, openUrl } from "@/api/index";
+import { getTools, openUrl, preflightMigrateLocalSkill } from "@/api/index";
 
 vi.mock("@tauri-apps/api/core", () => ({
   invoke: vi.fn(),
@@ -44,6 +44,19 @@ describe("api invoke wrapper", () => {
     await expect(openUrl("https://github.com/hhhyyyy99/prot-skills")).resolves.toBeUndefined();
     expect(invoke).toHaveBeenCalledWith("open_url", {
       url: "https://github.com/hhhyyyy99/prot-skills",
+    });
+  });
+
+  it("calls migration preflight command with source path and skill ID", async () => {
+    enableTauriRuntime();
+    vi.mocked(invoke).mockResolvedValueOnce({ skill_id: "alpha" });
+
+    await expect(preflightMigrateLocalSkill("/skills/alpha", "alpha")).resolves.toEqual({
+      skill_id: "alpha",
+    });
+    expect(invoke).toHaveBeenCalledWith("preflight_migrate_local_skill", {
+      sourcePath: "/skills/alpha",
+      skillId: "alpha",
     });
   });
 });

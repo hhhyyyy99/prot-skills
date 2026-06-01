@@ -20,7 +20,7 @@ function EmptyState({
   secondaryAction,
   align = "left",
 }: EmptyStateProps) {
-  if (isValidElement(icon)) {
+  if (import.meta.env.DEV && isValidElement(icon)) {
     const props = icon.props as Record<string, unknown>;
     if (typeof props.size === "number" && props.size > 16) {
       console.warn("EmptyState: icon size should be 16px");

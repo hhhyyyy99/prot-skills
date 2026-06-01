@@ -63,8 +63,10 @@ When you migrate a Skill, Prot Skills:
 
 1. Copies the source folder into the managed library.
 2. Records it in the local SQLite database.
-3. **Replaces the original folder with a symlink** to the managed copy.
-4. Links the Skill to every enabled tool by default.
+3. Creates and validates a replacement symlink to the managed copy.
+4. **Replaces the original folder only after the symlink is valid.**
+5. Preserves the original folder and reports a failure if replacement cannot be completed safely.
+6. Links the Skill to every enabled tool by default.
 
 > ⚠️ Migration mutates the filesystem and may delete the original folder.
 > Commit or back up Skills you care about first.
