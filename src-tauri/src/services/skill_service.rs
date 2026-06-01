@@ -797,7 +797,7 @@ fn read_skill_frontmatter(skill_path: &Path) -> (Option<String>, Option<String>,
                 i += 1;
             }
             value = if folded {
-                block_lines.join(" ")
+                fold_yaml_block_scalar(&block_lines)
             } else {
                 block_lines.join("\n")
             };
@@ -821,6 +821,29 @@ fn read_skill_frontmatter(skill_path: &Path) -> (Option<String>, Option<String>,
     }
 
     (version, description, author)
+}
+
+fn fold_yaml_block_scalar(lines: &[&str]) -> String {
+    let mut folded = String::new();
+    let mut previous_was_empty = false;
+
+    for line in lines {
+        if line.is_empty() {
+            if !folded.is_empty() && !previous_was_empty {
+                folded.push('\n');
+            }
+            previous_was_empty = true;
+            continue;
+        }
+
+        if !folded.is_empty() && !previous_was_empty {
+            folded.push(' ');
+        }
+        folded.push_str(line);
+        previous_was_empty = false;
+    }
+
+    folded
 }
 
 pub fn compare_skill_versions(left: &str, right: &str) -> Option<Ordering> {
@@ -1452,6 +1475,25 @@ mod tests {
         let metadata = read_skill_metadata(&dir);
         assert_eq!(metadata.description.as_deref(), Some("A helpful skill"));
         assert_eq!(metadata.author.as_deref(), Some("Someone"));
+
+        fs::remove_dir_all(dir).ok();
+    }
+
+    #[test]
+    fn preserves_paragraph_breaks_in_folded_description() {
+        let dir = unique_test_dir("parse-folded-description");
+        fs::create_dir_all(&dir).expect("create test dir");
+        fs::write(
+            dir.join("SKILL.md"),
+            "---\ndescription: >\n  Paragraph one.\n\n  Paragraph two.\n---\n",
+        )
+        .expect("write skill file");
+
+        let metadata = read_skill_metadata(&dir);
+        assert_eq!(
+            metadata.description.as_deref(),
+            Some("Paragraph one.\nParagraph two.")
+        );
 
         fs::remove_dir_all(dir).ok();
     }
