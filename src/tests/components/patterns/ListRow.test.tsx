@@ -33,4 +33,12 @@ describe("ListRow", () => {
     expect(container.querySelector("a")).not.toBeNull();
     expect(container.querySelector("a")!.getAttribute("href")).toBe("/link");
   });
+
+  it("wraps string secondary text with default truncation styles", () => {
+    render(<ListRow id="1" primary="Test" secondary="Secondary text" />);
+    const secondary = screen.getByText("Secondary text");
+    expect(secondary.className).toContain("truncate");
+    expect(secondary.className).toContain("text-12");
+    expect(secondary.className).toContain("text-text-tertiary");
+  });
 });

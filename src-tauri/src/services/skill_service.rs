@@ -802,9 +802,10 @@ fn read_skill_frontmatter(skill_path: &Path) -> (Option<String>, Option<String>,
                 if !next.trim().is_empty() && !next.starts_with(' ') && !next.starts_with('\t') {
                     break;
                 }
-                block_lines.push(next.trim());
+                block_lines.push(next);
                 i += 1;
             }
+            let block_lines = normalize_yaml_block_lines(&block_lines);
             value = if folded {
                 fold_yaml_block_scalar(&block_lines)
             } else {
@@ -832,7 +833,27 @@ fn read_skill_frontmatter(skill_path: &Path) -> (Option<String>, Option<String>,
     (version, description, author)
 }
 
-fn fold_yaml_block_scalar(lines: &[&str]) -> String {
+fn normalize_yaml_block_lines(lines: &[&str]) -> Vec<String> {
+    let common_indent = lines
+        .iter()
+        .filter(|line| !line.trim().is_empty())
+        .map(|line| line.chars().take_while(|c| *c == ' ' || *c == '\t').count())
+        .min()
+        .unwrap_or(0);
+
+    lines
+        .iter()
+        .map(|line| {
+            if line.trim().is_empty() {
+                String::new()
+            } else {
+                line.chars().skip(common_indent).collect()
+            }
+        })
+        .collect()
+}
+
+fn fold_yaml_block_scalar(lines: &[String]) -> String {
     let mut folded = String::new();
     let mut previous_was_empty = false;
 
@@ -1535,6 +1556,25 @@ mod tests {
 
         let metadata = read_skill_metadata(&dir);
         assert_eq!(metadata.description.as_deref(), Some("Before\n---\nAfter"));
+
+        fs::remove_dir_all(dir).ok();
+    }
+
+    #[test]
+    fn preserves_relative_indent_in_literal_description() {
+        let dir = unique_test_dir("parse-literal-description-indent");
+        fs::create_dir_all(&dir).expect("create test dir");
+        fs::write(
+            dir.join("SKILL.md"),
+            "---\ndescription: |\n  First line\n    Indented line\n---\n",
+        )
+        .expect("write skill file");
+
+        let metadata = read_skill_metadata(&dir);
+        assert_eq!(
+            metadata.description.as_deref(),
+            Some("First line\n  Indented line")
+        );
 
         fs::remove_dir_all(dir).ok();
     }
