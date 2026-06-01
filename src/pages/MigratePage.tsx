@@ -1,4 +1,4 @@
-import { startTransition, useEffect, useState, useCallback, useMemo } from "react";
+import { startTransition, useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { Search, ArrowRight, RefreshCw, Filter } from "lucide-react";
 import {
   getTools,
@@ -78,6 +78,10 @@ export function MigratePage() {
   const [preflightByPath, setPreflightByPath] = useState<Record<string, MigrationPreflight>>({});
   const [migrationSummary, setMigrationSummary] = useState<MigrationBatchSummary | null>(null);
   const [hasScannedOnce, setHasScannedOnce] = useState(false);
+  const [descTooltip, setDescTooltip] = useState<{ text: string; x: number; y: number } | null>(
+    null,
+  );
+  const descTimerRef = useRef<number>(0);
   const { toast } = useToast();
 
   const detectedTools = useMemo(
@@ -303,7 +307,7 @@ export function MigratePage() {
     return failure?.message;
   };
 
-  const getRowDetail = (skill: LocalSkill) => {
+  const getErrorMsg = (skill: LocalSkill) => {
     const blockingReason = getBlockingReason(skill);
     if (blockingReason) return blockingReason;
 
@@ -316,6 +320,51 @@ export function MigratePage() {
     const first = failures[0];
     const path = first.path ?? first.target_path;
     return path ? `${first.message} (${path})` : first.message;
+  };
+
+  const renderSkillSubtitle = (skill: LocalSkill) => {
+    const description = skill.metadata?.description?.trim();
+    const version = skill.metadata?.version;
+    const errorMsg = getErrorMsg(skill);
+
+    const descLine = description ? (
+      <span
+        className="block text-12 text-text-tertiary truncate"
+        onMouseEnter={(e) => {
+          descTimerRef.current = window.setTimeout(() => {
+            setDescTooltip({ text: description, x: e.clientX, y: e.clientY });
+          }, 1000);
+        }}
+        onMouseMove={(e) => {
+          if (descTooltip) {
+            setDescTooltip((prev) => (prev ? { ...prev, x: e.clientX, y: e.clientY } : null));
+          }
+        }}
+        onMouseLeave={() => {
+          clearTimeout(descTimerRef.current);
+          setDescTooltip(null);
+        }}
+      >
+        {description}
+      </span>
+    ) : null;
+
+    const versionLine = version ? (
+      <span className="text-12 text-text-tertiary truncate">{version}</span>
+    ) : null;
+
+    const errorLine = errorMsg ? (
+      <span className="text-12 text-text-danger truncate">{errorMsg}</span>
+    ) : null;
+
+    if (!descLine && !versionLine && !errorLine) return undefined;
+    return (
+      <span className="flex flex-col">
+        {descLine}
+        {versionLine}
+        {errorLine}
+      </span>
+    );
   };
 
   const canRetry = (skill: LocalSkill) => {
@@ -810,7 +859,7 @@ export function MigratePage() {
                         />
                       }
                       primary={<span className="text-14 text-text-primary">{s.name}</span>}
-                      secondary={getRowDetail(s)}
+                      secondary={renderSkillSubtitle(s)}
                       meta={renderSkillMeta(s, false)}
                       trailing={
                         canRetry(s) ? (
@@ -849,7 +898,7 @@ export function MigratePage() {
                     />
                   }
                   primary={<span className="text-14 text-text-primary">{s.name}</span>}
-                  secondary={getRowDetail(s)}
+                  secondary={renderSkillSubtitle(s)}
                   meta={renderSkillMeta(s, filter === ALL_TOOLS_FILTER)}
                   trailing={
                     canRetry(s) ? (
@@ -868,6 +917,14 @@ export function MigratePage() {
             </ul>
           )}
       </main>
+      {descTooltip && (
+        <div
+          className="pointer-events-none fixed z-50 max-w-64 rounded-md bg-text-primary px-2 py-1 text-12 text-canvas shadow-md leading-relaxed"
+          style={{ left: descTooltip.x + 12, top: descTooltip.y + 12 }}
+        >
+          {descTooltip.text}
+        </div>
+      )}
     </>
   );
 }
