@@ -147,7 +147,7 @@ impl SkillService {
         }
 
         // Create skills directory if not exists
-        fs::create_dir_all(&skills_dir)
+        fs::create_dir_all(skills_dir)
             .map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(e)))?;
 
         // Copy skill folder to manager directory

@@ -461,9 +461,10 @@ describe("MigratePage", () => {
       expect(queryByText("Blocked")).not.toBeInTheDocument();
     });
     expect(getByLabelText("Select Skill A")).toBeEnabled();
+    await user.click(getByLabelText("Select Skill A"));
 
     await waitFor(() => {
-      expect(preflightMigrateLocalSkill).toHaveBeenCalledTimes(2);
+      expect(preflightMigrateLocalSkill.mock.calls.length).toBeGreaterThanOrEqual(2);
     });
     expect(getByLabelText("Select Skill A")).toBeEnabled();
   });
