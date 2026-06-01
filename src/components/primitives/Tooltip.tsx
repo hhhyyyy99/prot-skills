@@ -31,7 +31,7 @@ function Tooltip({
             side={side}
             align={align}
             sideOffset={4}
-            className="z-50 rounded-sm bg-text-primary text-canvas text-12 px-1.5 py-0.5"
+            className="z-50 max-w-64 rounded-md bg-text-primary text-canvas text-12 px-2 py-1 shadow-md leading-relaxed"
           >
             {content}
           </TooltipPrimitive.Content>

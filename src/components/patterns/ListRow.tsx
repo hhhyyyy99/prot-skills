@@ -66,7 +66,7 @@ function ListRow({
       {leading && <span className="flex items-center">{leading}</span>}
       <span className="flex min-w-0 flex-col justify-center gap-0.5">
         <span className="truncate text-14 font-semibold text-text-primary">{primary}</span>
-        {secondary && <span className="truncate text-12 text-text-tertiary">{secondary}</span>}
+        {secondary}
       </span>
       {meta && meta.length > 0 && (
         <span className="flex min-w-0 items-center gap-2 text-12 text-text-tertiary">

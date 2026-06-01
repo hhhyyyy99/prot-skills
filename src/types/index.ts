@@ -25,6 +25,7 @@ export interface LocalSkill {
   scan_warnings?: LocalSkillScanWarning[];
   tool_id?: string;
   tool_name?: string;
+  metadata?: SkillMetadata;
 }
 
 export interface LocalSkillScanWarning {
