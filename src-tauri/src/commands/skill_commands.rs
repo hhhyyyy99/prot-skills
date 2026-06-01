@@ -191,6 +191,19 @@ fn replace_with_validated_symlink(
     original_location: &Path,
     managed_target: &Path,
 ) -> Result<(), String> {
+    replace_with_validated_symlink_impl(original_location, managed_target, |from, to| {
+        fs::rename(from, to)
+    })
+}
+
+fn replace_with_validated_symlink_impl<F>(
+    original_location: &Path,
+    managed_target: &Path,
+    mut rename_path: F,
+) -> Result<(), String>
+where
+    F: FnMut(&Path, &Path) -> std::io::Result<()>,
+{
     let expected_target = managed_target
         .canonicalize()
         .map_err(|e| format!("Managed target cannot be resolved: {}", e))?;
@@ -202,13 +215,11 @@ fn replace_with_validated_symlink(
     })?;
     fs::create_dir_all(parent).map_err(|e| format!("Failed to create parent directory: {}", e))?;
 
-    let temp_link = parent.join(format!(
-        ".{}.prot-skills-link-tmp",
-        original_location
-            .file_name()
-            .and_then(|name| name.to_str())
-            .unwrap_or("skill")
-    ));
+    let path_name = original_location
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or("skill");
+    let temp_link = parent.join(format!(".{path_name}.prot-skills-link-tmp"));
     if temp_link.exists() || is_symlink(&temp_link) {
         if is_symlink(&temp_link) || temp_link.is_file() {
             fs::remove_file(&temp_link)
@@ -217,6 +228,13 @@ fn replace_with_validated_symlink(
             fs::remove_dir_all(&temp_link)
                 .map_err(|e| format!("Failed to remove stale temp link directory: {}", e))?;
         }
+    }
+    let original_backup = parent.join(format!(".{path_name}.prot-skills-original-tmp"));
+    if original_backup.exists() || is_symlink(&original_backup) {
+        return Err(format!(
+            "Stale original backup already exists: {}",
+            original_backup.display()
+        ));
     }
 
     create_skill_symlink(managed_target, &temp_link)
@@ -234,17 +252,42 @@ fn replace_with_validated_symlink(
     }
 
     if original_location.exists() || is_symlink(original_location) {
-        if is_symlink(original_location) || original_location.is_file() {
-            fs::remove_file(original_location)
-                .map_err(|e| format!("Failed to remove original path: {}", e))?;
-        } else if original_location.is_dir() {
-            fs::remove_dir_all(original_location)
-                .map_err(|e| format!("Failed to remove original directory: {}", e))?;
-        }
+        rename_path(original_location, &original_backup)
+            .map_err(|e| format!("Failed to move original path aside: {}", e))?;
     }
 
-    fs::rename(&temp_link, original_location)
-        .map_err(|e| format!("Failed to install replacement symlink: {}", e))
+    match rename_path(&temp_link, original_location) {
+        Ok(()) => {
+            if original_backup.exists() || is_symlink(&original_backup) {
+                if is_symlink(&original_backup) || original_backup.is_file() {
+                    fs::remove_file(&original_backup)
+                        .map_err(|e| format!("Failed to remove original backup: {}", e))?;
+                } else if original_backup.is_dir() {
+                    fs::remove_dir_all(&original_backup).map_err(|e| {
+                        format!("Failed to remove original backup directory: {}", e)
+                    })?;
+                }
+            }
+            Ok(())
+        }
+        Err(error) => {
+            fs::remove_file(&temp_link).ok();
+            if original_backup.exists() || is_symlink(&original_backup) {
+                rename_path(&original_backup, original_location).map_err(|restore_error| {
+                    format!(
+                        "Failed to install replacement symlink: {}; failed to restore original from {}: {}",
+                        error,
+                        original_backup.display(),
+                        restore_error
+                    )
+                })?;
+            }
+            Err(format!(
+                "Failed to install replacement symlink; original path was restored: {}",
+                error
+            ))
+        }
+    }
 }
 
 #[tauri::command]
@@ -730,7 +773,10 @@ pub async fn preflight_migrate_local_skill(
 
 #[cfg(test)]
 mod tests {
-    use super::{migrate_local_skill_with_db, replace_with_validated_symlink};
+    use super::{
+        migrate_local_skill_with_db, replace_with_validated_symlink,
+        replace_with_validated_symlink_impl,
+    };
     use crate::db::Database;
     use crate::services::SkillService;
     use crate::utils::is_symlink;
@@ -778,6 +824,49 @@ mod tests {
         assert!(original.is_dir());
         assert!(!is_symlink(&original));
         assert!(original.join("SKILL.md").exists());
+
+        fs::remove_dir_all(root).ok();
+    }
+
+    #[test]
+    fn safe_replace_restores_original_when_install_rename_fails() {
+        let root = unique_test_dir("safe-replace-install-rename-fail");
+        let original = root.join("tool").join("skills").join("alpha");
+        let managed = root.join("managed").join("alpha");
+        fs::create_dir_all(&original).expect("create original");
+        fs::write(original.join("SKILL.md"), "---\nname: Local\n---\n").expect("write original");
+        fs::create_dir_all(&managed).expect("create managed");
+        fs::write(managed.join("SKILL.md"), "---\nname: Managed\n---\n").expect("write managed");
+        let mut rename_calls = 0;
+
+        let err = replace_with_validated_symlink_impl(&original, &managed, |from, to| {
+            rename_calls += 1;
+            if rename_calls == 2 {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::PermissionDenied,
+                    "simulated install rename failure",
+                ));
+            }
+            fs::rename(from, to)
+        })
+        .expect_err("install rename should fail");
+
+        assert!(err.contains("original path was restored"));
+        assert!(original.is_dir());
+        assert!(!is_symlink(&original));
+        assert!(fs::read_to_string(original.join("SKILL.md"))
+            .expect("read restored original")
+            .contains("Local"));
+        assert!(!root
+            .join("tool")
+            .join("skills")
+            .join(".alpha.prot-skills-original-tmp")
+            .exists());
+        assert!(!root
+            .join("tool")
+            .join("skills")
+            .join(".alpha.prot-skills-link-tmp")
+            .exists());
 
         fs::remove_dir_all(root).ok();
     }
