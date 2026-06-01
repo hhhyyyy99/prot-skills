@@ -393,7 +393,7 @@ fn migrate_local_skill_with_db(
     let already_managed = existing.is_some() || is_in_manager_dir(&actual_source);
 
     let skill = if already_managed {
-        match existing {
+        match existing.clone() {
             Some(existing_skill) => {
                 let managed_version = existing_skill
                     .metadata
