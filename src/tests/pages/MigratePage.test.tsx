@@ -464,7 +464,7 @@ describe("MigratePage", () => {
     await user.click(getByLabelText("Select Skill A"));
 
     await waitFor(() => {
-      expect(preflightMigrateLocalSkill.mock.calls.length).toBeGreaterThanOrEqual(2);
+      expect(vi.mocked(preflightMigrateLocalSkill).mock.calls.length).toBeGreaterThanOrEqual(2);
     });
     expect(getByLabelText("Select Skill A")).toBeEnabled();
   });
