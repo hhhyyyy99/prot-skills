@@ -1,10 +1,11 @@
 use crate::db::Database;
 use crate::models::{
-    LifecycleAction, LifecycleActionStatus, LifecycleIssue, LifecycleReport, MigrationPreflight, Skill,
-    SkillMetadata,
+    LifecycleAction, LifecycleActionStatus, LifecycleIssue, LifecycleReport, MigrationPreflight,
+    Skill, SkillMetadata,
 };
 use crate::utils::get_skills_dir;
 use rusqlite::{params, Result};
+use std::cmp::Ordering;
 use std::fs;
 use std::path::Path;
 
@@ -61,13 +62,7 @@ impl SkillService {
                         skill_id,
                         skill_id,
                         path.to_string_lossy().into_owned(),
-                        serde_json::to_string(&SkillMetadata {
-                            author: None,
-                            description: None,
-                            tags: vec![],
-                            version: None,
-                        })
-                        .unwrap(),
+                        serde_json::to_string(&read_skill_metadata(&path)).unwrap(),
                     ],
                 )?;
 
@@ -115,7 +110,15 @@ impl SkillService {
         source_path: &Path,
     ) -> Result<Skill> {
         let skills_dir = get_skills_dir();
-        Self::install_skill_into_dir(db, skill_id, name, source_type, source_url, source_path, &skills_dir)
+        Self::install_skill_into_dir(
+            db,
+            skill_id,
+            name,
+            source_type,
+            source_url,
+            source_path,
+            &skills_dir,
+        )
     }
 
     pub fn install_skill_into_dir(
@@ -151,12 +154,7 @@ impl SkillService {
         copy_dir_all(source_path, &target_path)
             .map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(e)))?;
 
-        let metadata = SkillMetadata {
-            author: None,
-            description: None,
-            tags: vec![],
-            version: None,
-        };
+        let metadata = read_skill_metadata(source_path);
 
         conn.execute(
             "INSERT INTO skills (id, name, source_type, source_url, local_path, metadata)
@@ -172,8 +170,75 @@ impl SkillService {
             ],
         )?;
 
-        Self::get_skill_by_id(db, skill_id)?
-            .ok_or(rusqlite::Error::QueryReturnedNoRows)
+        Self::get_skill_by_id(db, skill_id)?.ok_or(rusqlite::Error::QueryReturnedNoRows)
+    }
+
+    pub fn replace_managed_skill_contents(
+        db: &Database,
+        skill_id: &str,
+        source_path: &Path,
+    ) -> Result<Skill> {
+        let Some(existing) = Self::get_skill_by_id(db, skill_id)? else {
+            return Err(rusqlite::Error::QueryReturnedNoRows);
+        };
+
+        let managed_path = Path::new(&existing.local_path);
+        let parent = managed_path.parent().ok_or_else(|| {
+            rusqlite::Error::ToSqlConversionFailure(Box::new(std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                format!("Cannot determine parent for {}", managed_path.display()),
+            )))
+        })?;
+        let tmp_path = parent.join(format!(".{}.prot-skills-replace-tmp", skill_id));
+        let backup_path = parent.join(format!(".{}.prot-skills-replace-backup", skill_id));
+
+        remove_path_if_exists(&tmp_path)
+            .map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(e)))?;
+        remove_path_if_exists(&backup_path)
+            .map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(e)))?;
+        copy_dir_all(source_path, &tmp_path)
+            .map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(e)))?;
+
+        if !tmp_path.join("SKILL.md").exists() {
+            remove_path_if_exists(&tmp_path).ok();
+            return Err(rusqlite::Error::ToSqlConversionFailure(Box::new(
+                std::io::Error::new(
+                    std::io::ErrorKind::InvalidInput,
+                    format!(
+                        "Source path does not contain SKILL.md: {}",
+                        source_path.display()
+                    ),
+                ),
+            )));
+        }
+
+        if managed_path.exists() {
+            fs::rename(managed_path, &backup_path)
+                .map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(e)))?;
+        }
+
+        if let Err(error) = fs::rename(&tmp_path, managed_path) {
+            if backup_path.exists() {
+                let _ = fs::rename(&backup_path, managed_path);
+            }
+            return Err(rusqlite::Error::ToSqlConversionFailure(Box::new(error)));
+        }
+
+        remove_path_if_exists(&backup_path)
+            .map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(e)))?;
+
+        let metadata = read_skill_metadata(source_path);
+        let conn = db.get_connection();
+        conn.execute(
+            "UPDATE skills SET metadata = ?1, updated_at = CURRENT_TIMESTAMP WHERE id = ?2",
+            params![
+                serde_json::to_string(&metadata)
+                    .map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(e)))?,
+                skill_id
+            ],
+        )?;
+
+        Self::get_skill_by_id(db, skill_id)?.ok_or(rusqlite::Error::QueryReturnedNoRows)
     }
 
     pub fn preflight_migration(
@@ -185,10 +250,33 @@ impl SkillService {
         let managed_target = skills_dir.join(skill_id);
         let source_path_str = source_path.to_string_lossy().into_owned();
         let managed_target_str = managed_target.to_string_lossy().into_owned();
+        let existing_skill = Self::get_skill_by_id(db, skill_id)?;
+        let existing_version = existing_skill
+            .as_ref()
+            .and_then(|skill| skill.metadata.as_ref())
+            .and_then(|metadata| metadata.version.clone())
+            .or_else(|| {
+                existing_skill
+                    .as_ref()
+                    .and_then(|skill| read_skill_version(Path::new(&skill.local_path)))
+            });
+        let source_version = read_skill_version(source_path);
+        let duplicate_version_order = match (&source_version, &existing_version) {
+            (Some(source), Some(existing)) => compare_skill_versions(source, existing),
+            _ => None,
+        };
+        let duplicate_contents_match = existing_skill.as_ref().is_some_and(|skill| {
+            skill_directories_match(source_path, Path::new(&skill.local_path)).unwrap_or(false)
+        });
+
         let mut actions = vec![
             LifecycleAction {
                 action_type: "copy_to_managed".to_string(),
-                status: LifecycleActionStatus::Planned,
+                status: if existing_skill.is_some() {
+                    LifecycleActionStatus::Skipped
+                } else {
+                    LifecycleActionStatus::Planned
+                },
                 path: Some(source_path_str.clone()),
                 target_path: Some(managed_target_str.clone()),
                 skill_id: Some(skill_id.to_string()),
@@ -207,6 +295,7 @@ impl SkillService {
                 tool_name: None,
             },
         ];
+        let mut warnings = Vec::new();
         let mut failures = Vec::new();
 
         if !source_path.exists() {
@@ -223,7 +312,10 @@ impl SkillService {
         } else if !source_path.join("SKILL.md").exists() {
             failures.push(LifecycleIssue {
                 code: "invalid_skill".to_string(),
-                message: format!("Source path does not contain SKILL.md: {}", source_path.display()),
+                message: format!(
+                    "Source path does not contain SKILL.md: {}",
+                    source_path.display()
+                ),
                 path: Some(source_path_str.clone()),
                 target_path: None,
                 skill_id: Some(skill_id.to_string()),
@@ -233,23 +325,104 @@ impl SkillService {
             });
         }
 
-        if Self::get_skill_by_id(db, skill_id)?.is_some() {
-            failures.push(LifecycleIssue {
-                code: "conflict".to_string(),
-                message: format!("Skill ID already exists: {}", skill_id),
-                path: None,
-                target_path: Some(managed_target_str.clone()),
-                skill_id: Some(skill_id.to_string()),
-                skill_name: None,
-                tool_id: None,
-                tool_name: None,
-            });
+        if existing_skill.is_some() {
+            if let Some(ordering) = duplicate_version_order {
+                let (message, action_type) = match ordering {
+                    Ordering::Greater => (
+                        format!(
+                            "Managed Skill exists; local version {} is newer than managed version {} and will replace it before relinking",
+                            source_version.as_deref().unwrap_or("unknown"),
+                            existing_version.as_deref().unwrap_or("unknown"),
+                        ),
+                        "replace_managed_with_newer_local",
+                    ),
+                    Ordering::Equal => (
+                        format!(
+                            "Managed Skill exists with the same version {}; local copy will be replaced with a symlink",
+                            source_version.as_deref().unwrap_or("unknown"),
+                        ),
+                        "reuse_managed_copy",
+                    ),
+                    Ordering::Less => (
+                        format!(
+                            "Managed Skill version {} is newer than local version {}; local copy will be replaced with a symlink",
+                            existing_version.as_deref().unwrap_or("unknown"),
+                            source_version.as_deref().unwrap_or("unknown"),
+                        ),
+                        "reuse_managed_copy",
+                    ),
+                };
+                actions.insert(
+                    0,
+                    LifecycleAction {
+                        action_type: action_type.to_string(),
+                        status: LifecycleActionStatus::Planned,
+                        path: Some(source_path_str.clone()),
+                        target_path: Some(managed_target_str.clone()),
+                        skill_id: Some(skill_id.to_string()),
+                        skill_name: None,
+                        tool_id: None,
+                        tool_name: None,
+                    },
+                );
+                warnings.push(LifecycleIssue {
+                    code: "already_managed_version_checked".to_string(),
+                    message,
+                    path: Some(source_path_str.clone()),
+                    target_path: Some(managed_target_str.clone()),
+                    skill_id: Some(skill_id.to_string()),
+                    skill_name: None,
+                    tool_id: None,
+                    tool_name: None,
+                });
+            } else if duplicate_contents_match {
+                actions.insert(
+                    0,
+                    LifecycleAction {
+                        action_type: "reuse_managed_copy".to_string(),
+                        status: LifecycleActionStatus::Planned,
+                        path: Some(source_path_str.clone()),
+                        target_path: Some(managed_target_str.clone()),
+                        skill_id: Some(skill_id.to_string()),
+                        skill_name: None,
+                        tool_id: None,
+                        tool_name: None,
+                    },
+                );
+                warnings.push(LifecycleIssue {
+                    code: "already_managed_content_matched".to_string(),
+                    message: "Managed Skill has identical contents; local copy will be replaced with a symlink".to_string(),
+                    path: Some(source_path_str.clone()),
+                    target_path: Some(managed_target_str.clone()),
+                    skill_id: Some(skill_id.to_string()),
+                    skill_name: None,
+                    tool_id: None,
+                    tool_name: None,
+                });
+            } else {
+                failures.push(LifecycleIssue {
+                    code: "conflict".to_string(),
+                    message: format!(
+                        "Skill ID already exists: {}. Version comparison is unavailable and contents differ; add comparable version fields before replacing automatically.",
+                        skill_id
+                    ),
+                    path: None,
+                    target_path: Some(managed_target_str.clone()),
+                    skill_id: Some(skill_id.to_string()),
+                    skill_name: None,
+                    tool_id: None,
+                    tool_name: None,
+                });
+            }
         }
 
-        if managed_target.exists() {
+        if managed_target.exists() && existing_skill.is_none() {
             failures.push(LifecycleIssue {
                 code: "conflict".to_string(),
-                message: format!("Managed target already exists: {}", managed_target.display()),
+                message: format!(
+                    "Managed target already exists: {}",
+                    managed_target.display()
+                ),
                 path: None,
                 target_path: Some(managed_target_str.clone()),
                 skill_id: Some(skill_id.to_string()),
@@ -266,7 +439,7 @@ impl SkillService {
         }
 
         let blocked = !failures.is_empty();
-        let report = LifecycleReport::from_parts(actions, vec![], failures, blocked);
+        let report = LifecycleReport::from_parts(actions, warnings, failures, blocked);
 
         Ok(MigrationPreflight {
             skill_id: skill_id.to_string(),
@@ -427,8 +600,10 @@ impl SkillService {
                     tool_name: None,
                 });
 
-                return Ok(LifecycleReport::from_parts(actions, vec![], failures, false)
-                    .with_retryable(true));
+                return Ok(
+                    LifecycleReport::from_parts(actions, vec![], failures, false)
+                        .with_retryable(true),
+                );
             }
         }
 
@@ -469,9 +644,135 @@ fn copy_dir_all(src: &Path, dst: &Path) -> std::io::Result<()> {
     Ok(())
 }
 
+pub fn skill_directories_match(left: &Path, right: &Path) -> std::io::Result<bool> {
+    if !left.is_dir() || !right.is_dir() {
+        return Ok(false);
+    }
+
+    let left_files = collect_relative_files(left)?;
+    let right_files = collect_relative_files(right)?;
+    if left_files != right_files {
+        return Ok(false);
+    }
+
+    for relative_path in left_files {
+        let left_content = fs::read(left.join(&relative_path))?;
+        let right_content = fs::read(right.join(&relative_path))?;
+        if left_content != right_content {
+            return Ok(false);
+        }
+    }
+
+    Ok(true)
+}
+
+fn collect_relative_files(root: &Path) -> std::io::Result<Vec<std::path::PathBuf>> {
+    let mut files = Vec::new();
+    collect_relative_files_inner(root, root, &mut files)?;
+    files.sort();
+    Ok(files)
+}
+
+fn collect_relative_files_inner(
+    root: &Path,
+    current: &Path,
+    files: &mut Vec<std::path::PathBuf>,
+) -> std::io::Result<()> {
+    for entry in fs::read_dir(current)? {
+        let entry = entry?;
+        let path = entry.path();
+        let file_type = entry.file_type()?;
+        if file_type.is_dir() {
+            collect_relative_files_inner(root, &path, files)?;
+        } else if file_type.is_file() {
+            files.push(path.strip_prefix(root).unwrap_or(&path).to_path_buf());
+        } else {
+            return Ok(());
+        }
+    }
+
+    Ok(())
+}
+
+fn remove_path_if_exists(path: &Path) -> std::io::Result<()> {
+    if !path.exists() && !crate::utils::is_symlink(path) {
+        return Ok(());
+    }
+
+    if crate::utils::is_symlink(path) || path.is_file() {
+        fs::remove_file(path)
+    } else {
+        fs::remove_dir_all(path)
+    }
+}
+
+pub fn read_skill_metadata(skill_path: &Path) -> SkillMetadata {
+    let version = read_skill_version(skill_path);
+
+    SkillMetadata {
+        author: None,
+        description: None,
+        tags: vec![],
+        version,
+    }
+}
+
+pub fn read_skill_version(skill_path: &Path) -> Option<String> {
+    let content = fs::read_to_string(skill_path.join("SKILL.md")).ok()?;
+
+    for line in content.lines().take(80) {
+        let trimmed = line.trim();
+        if trimmed == "---" || trimmed.is_empty() {
+            continue;
+        }
+        let Some((key, value)) = trimmed.split_once(':') else {
+            continue;
+        };
+        if key.trim().eq_ignore_ascii_case("version") {
+            let version = value.trim().trim_matches('"').trim_matches('\'');
+            if !version.is_empty() {
+                return Some(version.to_string());
+            }
+        }
+    }
+
+    None
+}
+
+pub fn compare_skill_versions(left: &str, right: &str) -> Option<Ordering> {
+    let left_parts = parse_version(left)?;
+    let right_parts = parse_version(right)?;
+    Some(left_parts.cmp(&right_parts))
+}
+
+fn parse_version(version: &str) -> Option<Vec<u64>> {
+    let normalized = version.trim().trim_start_matches('v');
+    if normalized.is_empty() {
+        return None;
+    }
+
+    let mut parts = Vec::new();
+    for part in normalized.split('.') {
+        let numeric = part
+            .split(|ch: char| !ch.is_ascii_digit())
+            .next()
+            .unwrap_or("");
+        if numeric.is_empty() {
+            return None;
+        }
+        parts.push(numeric.parse::<u64>().ok()?);
+    }
+
+    while parts.len() < 3 {
+        parts.push(0);
+    }
+
+    Some(parts)
+}
+
 #[cfg(test)]
 mod tests {
-    use super::SkillService;
+    use super::{compare_skill_versions, SkillService};
     use crate::db::Database;
     use std::fs;
     use std::time::{SystemTime, UNIX_EPOCH};
@@ -596,10 +897,7 @@ mod tests {
 
         let report = SkillService::uninstall_skill(&db, "alpha").expect("uninstall report");
 
-        assert_eq!(
-            report.status,
-            crate::models::LifecycleReportStatus::Failed
-        );
+        assert_eq!(report.status, crate::models::LifecycleReportStatus::Failed);
         assert!(report.retryable);
         assert!(report
             .failures
@@ -652,10 +950,7 @@ mod tests {
 
         let report = SkillService::uninstall_skill(&db, "alpha").expect("uninstall alpha");
 
-        assert_eq!(
-            report.status,
-            crate::models::LifecycleReportStatus::Success
-        );
+        assert_eq!(report.status, crate::models::LifecycleReportStatus::Success);
         assert!(!std::path::Path::new(&skill.local_path).exists());
         assert!(!link_path.exists());
         assert!(SkillService::get_skill_by_id(&db, "alpha")
@@ -706,7 +1001,10 @@ mod tests {
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
-            let mut permissions = tool_dir.metadata().expect("tool dir metadata").permissions();
+            let mut permissions = tool_dir
+                .metadata()
+                .expect("tool dir metadata")
+                .permissions();
             permissions.set_mode(0o500);
             fs::set_permissions(&tool_dir, permissions).expect("make tool dir readonly");
         }
@@ -716,16 +1014,16 @@ mod tests {
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
-            let mut permissions = tool_dir.metadata().expect("tool dir metadata").permissions();
+            let mut permissions = tool_dir
+                .metadata()
+                .expect("tool dir metadata")
+                .permissions();
             permissions.set_mode(0o700);
             fs::set_permissions(&tool_dir, permissions).expect("restore tool dir permissions");
         }
 
         if cfg!(unix) {
-            assert_eq!(
-                report.status,
-                crate::models::LifecycleReportStatus::Partial
-            );
+            assert_eq!(report.status, crate::models::LifecycleReportStatus::Partial);
             assert!(report
                 .failures
                 .iter()
@@ -765,9 +1063,17 @@ mod tests {
     fn preflight_migration_blocks_existing_skill_id() {
         let root = unique_test_dir("preflight-existing-id");
         let skills_dir = root.join("skills");
-        let source = root.join("source-alpha");
-        fs::create_dir_all(&source).expect("create source");
-        fs::write(source.join("SKILL.md"), "---\nname: Alpha\n---\n").expect("write skill file");
+        let managed_source = root.join("managed-source-alpha");
+        let local_source = root.join("local-source-alpha");
+        fs::create_dir_all(&managed_source).expect("create managed source");
+        fs::write(managed_source.join("SKILL.md"), "---\nname: Alpha\n---\n")
+            .expect("write managed skill file");
+        fs::create_dir_all(&local_source).expect("create local source");
+        fs::write(
+            local_source.join("SKILL.md"),
+            "---\nname: Different Alpha\n---\n",
+        )
+        .expect("write local skill file");
         let db = Database::new(root.join("metadata.db")).expect("create test database");
 
         SkillService::install_skill_into_dir(
@@ -776,12 +1082,12 @@ mod tests {
             "Alpha",
             "local",
             None,
-            &source,
+            &managed_source,
             &skills_dir,
         )
         .expect("install alpha");
 
-        let preflight = SkillService::preflight_migration(&db, "alpha", &source, &skills_dir)
+        let preflight = SkillService::preflight_migration(&db, "alpha", &local_source, &skills_dir)
             .expect("preflight migration");
 
         assert_eq!(
@@ -795,5 +1101,211 @@ mod tests {
             .any(|failure| failure.code == "conflict"));
 
         fs::remove_dir_all(root).ok();
+    }
+
+    #[test]
+    fn preflight_allows_existing_skill_id_when_unversioned_contents_match() {
+        let root = unique_test_dir("preflight-existing-id-matching-content");
+        let skills_dir = root.join("skills");
+        let managed_source = root.join("managed-source-alpha");
+        let local_source = root.join("local-source-alpha");
+        fs::create_dir_all(&managed_source).expect("create managed source");
+        fs::write(
+            managed_source.join("SKILL.md"),
+            "---\nname: Alpha\n---\nbody\n",
+        )
+        .expect("write managed skill file");
+        fs::create_dir_all(&local_source).expect("create local source");
+        fs::write(
+            local_source.join("SKILL.md"),
+            "---\nname: Alpha\n---\nbody\n",
+        )
+        .expect("write local skill file");
+        let db = Database::new(root.join("metadata.db")).expect("create test database");
+
+        SkillService::install_skill_into_dir(
+            &db,
+            "alpha",
+            "Alpha",
+            "local",
+            None,
+            &managed_source,
+            &skills_dir,
+        )
+        .expect("install alpha");
+
+        let preflight = SkillService::preflight_migration(&db, "alpha", &local_source, &skills_dir)
+            .expect("preflight migration");
+
+        assert_eq!(
+            preflight.report.status,
+            crate::models::LifecycleReportStatus::Success
+        );
+        assert!(preflight.report.failures.is_empty());
+        assert!(preflight
+            .report
+            .warnings
+            .iter()
+            .any(|warning| warning.code == "already_managed_content_matched"));
+
+        fs::remove_dir_all(root).ok();
+    }
+
+    #[test]
+    fn preflight_allows_existing_skill_id_when_versions_are_comparable() {
+        let root = unique_test_dir("preflight-existing-id-versioned");
+        let skills_dir = root.join("skills");
+        let managed_source = root.join("managed-source-alpha");
+        let local_source = root.join("local-source-alpha");
+        fs::create_dir_all(&managed_source).expect("create managed source");
+        fs::write(
+            managed_source.join("SKILL.md"),
+            "---\nname: Alpha\nversion: 1.0.0\n---\n",
+        )
+        .expect("write managed skill file");
+        fs::create_dir_all(&local_source).expect("create local source");
+        fs::write(
+            local_source.join("SKILL.md"),
+            "---\nname: Alpha\nversion: 1.1.0\n---\n",
+        )
+        .expect("write local skill file");
+        let db = Database::new(root.join("metadata.db")).expect("create test database");
+
+        SkillService::install_skill_into_dir(
+            &db,
+            "alpha",
+            "Alpha",
+            "local",
+            None,
+            &managed_source,
+            &skills_dir,
+        )
+        .expect("install alpha");
+
+        let preflight = SkillService::preflight_migration(&db, "alpha", &local_source, &skills_dir)
+            .expect("preflight migration");
+
+        assert_eq!(
+            preflight.report.status,
+            crate::models::LifecycleReportStatus::Success
+        );
+        assert!(preflight.report.failures.is_empty());
+        assert!(preflight
+            .report
+            .warnings
+            .iter()
+            .any(|warning| warning.code == "already_managed_version_checked"));
+
+        fs::remove_dir_all(root).ok();
+    }
+
+    #[test]
+    fn preflight_reads_managed_skill_file_when_metadata_version_is_missing() {
+        let root = unique_test_dir("preflight-existing-id-version-fallback");
+        let skills_dir = root.join("skills");
+        let managed_source = root.join("managed-source-alpha");
+        let local_source = root.join("local-source-alpha");
+        fs::create_dir_all(&managed_source).expect("create managed source");
+        fs::write(
+            managed_source.join("SKILL.md"),
+            "---\nname: Alpha\nversion: 2.0.0\n---\n",
+        )
+        .expect("write managed skill file");
+        fs::create_dir_all(&local_source).expect("create local source");
+        fs::write(
+            local_source.join("SKILL.md"),
+            "---\nname: Alpha\nversion: 1.0.0\n---\n",
+        )
+        .expect("write local skill file");
+        let db = Database::new(root.join("metadata.db")).expect("create test database");
+
+        SkillService::install_skill_into_dir(
+            &db,
+            "alpha",
+            "Alpha",
+            "local",
+            None,
+            &managed_source,
+            &skills_dir,
+        )
+        .expect("install alpha");
+        db.get_connection()
+            .execute("UPDATE skills SET metadata = NULL WHERE id = 'alpha'", [])
+            .expect("clear metadata");
+
+        let preflight = SkillService::preflight_migration(&db, "alpha", &local_source, &skills_dir)
+            .expect("preflight migration");
+
+        assert_eq!(
+            preflight.report.status,
+            crate::models::LifecycleReportStatus::Success
+        );
+        assert!(preflight.report.failures.is_empty());
+        assert!(preflight.report.warnings.iter().any(|warning| {
+            warning.code == "already_managed_version_checked"
+                && warning
+                    .message
+                    .contains("Managed Skill version 2.0.0 is newer")
+        }));
+
+        fs::remove_dir_all(root).ok();
+    }
+
+    #[test]
+    fn preflight_keeps_real_failures_blocked_when_existing_versions_are_comparable() {
+        let root = unique_test_dir("preflight-existing-id-versioned-invalid");
+        let skills_dir = root.join("skills");
+        let managed_source = root.join("managed-source-alpha");
+        let local_source = root.join("local-source-alpha");
+        fs::create_dir_all(&managed_source).expect("create managed source");
+        fs::write(
+            managed_source.join("SKILL.md"),
+            "---\nname: Alpha\nversion: 1.0.0\n---\n",
+        )
+        .expect("write managed skill file");
+        fs::create_dir_all(&local_source).expect("create local source");
+        fs::write(local_source.join("README.md"), "version: 1.1.0\n")
+            .expect("write non-skill file");
+        let db = Database::new(root.join("metadata.db")).expect("create test database");
+
+        SkillService::install_skill_into_dir(
+            &db,
+            "alpha",
+            "Alpha",
+            "local",
+            None,
+            &managed_source,
+            &skills_dir,
+        )
+        .expect("install alpha");
+
+        let preflight = SkillService::preflight_migration(&db, "alpha", &local_source, &skills_dir)
+            .expect("preflight migration");
+
+        assert_eq!(
+            preflight.report.status,
+            crate::models::LifecycleReportStatus::Blocked
+        );
+        assert!(preflight
+            .report
+            .failures
+            .iter()
+            .any(|failure| failure.code == "invalid_skill"));
+        assert!(preflight.report.warnings.is_empty());
+
+        fs::remove_dir_all(root).ok();
+    }
+
+    #[test]
+    fn version_comparison_is_numeric_and_requires_numbers() {
+        assert_eq!(
+            compare_skill_versions("1.10.0", "1.2.0"),
+            Some(std::cmp::Ordering::Greater)
+        );
+        assert_eq!(
+            compare_skill_versions("v1.0", "1.0.0"),
+            Some(std::cmp::Ordering::Equal)
+        );
+        assert_eq!(compare_skill_versions("latest", "1.0.0"), None);
     }
 }

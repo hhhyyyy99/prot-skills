@@ -169,8 +169,11 @@ mod tests {
         fs::create_dir_all(&source).expect("create source skill");
         fs::write(source.join("SKILL.md"), "---\nname: Alpha\n---\n").expect("write source skill");
         fs::create_dir_all(&local_alpha).expect("create local alpha");
-        fs::write(local_alpha.join("SKILL.md"), "---\nname: Alpha local\n---\n")
-            .expect("write local skill");
+        fs::write(
+            local_alpha.join("SKILL.md"),
+            "---\nname: Alpha local\n---\n",
+        )
+        .expect("write local skill");
 
         SkillService::install_skill_into_dir(
             &db,
