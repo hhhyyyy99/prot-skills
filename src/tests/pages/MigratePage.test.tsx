@@ -38,6 +38,24 @@ const secondTool: AITool = {
   is_enabled: true,
 };
 
+const test3Tool: AITool = {
+  id: "test3",
+  name: "test3",
+  config_path: "/test3",
+  skills_subdir: "skills",
+  is_detected: true,
+  is_enabled: true,
+};
+
+const test4Tool: AITool = {
+  id: "test4",
+  name: "test4",
+  config_path: "/test4",
+  skills_subdir: "skills",
+  is_detected: true,
+  is_enabled: true,
+};
+
 const mockSkills: LocalSkill[] = [
   { name: "Skill A", path: "/skills/a", is_symlink: false },
   { name: "Skill B", path: "/skills/b", is_symlink: true, target_path: "/real/b" },
@@ -53,6 +71,52 @@ const successReport: LifecycleReport = {
 
 const successMigration: MigrationResult = {
   report: successReport,
+};
+
+const sourceCompletedSyncFailedMigration: MigrationResult = {
+  report: {
+    status: "partial",
+    retryable: true,
+    actions: [
+      {
+        action_type: "copy_to_managed",
+        status: "completed",
+        path: "/test4/artifacts-builder",
+        target_path: "/managed/artifacts-builder",
+        skill_id: "artifacts-builder",
+        skill_name: "artifacts-builder",
+      },
+      {
+        action_type: "replace_original_with_symlink",
+        status: "completed",
+        path: "/test4/artifacts-builder",
+        target_path: "/managed/artifacts-builder",
+        skill_id: "artifacts-builder",
+        skill_name: "artifacts-builder",
+      },
+      {
+        action_type: "sync_tool_link",
+        status: "failed",
+        path: "/test3/skills/artifacts-builder",
+        skill_id: "artifacts-builder",
+        skill_name: "artifacts-builder",
+        tool_id: "test3",
+        tool_name: "test3",
+      },
+    ],
+    warnings: [],
+    failures: [
+      {
+        code: "permission_denied",
+        message: "Permission denied",
+        path: "/test3/skills/artifacts-builder",
+        skill_id: "artifacts-builder",
+        skill_name: "artifacts-builder",
+        tool_id: "test3",
+        tool_name: "test3",
+      },
+    ],
+  },
 };
 
 function renderPage() {
@@ -233,6 +297,78 @@ describe("MigratePage", () => {
     ).toBeInTheDocument();
     expect(await findByRole("button", { name: "Retry" })).toBeInTheDocument();
     expect(await findByText("Migrated 1, failed 1, skipped 0")).toBeInTheDocument();
+  });
+
+  it("removes a migrated source row and reports unrelated tool sync failures", async () => {
+    vi.mocked(getTools).mockResolvedValue([test3Tool, test4Tool]);
+    vi.mocked(scanAllLocalSkills).mockResolvedValue([
+      {
+        name: "artifacts-builder",
+        path: "/test4/artifacts-builder",
+        is_symlink: false,
+        tool_id: "test4",
+        tool_name: "test4",
+      },
+    ]);
+    vi.mocked(migrateLocalSkill).mockResolvedValue(sourceCompletedSyncFailedMigration);
+
+    const user = userEvent.setup();
+    const { findByText, getByLabelText, queryByText, queryByRole } = renderPage();
+
+    await findByText("artifacts-builder");
+    await user.click(getByLabelText("Select artifacts-builder"));
+    await user.click(await findByText(/Migrate selected/));
+
+    await waitFor(() => {
+      expect(migrateLocalSkill).toHaveBeenCalledWith(
+        "/test4/artifacts-builder",
+        "artifacts-builder",
+      );
+      expect(queryByText("artifacts-builder")).not.toBeInTheDocument();
+    });
+    expect(await findByText("Migrated 1, failed 0, skipped 0")).toBeInTheDocument();
+    expect(await findByText("Sync issue: test3: Permission denied")).toBeInTheDocument();
+    expect(queryByText("Failed")).not.toBeInTheDocument();
+    expect(queryByRole("button", { name: "Retry" })).not.toBeInTheDocument();
+  });
+
+  it("summarizes repeated sync failures and shows details in a dialog", async () => {
+    vi.mocked(getTools).mockResolvedValue([test3Tool, test4Tool]);
+    vi.mocked(scanAllLocalSkills).mockResolvedValue([
+      {
+        name: "artifacts-builder",
+        path: "/test4/artifacts-builder",
+        is_symlink: false,
+        tool_id: "test4",
+        tool_name: "test4",
+      },
+    ]);
+    vi.mocked(migrateLocalSkill).mockResolvedValue({
+      report: {
+        ...sourceCompletedSyncFailedMigration.report,
+        failures: Array.from({ length: 9 }, (_, index) => ({
+          ...sourceCompletedSyncFailedMigration.report.failures[0],
+          path: `/test3/skills/artifacts-builder-${index}`,
+        })),
+      },
+    });
+
+    const user = userEvent.setup();
+    const { findByText, getByLabelText, queryByText, findByRole } = renderPage();
+
+    await findByText("artifacts-builder");
+    await user.click(getByLabelText("Select artifacts-builder"));
+    await user.click(await findByText(/Migrate selected/));
+
+    expect(await findByText("Sync issue: test3: Permission denied")).toBeInTheDocument();
+    expect(queryByText(/and 6 more/)).not.toBeInTheDocument();
+
+    await user.click(await findByRole("button", { name: "View all (9)" }));
+
+    expect(await findByRole("dialog", { name: "Sync issues" })).toBeInTheDocument();
+    expect(await findByText("9 sync attempts failed after migration.")).toBeInTheDocument();
+    expect(await findByText("/test3/skills/artifacts-builder-0")).toBeInTheDocument();
+    expect(await findByText("/test3/skills/artifacts-builder-8")).toBeInTheDocument();
   });
 
   it("clears hidden selections when switching tool filters", async () => {
@@ -564,6 +700,60 @@ describe("MigratePage", () => {
     expect(queryByRole("button", { name: "Retry" })).not.toBeInTheDocument();
   });
 
+  it("keeps source relink failures visible and retryable", async () => {
+    vi.mocked(getTools).mockResolvedValue([mockTool]);
+    vi.mocked(scanLocalSkills).mockResolvedValue(mockSkills.slice(0, 1));
+    vi.mocked(migrateLocalSkill).mockResolvedValue({
+      report: {
+        status: "partial",
+        retryable: true,
+        actions: [
+          {
+            action_type: "copy_to_managed",
+            status: "completed",
+            path: "/skills/a",
+            target_path: "/managed/skill-a",
+            skill_id: "skill-a",
+          },
+          {
+            action_type: "replace_original_with_symlink",
+            status: "failed",
+            path: "/skills/a",
+            target_path: "/managed/skill-a",
+            skill_id: "skill-a",
+          },
+        ],
+        warnings: [],
+        failures: [
+          {
+            code: "permission_denied",
+            message: "Permission denied while replacing original",
+            path: "/skills/a",
+            target_path: "/managed/skill-a",
+            skill_id: "skill-a",
+          },
+        ],
+      },
+    });
+
+    const user = userEvent.setup();
+    const { findByText, getByLabelText, findByRole } = renderPage();
+
+    await findByText("Cursor");
+    fireEvent.click(await findByText("Scan"));
+    await findByText("Skill A");
+    await user.click(getByLabelText("Select Skill A"));
+    await user.click(await findByText(/Migrate selected/));
+
+    expect(await findByText("Skill A")).toBeInTheDocument();
+    expect(await findByText("Failed")).toBeInTheDocument();
+    expect(
+      await findByText("Permission denied while replacing original (/skills/a)"),
+    ).toBeInTheDocument();
+    expect(await findByRole("button", { name: "Retry" })).toBeInTheDocument();
+    expect(await findByText("Migrated 0, failed 1, skipped 0")).toBeInTheDocument();
+  });
+
   it("removes a failed row when retry succeeds", async () => {
     vi.mocked(getTools).mockResolvedValue([mockTool]);
     vi.mocked(scanLocalSkills).mockResolvedValue(mockSkills.slice(0, 1));
@@ -609,5 +799,51 @@ describe("MigratePage", () => {
       expect(queryByText("Skill A")).not.toBeInTheDocument();
     });
     expect(await findByText("Migrated 1, failed 0, skipped 0")).toBeInTheDocument();
+  });
+
+  it("removes a failed row when retry completes source migration with sync issues", async () => {
+    vi.mocked(getTools).mockResolvedValue([mockTool]);
+    vi.mocked(scanLocalSkills).mockResolvedValue(mockSkills.slice(0, 1));
+    vi.mocked(migrateLocalSkill)
+      .mockResolvedValueOnce({
+        report: {
+          status: "failed",
+          retryable: true,
+          actions: [],
+          warnings: [],
+          failures: [
+            {
+              code: "filesystem_error",
+              message: "Failed to create symlink",
+              path: "/skills/a",
+              skill_id: "skill-a",
+            },
+          ],
+        },
+      })
+      .mockResolvedValueOnce(sourceCompletedSyncFailedMigration);
+
+    const user = userEvent.setup();
+    const { findByText, getByLabelText, findByRole, queryByText } = renderPage();
+
+    await findByText("Cursor");
+    fireEvent.click(await findByText("Scan"));
+    await findByText("Skill A");
+    await user.click(getByLabelText("Select Skill A"));
+    await user.click(await findByText(/Migrate selected/));
+
+    await findByText("Failed to create symlink (/skills/a)");
+    const retryButton = await findByRole("button", { name: "Retry" });
+    await waitFor(() => {
+      expect(retryButton).toBeEnabled();
+    });
+    await user.click(retryButton);
+
+    await waitFor(() => {
+      expect(migrateLocalSkill).toHaveBeenCalledTimes(2);
+      expect(queryByText("Skill A")).not.toBeInTheDocument();
+    });
+    expect(await findByText("Migrated 1, failed 0, skipped 0")).toBeInTheDocument();
+    expect(await findByText("Sync issue: test3: Permission denied")).toBeInTheDocument();
   });
 });
