@@ -301,7 +301,6 @@ impl SkillService {
         let duplicate_contents_match = existing_skill.as_ref().is_some_and(|skill| {
             skill_directories_match(source_path, Path::new(&skill.local_path)).unwrap_or(false)
         });
-
         let mut actions = vec![
             LifecycleAction {
                 action_type: "copy_to_managed".to_string(),
@@ -740,7 +739,7 @@ fn remove_path_if_exists(path: &Path) -> std::io::Result<()> {
 }
 
 pub fn read_skill_metadata(skill_path: &Path) -> SkillMetadata {
-    let (version, description, author) = read_skill_frontmatter(skill_path);
+    let (version, description, author, _name) = read_skill_frontmatter(skill_path);
 
     SkillMetadata {
         author,
@@ -754,15 +753,31 @@ pub fn read_skill_version(skill_path: &Path) -> Option<String> {
     read_skill_frontmatter(skill_path).0
 }
 
-fn read_skill_frontmatter(skill_path: &Path) -> (Option<String>, Option<String>, Option<String>) {
+pub fn read_skill_name(skill_path: &Path) -> Option<String> {
+    read_skill_frontmatter(skill_path).3
+}
+
+pub fn read_skill_description(skill_path: &Path) -> Option<String> {
+    read_skill_frontmatter(skill_path).1
+}
+
+fn read_skill_frontmatter(
+    skill_path: &Path,
+) -> (
+    Option<String>,
+    Option<String>,
+    Option<String>,
+    Option<String>,
+) {
     let content = match fs::read_to_string(skill_path.join("SKILL.md")) {
         Ok(c) => c,
-        Err(_) => return (None, None, None),
+        Err(_) => return (None, None, None, None),
     };
 
     let mut version = None;
     let mut description = None;
     let mut author = None;
+    let mut name = None;
 
     let lines: Vec<&str> = content.lines().take(80).collect();
     let mut i = 0;
@@ -830,10 +845,12 @@ fn read_skill_frontmatter(skill_path: &Path) -> (Option<String>, Option<String>,
             description = Some(value.to_string());
         } else if key.eq_ignore_ascii_case("author") && author.is_none() && !value.is_empty() {
             author = Some(value.to_string());
+        } else if key.eq_ignore_ascii_case("name") && name.is_none() && !value.is_empty() {
+            name = Some(value.to_string());
         }
     }
 
-    (version, description, author)
+    (version, description, author, name)
 }
 
 fn normalize_yaml_block_lines(lines: &[&str]) -> Vec<String> {

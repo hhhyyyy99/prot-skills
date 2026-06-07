@@ -95,12 +95,14 @@ export function AppShell() {
       className="app-shell h-screen flex flex-col bg-canvas text-text-primary"
       data-platform={platform}
     >
-      <header
-        aria-label={t("app.aria.application")}
-        className="app-titlebar h-[var(--topbar-height)] shrink-0 bg-canvas"
-        data-tauri-drag-region
-        onMouseDown={handleTitlebarMouseDown}
-      />
+      {platform === "macos" ? (
+        <header
+          aria-label={t("app.aria.application")}
+          className="app-titlebar h-[var(--topbar-height)] shrink-0 bg-canvas"
+          data-tauri-drag-region
+          onMouseDown={handleTitlebarMouseDown}
+        />
+      ) : null}
       <div className="flex shrink-0 items-center justify-between gap-4 px-4 pb-1 pt-3">
         <h1 className="inline-flex h-9 max-w-full items-center rounded-full border border-border-subtle bg-surface px-3.5 text-13 font-semibold text-text-primary shadow-card">
           <span className="truncate">{APP_NAME}</span>

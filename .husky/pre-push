@@ -1,1 +1,4 @@
 pnpm test
+pnpm lint
+pnpm format:check
+pnpm test:tokens

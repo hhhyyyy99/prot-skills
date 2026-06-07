@@ -1,5 +1,5 @@
 import { startTransition, useEffect, useState, useCallback, useMemo, useRef } from "react";
-import { Search, ArrowRight, RefreshCw, Filter } from "lucide-react";
+import { Search, ArrowRight, RefreshCw, Filter, X } from "lucide-react";
 import {
   getTools,
   scanLocalSkills,
@@ -13,12 +13,19 @@ import { useI18n } from "../shell/LanguageProvider";
 import { Button } from "../components/primitives/Button";
 import { Checkbox } from "../components/primitives/Checkbox";
 import { Badge } from "../components/primitives/Badge";
+import { IconButton } from "../components/primitives/IconButton";
 import { ListRow } from "../components/patterns/ListRow";
 import { EmptyState } from "../components/patterns/EmptyState";
 import { FilterPills } from "../components/patterns/FilterPills";
 import { StatsStrip } from "../components/patterns/StatsStrip";
 import { middleEllipsis } from "../lib/truncate";
-import type { AITool, LifecycleIssue, LocalSkill, MigrationPreflight } from "../types";
+import type {
+  AITool,
+  LifecycleIssue,
+  LifecycleReport,
+  LocalSkill,
+  MigrationPreflight,
+} from "../types";
 
 type ScanFilter = string;
 
@@ -41,9 +48,28 @@ interface MigrationBatchSummary {
   success: number;
   fail: number;
   skipped: number;
+  syncIssues: LifecycleIssue[];
 }
 
 const STATUS_FLUSH_INTERVAL = 8;
+
+const SOURCE_ACTION_TYPES = new Set([
+  "copy_to_managed",
+  "reuse_managed_copy",
+  "replace_managed_with_newer_local",
+  "replace_original_with_symlink",
+]);
+const SYNC_ACTION_TYPE = "sync_tool_link";
+
+type MigrationOutcome =
+  | { type: "source-completed"; syncIssues: LifecycleIssue[] }
+  | { type: "source-failed"; failures: LifecycleIssue[] }
+  | { type: "blocked"; failures: LifecycleIssue[] };
+
+interface SyncIssueItem {
+  key: string;
+  issue: LifecycleIssue;
+}
 
 function yieldToBrowser() {
   return new Promise<void>((resolve) => {
@@ -63,6 +89,54 @@ function getFailureDescription(failures: LifecycleIssue[]) {
     .join("; ");
 }
 
+function getSyncIssueKey(issue: LifecycleIssue) {
+  return `${issue.tool_id ?? issue.tool_name ?? ""}:${issue.message}`;
+}
+
+function dedupeSyncIssues(issues: LifecycleIssue[]) {
+  const seen = new Set<string>();
+  return issues.filter((issue) => {
+    const key = getSyncIssueKey(issue);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function listSyncIssues(issues: LifecycleIssue[]) {
+  const seen = new Map<string, number>();
+  return issues.map((issue): SyncIssueItem => {
+    const baseKey = `${getSyncIssueKey(issue)}:${issue.path ?? issue.target_path ?? ""}`;
+    const occurrence = (seen.get(baseKey) ?? 0) + 1;
+    seen.set(baseKey, occurrence);
+    return { key: `${baseKey}:${occurrence}`, issue };
+  });
+}
+
+function classifyMigrationReport(report: LifecycleReport): MigrationOutcome {
+  if (report.status === "blocked") {
+    return { type: "blocked", failures: report.failures };
+  }
+
+  if (report.status === "success") {
+    return { type: "source-completed", syncIssues: [] };
+  }
+
+  const failedActions = report.actions.filter((action) => action.status === "failed");
+  const completedSourceAction = report.actions.some(
+    (action) => SOURCE_ACTION_TYPES.has(action.action_type) && action.status === "completed",
+  );
+  const failedSourceOrUnknownAction = failedActions.some(
+    (action) => action.action_type !== SYNC_ACTION_TYPE,
+  );
+
+  if (completedSourceAction && !failedSourceOrUnknownAction) {
+    return { type: "source-completed", syncIssues: report.failures };
+  }
+
+  return { type: "source-failed", failures: report.failures };
+}
+
 export function MigratePage() {
   const { t } = useI18n();
   const [allTools, setAllTools] = useState<AITool[]>([]);
@@ -77,6 +151,7 @@ export function MigratePage() {
   const [rowRetryable, setRowRetryable] = useState<Record<string, boolean>>({});
   const [preflightByPath, setPreflightByPath] = useState<Record<string, MigrationPreflight>>({});
   const [migrationSummary, setMigrationSummary] = useState<MigrationBatchSummary | null>(null);
+  const [syncIssueDialogOpen, setSyncIssueDialogOpen] = useState(false);
   const [hasScannedOnce, setHasScannedOnce] = useState(false);
   const [descTooltip, setDescTooltip] = useState<{ text: string; x: number; y: number } | null>(
     null,
@@ -322,6 +397,25 @@ export function MigratePage() {
     return path ? `${first.message} (${path})` : first.message;
   };
 
+  const formatSyncIssue = useCallback(
+    (issue: LifecycleIssue) =>
+      t("migrate.syncIssue.item", {
+        tool: issue.tool_name ?? issue.tool_id ?? t("migrate.syncIssue.unknownTool"),
+        reason: issue.message,
+      }),
+    [t],
+  );
+
+  const syncIssuePreview = useMemo(() => {
+    if (!migrationSummary || migrationSummary.syncIssues.length === 0) return undefined;
+    return formatSyncIssue(dedupeSyncIssues(migrationSummary.syncIssues)[0]);
+  }, [formatSyncIssue, migrationSummary]);
+
+  const syncIssueItems = useMemo(
+    () => (migrationSummary ? listSyncIssues(migrationSummary.syncIssues) : []),
+    [migrationSummary],
+  );
+
   const renderSkillSubtitle = (skill: LocalSkill) => {
     const description = skill.metadata?.description?.trim();
     const version = skill.metadata?.version;
@@ -423,7 +517,7 @@ export function MigratePage() {
     const total = paths.length;
     const skipped = requestedPaths.length - paths.length;
     if (total === 0) {
-      setMigrationSummary({ success: 0, fail: 0, skipped });
+      setMigrationSummary({ success: 0, fail: 0, skipped, syncIssues: [] });
       setSelected(new Set());
       return;
     }
@@ -436,6 +530,7 @@ export function MigratePage() {
       done = 0;
     const nextStatus = { ...rowStatus };
     const successfulPaths: string[] = [];
+    const syncIssues: LifecycleIssue[] = [];
     let lastStatusFlush = 0;
 
     /* eslint-disable eslint/no-await-in-loop -- sequential migration with progress tracking */
@@ -452,9 +547,11 @@ export function MigratePage() {
         const result = await migrateLocalSkill(path, skillId);
         setRowIssues((prev) => ({ ...prev, [path]: result.report.failures }));
         setRowRetryable((prev) => ({ ...prev, [path]: result.report.retryable }));
-        if (result.report.status === "success") {
+        const outcome = classifyMigrationReport(result.report);
+        if (outcome.type === "source-completed") {
           nextStatus[path] = "success";
           successfulPaths.push(path);
+          syncIssues.push(...outcome.syncIssues);
           success++;
         } else {
           nextStatus[path] = "error";
@@ -481,10 +578,16 @@ export function MigratePage() {
 
     setSelected(new Set());
     removeCandidatePaths(successfulPaths);
-    setMigrationSummary({ success, fail, skipped });
+    setMigrationSummary({ success, fail, skipped, syncIssues });
     toast({
-      variant: fail === 0 ? "success" : "info",
+      variant: syncIssues.length > 0 ? "warning" : fail === 0 ? "success" : "info",
       title: t("migrate.toast.summary", { success, fail }),
+      description:
+        syncIssues.length > 0
+          ? t("migrate.toast.syncIssues", {
+              issue: formatSyncIssue(dedupeSyncIssues(syncIssues)[0]),
+            })
+          : undefined,
       durationMs: 6000,
     });
     setProgress(null);
@@ -498,24 +601,31 @@ export function MigratePage() {
       const result = await migrateLocalSkill(path, skillId);
       setRowIssues((prev) => ({ ...prev, [path]: result.report.failures }));
       setRowRetryable((prev) => ({ ...prev, [path]: result.report.retryable }));
+      const outcome = classifyMigrationReport(result.report);
       setRowStatus((prev) => ({
         ...prev,
-        [path]: result.report.status === "success" ? "success" : "error",
+        [path]: outcome.type === "source-completed" ? "success" : "error",
       }));
-      if (result.report.status !== "success") {
+      if (outcome.type !== "source-completed") {
         toast({
           variant: "error",
           title: t("migrate.toast.failed", { name: s!.name }),
-          description: getFailureDescription(result.report.failures),
+          description: getFailureDescription(outcome.failures),
           durationMs: 6000,
         });
         return;
       }
       removeCandidatePaths([path]);
-      setMigrationSummary({ success: 1, fail: 0, skipped: 0 });
+      setMigrationSummary({ success: 1, fail: 0, skipped: 0, syncIssues: outcome.syncIssues });
       toast({
-        variant: "success",
+        variant: outcome.syncIssues.length > 0 ? "warning" : "success",
         title: t("migrate.toast.success", { name: s!.name }),
+        description:
+          outcome.syncIssues.length > 0
+            ? t("migrate.toast.syncIssues", {
+                issue: formatSyncIssue(dedupeSyncIssues(outcome.syncIssues)[0]),
+              })
+            : undefined,
         durationMs: 6000,
       });
     } catch {
@@ -763,6 +873,21 @@ export function MigratePage() {
                 skipped: migrationSummary.skipped,
               })}
             </p>
+            {syncIssuePreview && (
+              <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-12 text-warning">
+                <span>{t("migrate.summary.syncIssues", { issue: syncIssuePreview })}</span>
+                {migrationSummary.syncIssues.length > 1 && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 px-2 text-warning hover:bg-warning-bg"
+                    onClick={() => setSyncIssueDialogOpen(true)}
+                  >
+                    {t("migrate.syncIssue.viewAll", { count: migrationSummary.syncIssues.length })}
+                  </Button>
+                )}
+              </div>
+            )}
           </div>
         )}
 
@@ -917,6 +1042,60 @@ export function MigratePage() {
             </ul>
           )}
       </main>
+      {syncIssueDialogOpen && migrationSummary && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-text-primary/30 p-6"
+          role="dialog"
+          aria-modal="true"
+          aria-label={t("migrate.syncIssue.dialog.title")}
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) setSyncIssueDialogOpen(false);
+          }}
+          onKeyDown={(event) => {
+            if (event.key === "Escape") setSyncIssueDialogOpen(false);
+          }}
+        >
+          <section className="flex max-h-[calc(100vh-56px)] w-[min(560px,calc(100vw-48px))] flex-col overflow-hidden rounded-lg border border-border-subtle bg-surface shadow-overlay">
+            <header className="flex items-start justify-between gap-4 border-b border-border-subtle p-5">
+              <div>
+                <h2 className="text-16 font-bold text-text-primary">
+                  {t("migrate.syncIssue.dialog.title")}
+                </h2>
+                <p className="mt-1 text-12 text-text-tertiary">
+                  {t("migrate.syncIssue.dialog.subtitle", {
+                    count: migrationSummary.syncIssues.length,
+                  })}
+                </p>
+              </div>
+              <IconButton
+                icon={<X size={16} />}
+                aria-label={t("common.close")}
+                onClick={() => setSyncIssueDialogOpen(false)}
+              />
+            </header>
+            <div className="min-h-0 flex-1 overflow-y-auto p-5">
+              <ul className="space-y-2">
+                {syncIssueItems.map(({ key, issue }) => (
+                  <li
+                    key={key}
+                    className="rounded-md border border-warning/30 bg-warning-bg px-3 py-2"
+                  >
+                    <p className="text-13 font-semibold text-text-primary">
+                      {issue.tool_name ?? issue.tool_id ?? t("migrate.syncIssue.unknownTool")}
+                    </p>
+                    <p className="mt-1 text-12 text-text-secondary">{issue.message}</p>
+                    {(issue.path || issue.target_path) && (
+                      <code className="mt-2 block truncate font-mono text-12 text-text-tertiary">
+                        {issue.path ?? issue.target_path}
+                      </code>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </section>
+        </div>
+      )}
       {descTooltip && (
         <div
           className="pointer-events-none fixed z-50 max-w-64 rounded-md bg-text-primary px-2 py-1 text-12 text-canvas shadow-md leading-relaxed"
