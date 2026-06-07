@@ -23,6 +23,7 @@ This repo includes agent skills in `.agents/skills/`. Read the relevant SKILL.md
 - [release-publish](.agents/skills/release-publish/SKILL.md) — publish a release: push branch, create auto-merge PR, push tag, monitor CI. Triggered by "发布", "publish release".
 - [release-tag](.agents/skills/release-tag/SKILL.md) — direct release from main: bump, verify, push, tag. Triggered by "直接发版", "push tag", "release on main".
 - [submit-pr](.agents/skills/submit-pr/SKILL.md) — submit a PR to main with auto-merge: scan diff, assess risk, create PR, enable auto-merge. Triggered by "提交PR", "create a PR", "submit PR".
+- [self-check](.agents/skills/self-check/SKILL.md) — run local production/PR self-checks before pushing or submitting a PR. Triggered by "自检", "生产门禁自检", "PR checks", "pre-push check".
 
 When a request triggers a skill, read the full SKILL.md and follow its workflow phases exactly.
 
