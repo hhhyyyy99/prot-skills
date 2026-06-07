@@ -761,7 +761,14 @@ pub fn read_skill_description(skill_path: &Path) -> Option<String> {
     read_skill_frontmatter(skill_path).1
 }
 
-fn read_skill_frontmatter(skill_path: &Path) -> (Option<String>, Option<String>, Option<String>, Option<String>) {
+fn read_skill_frontmatter(
+    skill_path: &Path,
+) -> (
+    Option<String>,
+    Option<String>,
+    Option<String>,
+    Option<String>,
+) {
     let content = match fs::read_to_string(skill_path.join("SKILL.md")) {
         Ok(c) => c,
         Err(_) => return (None, None, None, None),
