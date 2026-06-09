@@ -6,14 +6,16 @@ This file provides guidance to AI coding agents when working with code in this r
 
 @.agents/rules/branching.md
 @.agents/rules/coding.md
+@.agents/rules/coding-style.md
 @.agents/rules/commits.md
 
 **Order of operations:**
 
 1. If on `main`, create a working branch first (see branching rules).
 2. Read coding rules before implementing or refactoring.
-3. Commit following the commit rules.
-4. Never include `Co-Authored-By:`, `Signed-off-by:`, or similar attribution trailers in commit messages.
+3. Read coding style rules before changing code, tests, or shared contracts.
+4. Commit following the commit rules.
+5. Never include `Co-Authored-By:`, `Signed-off-by:`, or similar attribution trailers in commit messages.
 
 ## Agent Skills
 
