@@ -1,0 +1,505 @@
+import { useEffect, useRef, useState } from "react";
+import { ScanLine, FolderOpen, Plus, Pencil, Check, X, Trash2, GripVertical } from "lucide-react";
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import { restrictToVerticalAxis } from "@dnd-kit/modifiers";
+import {
+  addTool,
+  deleteTool,
+  detectTools,
+  getTools,
+  openFolder,
+  reorderTools,
+  toggleTool,
+  updateToolPath,
+} from "@/api";
+import { Button } from "@/components/primitives/Button";
+import { Switch } from "@/components/primitives/Switch";
+import { Badge } from "@/components/primitives/Badge";
+import { Tooltip } from "@/components/primitives/Tooltip";
+import { IconButton } from "@/components/primitives/IconButton";
+import { ListRow } from "@/components/patterns/ListRow";
+import { InlineError } from "@/components/patterns/InlineError";
+import { EmptyState } from "@/components/patterns/EmptyState";
+import { StatsStrip } from "@/components/patterns/StatsStrip";
+import { useToast } from "@/hooks/useToast";
+import { middleEllipsis } from "@/lib/truncate";
+import { useI18n } from "@/shell/LanguageProvider";
+import { WorkspaceHeader } from "@/shell/WorkspaceHeader";
+import type { AITool } from "@/types";
+
+function SortableToolRow({
+  id,
+  children,
+}: {
+  id: string;
+  children: (props: { dragHandleProps: Record<string, unknown> }) => React.ReactNode;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id,
+  });
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : undefined,
+    position: "relative" as const,
+    zIndex: isDragging ? 10 : undefined,
+  };
+  return (
+    <li ref={setNodeRef} style={style} role="presentation">
+      {children({ dragHandleProps: { ...attributes, ...listeners } })}
+    </li>
+  );
+}
+
+export function ToolsView() {
+  const { t } = useI18n();
+  const [tools, setTools] = useState<AITool[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [detecting, setDetecting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [, setPendingToggleId] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [editPath, setEditPath] = useState("");
+  const [showAdd, setShowAdd] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [newPath, setNewPath] = useState("");
+  const [popoverPos, setPopoverPos] = useState<{ top: number; right: number } | null>(null);
+  const popoverRef = useRef<HTMLDivElement | null>(null);
+  const { toast } = useToast();
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 3 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const oldIndex = tools.findIndex((t) => t.id === active.id);
+    const newIndex = tools.findIndex((t) => t.id === over.id);
+    if (oldIndex === -1 || newIndex === -1) return;
+    const reordered = [...tools];
+    const [moved] = reordered.splice(oldIndex, 1);
+    reordered.splice(newIndex, 0, moved);
+    setTools(reordered);
+    reorderTools(reordered.map((t) => t.id)).catch((e: unknown) => {
+      getTools()
+        .then(setTools)
+        .catch(() => {});
+      toast({
+        variant: "error",
+        title: t("tools.error.reorder"),
+        description: String((e as Error).message ?? e),
+      });
+    });
+  };
+
+  useEffect(() => {
+    if (!confirmDeleteId) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (popoverRef.current && !popoverRef.current.contains(e.target as Node)) {
+        setConfirmDeleteId(null);
+      }
+    };
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setConfirmDeleteId(null);
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener("keydown", handleEscape);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleEscape);
+    };
+  }, [confirmDeleteId]);
+
+  const refresh = () => {
+    setLoading(true);
+    setError(null);
+    getTools()
+      .then(setTools)
+      .catch((e: unknown) => setError(String((e as Error).message ?? e)))
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    refresh();
+  }, []);
+
+  const redetect = () => {
+    setDetecting(true);
+    detectTools()
+      .then(setTools)
+      .catch((e: unknown) => {
+        const msg = String((e as Error).message ?? e);
+        setError(msg);
+        toast({ variant: "error", title: t("tools.error.detect"), description: msg });
+      })
+      .finally(() => setDetecting(false));
+  };
+
+  const handleOpenFolder = (path: string) => {
+    openFolder(path).catch((e: unknown) => {
+      toast({
+        variant: "error",
+        title: t("tools.error.openFolder"),
+        description: String((e as Error).message ?? e),
+      });
+    });
+  };
+
+  const toggleToolHandler = (id: string, next: boolean) => {
+    setPendingToggleId(id);
+    const prev = tools.map((tool) => ({ ...tool }));
+    setTools((ts) => ts.map((tool) => (tool.id === id ? { ...tool, is_enabled: next } : tool)));
+    toggleTool(id, next)
+      .catch((e: unknown) => {
+        setTools(prev);
+        toast({
+          variant: "error",
+          title: t("tools.error.toggle"),
+          description: String((e as Error).message ?? e),
+        });
+      })
+      .finally(() => setPendingToggleId(null));
+  };
+
+  const startEdit = (tool: AITool) => {
+    setEditingId(tool.id);
+    setEditPath(tool.custom_path || tool.config_path);
+  };
+
+  const saveEdit = (id: string) => {
+    updateToolPath(id, editPath)
+      .then(() => {
+        setTools((ts) =>
+          ts.map((tool) =>
+            tool.id === id ? { ...tool, config_path: editPath, custom_path: editPath } : tool,
+          ),
+        );
+        setEditingId(null);
+        toast({ variant: "success", title: t("tools.toast.pathUpdated") });
+      })
+      .catch((e: unknown) =>
+        toast({
+          variant: "error",
+          title: t("tools.error.update"),
+          description: String((e as Error).message ?? e),
+        }),
+      );
+  };
+
+  const handleDelete = (tool: AITool) => {
+    deleteTool(tool.id)
+      .then(() => {
+        setTools((ts) => ts.filter((x) => x.id !== tool.id));
+        toast({ variant: "success", title: t("tools.toast.deleted", { name: tool.name }) });
+      })
+      .catch((e: unknown) =>
+        toast({
+          variant: "error",
+          title: t("tools.error.delete"),
+          description: String((e as Error).message ?? e),
+        }),
+      );
+  };
+
+  const handleAdd = () => {
+    if (!newName.trim() || !newPath.trim()) return;
+    const id = newName.trim().toLowerCase().replace(/\s+/g, "-");
+    addTool(id, newName.trim(), newPath.trim())
+      .then((tool) => {
+        setTools((ts) => [...ts, tool]);
+        setShowAdd(false);
+        setNewName("");
+        setNewPath("");
+        toast({ variant: "success", title: t("tools.toast.added", { name: tool.name }) });
+      })
+      .catch((e: unknown) =>
+        toast({
+          variant: "error",
+          title: t("tools.error.add"),
+          description: String((e as Error).message ?? e),
+        }),
+      );
+  };
+
+  const openConfirmDelete = (toolId: string, btn: HTMLElement) => {
+    if (confirmDeleteId === toolId) {
+      setConfirmDeleteId(null);
+      return;
+    }
+    const rect = btn.getBoundingClientRect();
+    const popoverHeight = 80;
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const top = spaceBelow < popoverHeight + 16 ? rect.top - popoverHeight - 8 : rect.bottom + 8;
+    setPopoverPos({ top, right: window.innerWidth - rect.right });
+    setConfirmDeleteId(toolId);
+  };
+
+  const confirmDeleteTool = tools.find((tool) => tool.id === confirmDeleteId) ?? null;
+
+  const detectedCount = tools.filter((tool) => tool.is_detected).length;
+  const enabledCount = tools.filter((tool) => tool.is_enabled).length;
+
+  return (
+    <>
+      <WorkspaceHeader
+        title={t("nav.tools")}
+        meta={t("tools.meta", { detected: detectedCount, enabled: enabledCount })}
+        primaryActions={[
+          <Button
+            key="add"
+            variant="secondary"
+            size="sm"
+            leadingIcon={<Plus size={14} />}
+            onClick={() => setShowAdd(true)}
+          >
+            {t("common.add")}
+          </Button>,
+          <Button
+            key="redetect"
+            variant="primary"
+            size="sm"
+            leadingIcon={<ScanLine size={14} />}
+            loading={detecting}
+            onClick={redetect}
+          >
+            {t("tools.scan")}
+          </Button>,
+        ]}
+      />
+      <main className="app-content">
+        <StatsStrip
+          items={[
+            { label: t("tools.stats.detected"), value: detectedCount, accent: true },
+            { label: t("tools.stats.enabled"), value: enabledCount },
+            { label: t("tools.stats.total"), value: tools.length },
+          ]}
+        />
+
+        <div className="section-kicker">{t("tools.section.detected", { count: tools.length })}</div>
+
+        {error && (
+          <div className="compact-card mb-4">
+            <InlineError title={t("tools.error.load")} details={error} onRetry={refresh} />
+          </div>
+        )}
+
+        {showAdd && (
+          <div className="compact-card mb-4 flex flex-col gap-3">
+            <p className="text-14 font-medium text-text-primary">{t("tools.form.title")}</p>
+            <div className="flex gap-3">
+              <input
+                className="flex-1 rounded-sm border border-border-subtle bg-surface px-3 py-1.5 text-14 text-text-primary placeholder:text-text-tertiary focus:outline-none focus:ring-2 focus:ring-accent"
+                placeholder={t("tools.form.namePlaceholder")}
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+              />
+              <input
+                className="flex-[2] rounded-sm border border-border-subtle bg-surface px-3 py-1.5 font-mono text-14 text-text-primary placeholder:text-text-tertiary focus:outline-none focus:ring-2 focus:ring-accent"
+                placeholder={t("tools.form.pathPlaceholder")}
+                value={newPath}
+                onChange={(e) => setNewPath(e.target.value)}
+              />
+            </div>
+            <div className="flex gap-2 justify-end">
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => {
+                  setShowAdd(false);
+                  setNewName("");
+                  setNewPath("");
+                }}
+              >
+                {t("common.cancel")}
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={handleAdd}
+                disabled={!newName.trim() || !newPath.trim()}
+              >
+                {t("tools.form.add")}
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {loading && !tools.length && (
+          // eslint-disable-next-line react/no-array-index-key -- static skeleton placeholders
+          <ul>
+            {Array.from({ length: 4 }).map((_, i) => (
+              <ListRow key={i} id={`skeleton-${i}`} primary="" loading />
+            ))}
+          </ul>
+        )}
+        {!loading && !tools.length && !error && (
+          <div className="compact-card">
+            <EmptyState
+              title={t("tools.empty.title")}
+              description={t("tools.empty.description")}
+              primaryAction={{ label: t("tools.scan"), onClick: redetect }}
+            />
+          </div>
+        )}
+        {tools.length > 0 && (
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            modifiers={[restrictToVerticalAxis]}
+            onDragEnd={handleDragEnd}
+          >
+            <SortableContext items={tools.map((t) => t.id)} strategy={verticalListSortingStrategy}>
+              <ul role="rowgroup">
+                {tools.map((tool) => (
+                  <SortableToolRow key={tool.id} id={tool.id}>
+                    {({ dragHandleProps }) => (
+                      <ListRow
+                        id={tool.id}
+                        density="compact"
+                        leading={
+                          <span className="flex items-center gap-2">
+                            <span
+                              className="cursor-grab touch-none text-text-tertiary hover:text-text-primary"
+                              {...dragHandleProps}
+                            >
+                              <GripVertical size={16} />
+                            </span>
+                            <Switch
+                              checked={tool.is_enabled}
+                              onChange={(v) => toggleToolHandler(tool.id, v)}
+                              disabled={!tool.is_detected}
+                              aria-label={t("tools.aria.toggle", { name: tool.name })}
+                            />
+                          </span>
+                        }
+                        primary={<span className="text-14 text-text-primary">{tool.name}</span>}
+                        meta={[
+                          <Badge key="b" variant={tool.is_detected ? "success" : "neutral"}>
+                            {tool.is_detected
+                              ? t("tools.badge.detected")
+                              : t("tools.badge.notFound")}
+                          </Badge>,
+                          <Tooltip key="p" content={tool.config_path}>
+                            <code className="font-mono text-12 text-text-secondary">
+                              {middleEllipsis(tool.config_path, 40)}
+                            </code>
+                          </Tooltip>,
+                        ]}
+                        trailing={
+                          editingId === tool.id ? (
+                            <span
+                              className="flex items-center gap-1"
+                              onMouseDown={(e) => e.preventDefault()}
+                            >
+                              <input
+                                className="px-2 py-0.5 text-12 font-mono rounded border border-border-subtle bg-surface-primary text-text-primary focus:outline-none focus:ring-1 focus:ring-accent-primary w-64"
+                                value={editPath}
+                                onChange={(e) => setEditPath(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter") saveEdit(tool.id);
+                                  if (e.key === "Escape") setEditingId(null);
+                                }}
+                                onBlur={() => setEditingId(null)}
+                                autoFocus
+                              />
+                              <IconButton
+                                icon={<Check size={14} />}
+                                aria-label={t("common.save")}
+                                variant="subtle"
+                                size="sm"
+                                onClick={() => saveEdit(tool.id)}
+                              />
+                              <IconButton
+                                icon={<X size={14} />}
+                                aria-label={t("common.cancel")}
+                                variant="subtle"
+                                size="sm"
+                                onClick={() => setEditingId(null)}
+                              />
+                            </span>
+                          ) : (
+                            <span className="flex items-center gap-1">
+                              <IconButton
+                                icon={<Pencil size={14} />}
+                                aria-label={t("tools.aria.editPath")}
+                                variant="subtle"
+                                size="sm"
+                                onClick={() => startEdit(tool)}
+                              />
+                              <IconButton
+                                icon={<FolderOpen size={16} />}
+                                aria-label={t("tools.aria.openPath")}
+                                variant="subtle"
+                                size="sm"
+                                onClick={() =>
+                                  handleOpenFolder(tool.custom_path || tool.config_path)
+                                }
+                              />
+                              <IconButton
+                                icon={<Trash2 size={14} />}
+                                aria-label={t("tools.aria.deleteTool")}
+                                title={t("tools.delete")}
+                                variant="subtle"
+                                size="sm"
+                                className="text-danger hover:text-danger"
+                                onClick={(e) => openConfirmDelete(tool.id, e.currentTarget)}
+                              />
+                            </span>
+                          )
+                        }
+                      />
+                    )}
+                  </SortableToolRow>
+                ))}
+              </ul>
+            </SortableContext>
+          </DndContext>
+        )}
+      </main>
+      {confirmDeleteTool && popoverPos && (
+        <div
+          ref={popoverRef}
+          className="fixed z-50 w-52 rounded-lg border border-border-subtle bg-surface p-3 shadow-overlay"
+          style={{ top: popoverPos.top, right: popoverPos.right }}
+        >
+          <p className="text-12 text-text-secondary">
+            {t("tools.confirmRemove.body", { name: confirmDeleteTool.name })}
+          </p>
+          <div className="mt-2 flex justify-end gap-2">
+            <Button variant="ghost" size="sm" onClick={() => setConfirmDeleteId(null)}>
+              {t("common.cancel")}
+            </Button>
+            <Button
+              variant="danger"
+              size="sm"
+              onClick={() => {
+                setConfirmDeleteId(null);
+                handleDelete(confirmDeleteTool);
+              }}
+            >
+              {t("tools.remove")}
+            </Button>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}

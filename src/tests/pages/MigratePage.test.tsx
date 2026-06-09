@@ -477,40 +477,44 @@ describe("MigratePage", () => {
   it("shows blockers from migration preflight and skips blocked rows", async () => {
     vi.mocked(getTools).mockResolvedValue([mockTool]);
     vi.mocked(scanLocalSkills).mockResolvedValue(mockSkills);
-    vi.mocked(preflightMigrateLocalSkill)
-      .mockResolvedValueOnce({
-        skill_id: "skill-a",
-        source_path: "/skills/a",
-        managed_target_path: "/managed/skill-a",
-        original_replacement_path: "/skills/a",
-        report: {
-          status: "blocked",
-          retryable: false,
-          actions: [],
-          warnings: [],
-          failures: [
-            {
-              code: "conflict",
-              message: "Skill ID already exists: skill-a",
-              target_path: "/managed/skill-a",
+    vi.mocked(preflightMigrateLocalSkill).mockImplementation((sourcePath) =>
+      Promise.resolve(
+        sourcePath === "/skills/a"
+          ? {
               skill_id: "skill-a",
+              source_path: "/skills/a",
+              managed_target_path: "/managed/skill-a",
+              original_replacement_path: "/skills/a",
+              report: {
+                status: "blocked",
+                retryable: false,
+                actions: [],
+                warnings: [],
+                failures: [
+                  {
+                    code: "conflict",
+                    message: "Skill ID already exists: skill-a",
+                    target_path: "/managed/skill-a",
+                    skill_id: "skill-a",
+                  },
+                ],
+              },
+            }
+          : {
+              skill_id: "skill-b",
+              source_path: "/skills/b",
+              managed_target_path: "/managed/skill-b",
+              original_replacement_path: "/skills/b",
+              report: {
+                status: "success",
+                retryable: false,
+                actions: [],
+                warnings: [],
+                failures: [],
+              },
             },
-          ],
-        },
-      })
-      .mockResolvedValueOnce({
-        skill_id: "skill-b",
-        source_path: "/skills/b",
-        managed_target_path: "/managed/skill-b",
-        original_replacement_path: "/skills/b",
-        report: {
-          status: "success",
-          retryable: false,
-          actions: [],
-          warnings: [],
-          failures: [],
-        },
-      });
+      ),
+    );
     vi.mocked(migrateLocalSkill).mockResolvedValue(successMigration);
 
     const user = userEvent.setup();
@@ -603,6 +607,60 @@ describe("MigratePage", () => {
       expect(vi.mocked(preflightMigrateLocalSkill).mock.calls.length).toBeGreaterThanOrEqual(2);
     });
     expect(getByLabelText("Select Skill A")).toBeEnabled();
+  });
+
+  it("ignores stale preflight results after deselecting a row", async () => {
+    vi.mocked(getTools).mockResolvedValue([mockTool]);
+    vi.mocked(scanLocalSkills).mockResolvedValue(mockSkills.slice(0, 1));
+    let resolvePreflight:
+      | ((value: Awaited<ReturnType<typeof preflightMigrateLocalSkill>>) => void)
+      | undefined;
+    vi.mocked(preflightMigrateLocalSkill).mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolvePreflight = resolve;
+        }),
+    );
+
+    const user = userEvent.setup();
+    const { findByText, getByLabelText, queryByText } = renderPage();
+
+    await findByText("Cursor");
+    fireEvent.click(await findByText("Scan"));
+    await findByText("Skill A");
+
+    await user.click(getByLabelText("Select Skill A"));
+    await waitFor(() => {
+      expect(preflightMigrateLocalSkill).toHaveBeenCalledWith("/skills/a", "skill-a");
+    });
+    await user.click(getByLabelText("Select Skill A"));
+
+    resolvePreflight?.({
+      skill_id: "skill-a",
+      source_path: "/skills/a",
+      managed_target_path: "/managed/skill-a",
+      original_replacement_path: "/skills/a",
+      report: {
+        status: "blocked",
+        retryable: false,
+        actions: [],
+        warnings: [],
+        failures: [
+          {
+            code: "conflict",
+            message: "Skill ID already exists: skill-a",
+            target_path: "/managed/skill-a",
+            skill_id: "skill-a",
+          },
+        ],
+      },
+    });
+
+    await waitFor(() => {
+      expect(getByLabelText("Select Skill A")).not.toBeChecked();
+    });
+    expect(queryByText("Blocked")).not.toBeInTheDocument();
+    expect(queryByText("Skill ID already exists: skill-a")).not.toBeInTheDocument();
   });
 
   it("allows version-checked managed duplicates to migrate and relink", async () => {
