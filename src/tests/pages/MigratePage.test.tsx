@@ -521,10 +521,12 @@ describe("MigratePage", () => {
     const { findByText, getByLabelText, queryByText } = renderPage();
 
     await findByText("Cursor");
-    fireEvent.click(await findByText("Scan"));
     await findByText("Skill A");
     await user.click(getByLabelText("Select Skill A"));
     await user.click(getByLabelText("Select Skill B"));
+    await waitFor(() => {
+      expect(preflightMigrateLocalSkill).toHaveBeenCalledWith("/skills/a", "skill-a");
+    });
 
     expect(await findByText("Blocked")).toBeInTheDocument();
     expect(await findByText("Skill ID already exists: skill-a")).toBeInTheDocument();
@@ -589,14 +591,16 @@ describe("MigratePage", () => {
     const { findByText, getByLabelText, queryByText } = renderPage();
 
     await findByText("Cursor");
-    fireEvent.click(await findByText("Scan"));
     await findByText("Skill A");
     await user.click(getByLabelText("Select Skill A"));
+    await waitFor(() => {
+      expect(preflightMigrateLocalSkill).toHaveBeenCalledWith("/skills/a", "skill-a");
+    });
     expect(await findByText("Blocked")).toBeInTheDocument();
     expect(getByLabelText("Select Skill A")).toBeDisabled();
 
     shouldBlock = false;
-    fireEvent.click(await findByText("Scan"));
+    fireEvent.click(await findByText("Rescan All"));
     await waitFor(() => {
       expect(queryByText("Blocked")).not.toBeInTheDocument();
     });
@@ -626,10 +630,12 @@ describe("MigratePage", () => {
     const { findByText, getByLabelText, queryByText } = renderPage();
 
     await findByText("Cursor");
-    fireEvent.click(await findByText("Scan"));
     await findByText("Skill A");
 
     await user.click(getByLabelText("Select Skill A"));
+    await waitFor(() => {
+      expect(getByLabelText("Select Skill A")).toBeChecked();
+    });
     await waitFor(() => {
       expect(preflightMigrateLocalSkill).toHaveBeenCalledWith("/skills/a", "skill-a");
     });
@@ -661,6 +667,11 @@ describe("MigratePage", () => {
     });
     expect(queryByText("Blocked")).not.toBeInTheDocument();
     expect(queryByText("Skill ID already exists: skill-a")).not.toBeInTheDocument();
+
+    await user.click(getByLabelText("Select Skill A"));
+    await waitFor(() => {
+      expect(preflightMigrateLocalSkill).toHaveBeenCalledTimes(2);
+    });
   });
 
   it("allows version-checked managed duplicates to migrate and relink", async () => {
@@ -702,11 +713,13 @@ describe("MigratePage", () => {
     const { findByText, getByLabelText, queryByText } = renderPage();
 
     await findByText("Cursor");
-    fireEvent.click(await findByText("Scan"));
     await findByText("Skill A");
 
     expect(getByLabelText("Select Skill A")).toBeEnabled();
     await user.click(getByLabelText("Select Skill A"));
+    await waitFor(() => {
+      expect(preflightMigrateLocalSkill).toHaveBeenCalledWith("/skills/a", "skill-a");
+    });
     expect(
       await findByText(
         "Managed Skill version 2.0.0 is newer than local version 1.0.0; local copy will be replaced with a symlink",

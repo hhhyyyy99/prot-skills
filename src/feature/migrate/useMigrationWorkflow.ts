@@ -350,6 +350,12 @@ export function useMigrationWorkflow() {
     if (targets.length === 0) return;
 
     const targetPaths = targets.map((skill) => skill.path);
+    const clearPendingPaths = () => {
+      for (const path of targetPaths) {
+        preflightPendingPaths.current.delete(path);
+      }
+    };
+
     for (const path of targetPaths) {
       preflightPendingPaths.current.add(path);
     }
@@ -357,9 +363,7 @@ export function useMigrationWorkflow() {
     void (async () => {
       await yieldToBrowser();
       if (cancelled || !mountedRef.current) {
-        for (const path of targetPaths) {
-          preflightPendingPaths.current.delete(path);
-        }
+        clearPendingPaths();
         return;
       }
 
@@ -374,6 +378,7 @@ export function useMigrationWorkflow() {
         }),
       );
 
+      clearPendingPaths();
       if (cancelled || !mountedRef.current) return;
 
       setPreflightByPath((prev) => {
@@ -383,10 +388,6 @@ export function useMigrationWorkflow() {
         }
         return next;
       });
-
-      for (const path of targetPaths) {
-        preflightPendingPaths.current.delete(path);
-      }
     })();
 
     return () => {
