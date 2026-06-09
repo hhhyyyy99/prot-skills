@@ -477,40 +477,44 @@ describe("MigratePage", () => {
   it("shows blockers from migration preflight and skips blocked rows", async () => {
     vi.mocked(getTools).mockResolvedValue([mockTool]);
     vi.mocked(scanLocalSkills).mockResolvedValue(mockSkills);
-    vi.mocked(preflightMigrateLocalSkill)
-      .mockResolvedValueOnce({
-        skill_id: "skill-a",
-        source_path: "/skills/a",
-        managed_target_path: "/managed/skill-a",
-        original_replacement_path: "/skills/a",
-        report: {
-          status: "blocked",
-          retryable: false,
-          actions: [],
-          warnings: [],
-          failures: [
-            {
-              code: "conflict",
-              message: "Skill ID already exists: skill-a",
-              target_path: "/managed/skill-a",
+    vi.mocked(preflightMigrateLocalSkill).mockImplementation((sourcePath) =>
+      Promise.resolve(
+        sourcePath === "/skills/a"
+          ? {
               skill_id: "skill-a",
+              source_path: "/skills/a",
+              managed_target_path: "/managed/skill-a",
+              original_replacement_path: "/skills/a",
+              report: {
+                status: "blocked",
+                retryable: false,
+                actions: [],
+                warnings: [],
+                failures: [
+                  {
+                    code: "conflict",
+                    message: "Skill ID already exists: skill-a",
+                    target_path: "/managed/skill-a",
+                    skill_id: "skill-a",
+                  },
+                ],
+              },
+            }
+          : {
+              skill_id: "skill-b",
+              source_path: "/skills/b",
+              managed_target_path: "/managed/skill-b",
+              original_replacement_path: "/skills/b",
+              report: {
+                status: "success",
+                retryable: false,
+                actions: [],
+                warnings: [],
+                failures: [],
+              },
             },
-          ],
-        },
-      })
-      .mockResolvedValueOnce({
-        skill_id: "skill-b",
-        source_path: "/skills/b",
-        managed_target_path: "/managed/skill-b",
-        original_replacement_path: "/skills/b",
-        report: {
-          status: "success",
-          retryable: false,
-          actions: [],
-          warnings: [],
-          failures: [],
-        },
-      });
+      ),
+    );
     vi.mocked(migrateLocalSkill).mockResolvedValue(successMigration);
 
     const user = userEvent.setup();

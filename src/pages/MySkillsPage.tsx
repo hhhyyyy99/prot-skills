@@ -1,608 +1,75 @@
-import { startTransition, useEffect, useState, useCallback, useRef, useMemo } from "react";
-import { FolderOpen, RefreshCw, Search, Trash2, X } from "lucide-react";
-import {
-  getSkillLinks,
-  getSkills,
-  getTools,
-  openFolder,
-  setAllSkillToolLinks,
-  setSkillToolLink,
-  uninstallSkill,
-} from "../api";
-import { filterSkills } from "../lib/filter";
-import { useToast } from "../hooks/useToast";
-import { WorkspaceHeader } from "../shell/WorkspaceHeader";
-import { useI18n } from "../shell/LanguageProvider";
-import { TextField } from "../components/primitives/TextField";
-import { Switch } from "../components/primitives/Switch";
-import { Badge } from "../components/primitives/Badge";
-import { Button } from "../components/primitives/Button";
+import { useRef, useState } from "react";
+import { RefreshCw, Search } from "lucide-react";
 import { IconButton } from "../components/primitives/IconButton";
-import { ToolIcon } from "../components/primitives/ToolIcon";
-import { ListRow } from "../components/patterns/ListRow";
-import { InlineError } from "../components/patterns/InlineError";
-import { EmptyState } from "../components/patterns/EmptyState";
+import { TextField } from "../components/primitives/TextField";
 import { FilterPills } from "../components/patterns/FilterPills";
 import { StatsStrip } from "../components/patterns/StatsStrip";
-import type { AITool, Skill, SkillLink, SyncFailureItem, SyncSkillTargetsResult } from "../types";
-
-type LinkFilter = "all" | "linked" | "unlinked";
-
-interface BulkSyncProgress {
-  done: number;
-  total: number;
-  currentSkillName?: string;
-}
-
-interface BulkSyncSummary {
-  success: number;
-  fail: number;
-  failureDescription?: string;
-}
-
-const LOCAL_SOURCE = "local";
-const LINK_BATCH_SIZE = 8;
-const BULK_SYNC_FEEDBACK_DURATION_MS = 4000;
-const STATUS_FLUSH_INTERVAL = 1;
-
-function isLocalSource(sourceType: string) {
-  return sourceType.trim().toLowerCase() === LOCAL_SOURCE;
-}
-
-function yieldToBrowser() {
-  return new Promise<void>((resolve) => {
-    if (typeof window !== "undefined" && typeof window.requestAnimationFrame === "function") {
-      window.requestAnimationFrame(() => resolve());
-      return;
-    }
-    setTimeout(resolve, 0);
-  });
-}
-
-function buildSyncFailureDescription(
-  failures: SyncFailureItem[],
-  t: (key: string, params?: Record<string, string | number>) => string,
-) {
-  if (failures.length === 0) return undefined;
-
-  const visibleFailures = failures.slice(0, 3);
-  const items = visibleFailures
-    .map((failure) => `${failure.tool_name} (${failure.reason})`)
-    .join(", ");
-  const extraCount = failures.length - visibleFailures.length;
-  const more = extraCount > 0 ? t("mySkills.toast.syncFailuresMore", { count: extraCount }) : "";
-
-  return t("mySkills.toast.syncFailures", { items, more });
-}
-
-function buildBulkSyncFailureDescription(
-  failures: { skillName: string; toolName: string; reason: string }[],
-  t: (key: string, params?: Record<string, string | number>) => string,
-) {
-  if (failures.length === 0) return undefined;
-
-  const visibleFailures = failures.slice(0, 3);
-  const items = visibleFailures
-    .map((failure) => `${failure.skillName} -> ${failure.toolName} (${failure.reason})`)
-    .join(", ");
-  const extraCount = failures.length - visibleFailures.length;
-  const more = extraCount > 0 ? t("mySkills.toast.syncFailuresMore", { count: extraCount }) : "";
-
-  return t("mySkills.toast.syncFailures", { items, more });
-}
+import { WorkspaceHeader } from "../shell/WorkspaceHeader";
+import {
+  BulkSyncAction,
+  BulkSyncProgressCard,
+  BulkSyncSummaryCard,
+  DescriptionTooltip,
+  MySkillsListBody,
+  SyncTargetsDialog,
+  UninstallConfirmDialog,
+} from "./my-skills/MySkillsPageComponents";
+import { isLocalSource } from "./my-skills/mySkillsUtils";
+import { useMySkillsWorkflow } from "./my-skills/useMySkillsWorkflow";
+import type { Skill } from "../types";
 
 export function MySkillsPage() {
-  const { t } = useI18n();
-  const [skills, setSkills] = useState<Skill[]>([]);
-  const [tools, setTools] = useState<AITool[]>([]);
-  const [linksBySkill, setLinksBySkill] = useState<Record<string, SkillLink[]>>({});
-  const [q, setQ] = useState("");
-  const [sourceType, setSourceType] = useState("all");
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [refreshTick, setRefreshTick] = useState(0);
-  const [uninstallSkillId, setUninstallSkillId] = useState<string | null>(null);
-  const [uninstallIssuesBySkill, setUninstallIssuesBySkill] = useState<Record<string, string>>({});
-  const [syncSkillId, setSyncSkillId] = useState<string | null>(null);
+  const {
+    t,
+    skills,
+    q,
+    setQ,
+    sourceType,
+    setSourceType,
+    loading,
+    error,
+    uninstallIssuesBySkill,
+    syncSkill,
+    uninstallTarget,
+    toolQuery,
+    setToolQuery,
+    linkFilter,
+    setLinkFilter,
+    bulkSyncing,
+    bulkSyncConfirmOpen,
+    setBulkSyncConfirmOpen,
+    bulkSyncProgress,
+    bulkSyncSummary,
+    visible,
+    enabledCount,
+    linkCount,
+    enabledTools,
+    sourceOptions,
+    showSourceFilters,
+    bulkSyncableSkills,
+    modalTools,
+    refresh,
+    requestRefresh,
+    getLinkedTools,
+    isToolLinked,
+    isLinkedToAllEnabledTools,
+    hasAnyLinkedEnabledTools,
+    handleOpenFolder,
+    openUninstallDialog,
+    closeUninstallDialog,
+    executeUninstall,
+    openSyncDialog,
+    closeSyncDialog,
+    toggleToolLink,
+    setAllToolLinks,
+    syncAllSkills,
+    handleBulkSyncClick,
+  } = useMySkillsWorkflow();
+
   const [descTooltip, setDescTooltip] = useState<{ text: string; x: number; y: number } | null>(
     null,
   );
   const descTimerRef = useRef<number>(0);
-  const [toolQuery, setToolQuery] = useState("");
-  const [linkFilter, setLinkFilter] = useState<LinkFilter>("all");
-  const [bulkSyncing, setBulkSyncing] = useState(false);
-  const [bulkSyncConfirmOpen, setBulkSyncConfirmOpen] = useState(false);
-  const [bulkSyncProgress, setBulkSyncProgress] = useState<BulkSyncProgress | null>(null);
-  const [bulkSyncSummary, setBulkSyncSummary] = useState<BulkSyncSummary | null>(null);
-  const bulkSyncFeedbackTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const refreshToken = useRef(0);
-  const { toast } = useToast();
-
-  const refresh = useCallback(() => {
-    const token = refreshToken.current + 1;
-    refreshToken.current = token;
-    setLoading(true);
-    setError(null);
-    Promise.all([getSkills(), getTools()])
-      .then(async ([nextSkills, nextTools]) => {
-        startTransition(() => {
-          setSkills(nextSkills);
-          setTools(nextTools);
-          setLinksBySkill({});
-          setLoading(false);
-        });
-
-        if (nextSkills.length === 0) {
-          return;
-        }
-
-        await yieldToBrowser();
-
-        for (let index = 0; index < nextSkills.length; index += LINK_BATCH_SIZE) {
-          const batch = nextSkills.slice(index, index + LINK_BATCH_SIZE);
-          const linkEntries = await Promise.all(
-            batch.map(async (skill) => {
-              try {
-                const links = await getSkillLinks(skill.id);
-                return [skill.id, links] as const;
-              } catch (e) {
-                toast({
-                  variant: "error",
-                  title: t("mySkills.error.links"),
-                  description: String((e as Error).message ?? e),
-                });
-                return [skill.id, []] as const;
-              }
-            }),
-          );
-
-          if (refreshToken.current !== token) {
-            return;
-          }
-
-          startTransition(() => {
-            setLinksBySkill((current) => ({
-              ...current,
-              ...Object.fromEntries(linkEntries),
-            }));
-          });
-
-          if (index + LINK_BATCH_SIZE < nextSkills.length) {
-            await yieldToBrowser();
-          }
-        }
-      })
-      .catch((e: unknown) => {
-        if (refreshToken.current === token) {
-          setError(String((e as Error).message ?? e));
-        }
-      })
-      .finally(() => {
-        if (refreshToken.current === token) {
-          setLoading(false);
-        }
-      });
-  }, [toast, t]);
-
-  useEffect(() => {
-    refresh();
-  }, [refresh, refreshTick]);
-
-  useEffect(() => {
-    return () => {
-      if (bulkSyncFeedbackTimer.current) clearTimeout(bulkSyncFeedbackTimer.current);
-    };
-  }, []);
-
-  const clearBulkSyncFeedback = useCallback(() => {
-    if (bulkSyncFeedbackTimer.current) {
-      clearTimeout(bulkSyncFeedbackTimer.current);
-      bulkSyncFeedbackTimer.current = null;
-    }
-
-    setBulkSyncProgress(null);
-    setBulkSyncSummary(null);
-  }, []);
-
-  const scheduleBulkSyncFeedbackClear = useCallback(() => {
-    if (bulkSyncFeedbackTimer.current) {
-      clearTimeout(bulkSyncFeedbackTimer.current);
-    }
-
-    bulkSyncFeedbackTimer.current = setTimeout(() => {
-      setBulkSyncProgress(null);
-      setBulkSyncSummary(null);
-      bulkSyncFeedbackTimer.current = null;
-    }, BULK_SYNC_FEEDBACK_DURATION_MS);
-  }, []);
-
-  const visible = useMemo(() => filterSkills(skills, q, sourceType), [skills, q, sourceType]);
-  const enabledCount = useMemo(() => skills.filter((s) => s.is_enabled).length, [skills]);
-  const linkCount = useMemo(
-    () =>
-      Object.values(linksBySkill).reduce(
-        (sum, links) => sum + links.filter((link) => link.is_active).length,
-        0,
-      ),
-    [linksBySkill],
-  );
-  const enabledTools = useMemo(() => tools.filter((tool) => tool.is_enabled), [tools]);
-  const syncSkill = useMemo(
-    () => skills.find((skill) => skill.id === syncSkillId) ?? null,
-    [skills, syncSkillId],
-  );
-  const uninstallTarget = useMemo(
-    () => skills.find((skill) => skill.id === uninstallSkillId) ?? null,
-    [skills, uninstallSkillId],
-  );
-
-  const sourceOptions = useMemo(() => {
-    const types = [
-      ...new Set(skills.map((s) => s.source_type).filter((type) => !isLocalSource(type))),
-    ];
-    return [
-      { value: "all", label: t("mySkills.filters.all") },
-      ...types.map((type) => ({ value: type, label: type })),
-    ];
-  }, [skills, t]);
-  const showSourceFilters = sourceOptions.length > 1;
-
-  const getActiveLinks = useCallback(
-    (skillId: string) => {
-      return (linksBySkill[skillId] ?? []).filter((link) => link.is_active);
-    },
-    [linksBySkill],
-  );
-
-  const getLinkedTools = useCallback(
-    (skillId: string) => {
-      const linkedToolIds = new Set(getActiveLinks(skillId).map((link) => link.tool_id));
-      return tools.filter((tool) => linkedToolIds.has(tool.id));
-    },
-    [getActiveLinks, tools],
-  );
-
-  const isToolLinked = useCallback(
-    (skillId: string, toolId: string) => {
-      return getActiveLinks(skillId).some((link) => link.tool_id === toolId);
-    },
-    [getActiveLinks],
-  );
-
-  const isLinkedToAllEnabledTools = useCallback(
-    (skillId: string) => {
-      return (
-        enabledTools.length > 0 && enabledTools.every((tool) => isToolLinked(skillId, tool.id))
-      );
-    },
-    [enabledTools, isToolLinked],
-  );
-
-  const hasAnyLinkedEnabledTools = useCallback(
-    (skillId: string) => {
-      return enabledTools.some((tool) => isToolLinked(skillId, tool.id));
-    },
-    [enabledTools, isToolLinked],
-  );
-
-  const bulkSyncableSkills = useMemo(() => visible.filter((skill) => skill.is_enabled), [visible]);
-
-  const handleOpenFolder = useCallback(
-    (skill: Skill) => {
-      openFolder(skill.local_path).catch((e: unknown) => {
-        toast({
-          variant: "error",
-          title: t("mySkills.error.openFolder"),
-          description: String((e as Error).message ?? e),
-        });
-      });
-    },
-    [toast, t],
-  );
-
-  const openUninstallDialog = useCallback((skillId: string) => {
-    setUninstallSkillId(skillId);
-  }, []);
-
-  const closeUninstallDialog = useCallback(() => setUninstallSkillId(null), []);
-
-  const executeUninstall = useCallback(() => {
-    if (!uninstallSkillId) return;
-    const id = uninstallSkillId;
-    setUninstallSkillId(null);
-    uninstallSkill(id)
-      .then((report) => {
-        if (report.status !== "success") {
-          const description = report.failures
-            .slice(0, 3)
-            .map((failure) => failure.message)
-            .join("; ");
-          setUninstallIssuesBySkill((current) => ({
-            ...current,
-            [id]: description || t("mySkills.uninstallPartial"),
-          }));
-          toast({
-            variant: report.status === "partial" ? "warning" : "error",
-            title:
-              report.status === "partial"
-                ? t("mySkills.uninstallPartial")
-                : t("mySkills.error.uninstall"),
-            description,
-            durationMs: 6000,
-          });
-          return;
-        }
-        setSkills((ss) => ss.filter((s) => s.id !== id));
-        setLinksBySkill((current) => {
-          const next = { ...current };
-          delete next[id];
-          return next;
-        });
-        setUninstallIssuesBySkill((current) => {
-          const next = { ...current };
-          delete next[id];
-          return next;
-        });
-        if (syncSkillId === id) setSyncSkillId(null);
-      })
-      .catch((e: unknown) => {
-        toast({
-          variant: "error",
-          title: t("mySkills.error.uninstall"),
-          description: String((e as Error).message ?? e),
-        });
-      });
-  }, [uninstallSkillId, syncSkillId, toast, t]);
-
-  const openSyncDialog = useCallback((skillId: string) => {
-    setSyncSkillId(skillId);
-    setToolQuery("");
-    setLinkFilter("all");
-  }, []);
-
-  const closeSyncDialog = useCallback(() => setSyncSkillId(null), []);
-
-  const toggleToolLink = useCallback(
-    (skill: Skill, tool: AITool, active: boolean) => {
-      const prev = linksBySkill;
-      const previousLinks = prev[skill.id] ?? [];
-      const optimisticLink: SkillLink = {
-        id: Date.now(),
-        skill_id: skill.id,
-        tool_id: tool.id,
-        link_path: `${tool.config_path}/${tool.skills_subdir}/${skill.id}`,
-        is_active: true,
-        created_at: new Date().toISOString(),
-      };
-
-      setLinksBySkill((current) => {
-        const existing = current[skill.id] ?? [];
-        const nextLinks = active
-          ? [...existing.filter((link) => link.tool_id !== tool.id), optimisticLink]
-          : existing.filter((link) => link.tool_id !== tool.id);
-        return { ...current, [skill.id]: nextLinks };
-      });
-
-      setSkillToolLink(skill.id, tool.id, active)
-        .then((link) => {
-          setLinksBySkill((current) => {
-            const existing = current[skill.id] ?? [];
-            const nextLinks =
-              active && link
-                ? [...existing.filter((item) => item.tool_id !== tool.id), link]
-                : existing.filter((item) => item.tool_id !== tool.id);
-            return { ...current, [skill.id]: nextLinks };
-          });
-          toast({
-            variant: "success",
-            title: active
-              ? t("mySkills.toast.linked", { skill: skill.name, tool: tool.name })
-              : t("mySkills.toast.unlinked", { tool: tool.name }),
-          });
-        })
-        .catch((e: unknown) => {
-          setLinksBySkill((current) => ({ ...current, [skill.id]: previousLinks }));
-          toast({
-            variant: "error",
-            title: t("mySkills.error.linkUpdate"),
-            description: String((e as Error).message ?? e),
-          });
-        });
-    },
-    [linksBySkill, toast, t],
-  );
-
-  const setAllToolLinks = useCallback(
-    (skill: Skill, active: boolean) => {
-      const prev = linksBySkill;
-      const optimisticLinks = active
-        ? enabledTools.map(
-            (tool, index): SkillLink => ({
-              id: Date.now() + index,
-              skill_id: skill.id,
-              tool_id: tool.id,
-              link_path: `${tool.config_path}/${tool.skills_subdir}/${skill.id}`,
-              is_active: true,
-              created_at: new Date().toISOString(),
-            }),
-          )
-        : [];
-
-      setLinksBySkill((current) => ({ ...current, [skill.id]: optimisticLinks }));
-
-      setAllSkillToolLinks(skill.id, active)
-        .then(async (result: SyncSkillTargetsResult) => {
-          const links = await getSkillLinks(skill.id);
-          setLinksBySkill((current) => ({ ...current, [skill.id]: links }));
-
-          const failureDescription = buildSyncFailureDescription(result.failed_tools, t);
-          if (result.status === "success") {
-            toast({
-              variant: "success",
-              title: active ? t("mySkills.toast.linkedAll") : t("mySkills.toast.unlinkedAll"),
-            });
-            return;
-          }
-
-          if (result.status === "partial") {
-            toast({
-              variant: "warning",
-              title: active
-                ? t("mySkills.toast.linkedPartial", {
-                    success: result.success_count,
-                    failed: result.failure_count,
-                  })
-                : t("mySkills.toast.unlinkedPartial", {
-                    success: result.success_count,
-                    failed: result.failure_count,
-                  }),
-              description: failureDescription,
-              durationMs: 6000,
-            });
-            return;
-          }
-
-          toast({
-            variant: "error",
-            title: active ? t("mySkills.toast.linkedFailed") : t("mySkills.toast.unlinkedFailed"),
-            description: failureDescription,
-            durationMs: 6000,
-          });
-        })
-        .catch((e: unknown) => {
-          setLinksBySkill(prev);
-          toast({
-            variant: "error",
-            title: t("mySkills.error.linkUpdate"),
-            description: String((e as Error).message ?? e),
-          });
-        });
-    },
-    [enabledTools, linksBySkill, toast, t],
-  );
-
-  const syncAllSkills = useCallback(async () => {
-    if (bulkSyncing || enabledTools.length === 0 || bulkSyncableSkills.length === 0) {
-      return;
-    }
-
-    clearBulkSyncFeedback();
-    setBulkSyncConfirmOpen(false);
-    setBulkSyncing(true);
-    setBulkSyncProgress({ done: 0, total: bulkSyncableSkills.length });
-    await yieldToBrowser();
-
-    let success = 0;
-    let fail = 0;
-    let flushedDone = 0;
-    const failures: { skillName: string; toolName: string; reason: string }[] = [];
-
-    /* eslint-disable eslint/no-await-in-loop -- sequential execution required for progress tracking */
-    for (const skill of bulkSyncableSkills) {
-      setBulkSyncProgress((prev) => ({
-        done: prev?.done ?? 0,
-        total: bulkSyncableSkills.length,
-        currentSkillName: skill.name,
-      }));
-      await yieldToBrowser();
-
-      try {
-        const result = await setAllSkillToolLinks(skill.id, true);
-        const links = await getSkillLinks(skill.id);
-        startTransition(() => {
-          setLinksBySkill((current) => ({ ...current, [skill.id]: links }));
-        });
-
-        if (result.status === "failed") {
-          fail += 1;
-        } else {
-          success += 1;
-          if (result.status === "partial") {
-            fail += 1;
-          }
-        }
-
-        for (const failure of result.failed_tools) {
-          failures.push({
-            skillName: failure.failed_skill_name || skill.name,
-            toolName: failure.tool_name,
-            reason: failure.reason,
-          });
-        }
-      } catch (e: unknown) {
-        fail += 1;
-        toast({
-          variant: "error",
-          title: t("mySkills.error.linkUpdate"),
-          description: String((e as Error).message ?? e),
-        });
-      } finally {
-        const nextDone = Math.min(flushedDone + 1, bulkSyncableSkills.length);
-        if (
-          nextDone - flushedDone >= STATUS_FLUSH_INTERVAL ||
-          nextDone === bulkSyncableSkills.length
-        ) {
-          startTransition(() => {
-            setBulkSyncProgress((prev) => ({
-              done: Math.min((prev?.done ?? 0) + 1, bulkSyncableSkills.length),
-              total: bulkSyncableSkills.length,
-              currentSkillName: skill.name,
-            }));
-          });
-          flushedDone = nextDone;
-        }
-
-        await yieldToBrowser();
-      }
-    }
-    /* eslint-enable eslint/no-await-in-loop */
-
-    setBulkSyncing(false);
-    const failureDescription = buildBulkSyncFailureDescription(failures, t);
-    setBulkSyncSummary({ success, fail, failureDescription });
-    scheduleBulkSyncFeedbackClear();
-
-    if (fail === 0) {
-      toast({
-        variant: "success",
-        title: t("mySkills.toast.bulkSyncComplete", { success }),
-      });
-      return;
-    }
-
-    if (success > 0) {
-      toast({
-        variant: "warning",
-        title: t("mySkills.toast.bulkSyncPartial", { success, failed: fail }),
-        description: failureDescription,
-        durationMs: 6000,
-      });
-      return;
-    }
-
-    toast({
-      variant: "error",
-      title: t("mySkills.toast.bulkSyncFailed"),
-      description: failureDescription,
-      durationMs: 6000,
-    });
-  }, [
-    bulkSyncableSkills,
-    bulkSyncing,
-    clearBulkSyncFeedback,
-    enabledTools.length,
-    scheduleBulkSyncFeedbackClear,
-    t,
-    toast,
-  ]);
-
-  const handleBulkSyncClick = useCallback(() => {
-    if (bulkSyncing || enabledTools.length === 0 || bulkSyncableSkills.length === 0) {
-      return;
-    }
-
-    setBulkSyncConfirmOpen(true);
-  }, [bulkSyncableSkills.length, bulkSyncing, enabledTools.length]);
 
   const renderSkillSubtitle = (skill: Skill) => {
     const description = skill.metadata?.description?.trim();
@@ -619,14 +86,16 @@ export function MySkillsPage() {
     const descriptionLine = description ? (
       <span
         className="block text-12 text-text-tertiary truncate"
-        onMouseEnter={(e) => {
+        onMouseEnter={(event) => {
           descTimerRef.current = window.setTimeout(() => {
-            setDescTooltip({ text: description, x: e.clientX, y: e.clientY });
+            setDescTooltip({ text: description, x: event.clientX, y: event.clientY });
           }, 1000);
         }}
-        onMouseMove={(e) => {
+        onMouseMove={(event) => {
           if (descTooltip) {
-            setDescTooltip((prev) => (prev ? { ...prev, x: e.clientX, y: e.clientY } : null));
+            setDescTooltip((prev) =>
+              prev ? { ...prev, x: event.clientX, y: event.clientY } : null,
+            );
           }
         }}
         onMouseLeave={() => {
@@ -645,176 +114,6 @@ export function MySkillsPage() {
         {subtitleLine}
       </span>
     );
-  };
-
-  const renderLinkedToolIcons = (skill: Skill) => {
-    const linkedTools = getLinkedTools(skill.id);
-    if (linkedTools.length === 0) return null;
-
-    return (
-      <span
-        className="flex items-center gap-1.5"
-        aria-label={t("mySkills.aria.linkedTools", { name: skill.name })}
-      >
-        {linkedTools.slice(0, 4).map((tool) => (
-          <ToolIcon key={tool.id} tool={tool} size="sm" />
-        ))}
-        {linkedTools.length > 4 && (
-          <span className="text-12 text-text-tertiary">+{linkedTools.length - 4}</span>
-        )}
-      </span>
-    );
-  };
-
-  const renderBody = () => {
-    if (error)
-      return (
-        <div className="compact-card">
-          <InlineError title={t("mySkills.error.load")} details={error} onRetry={refresh} />
-        </div>
-      );
-    // eslint-disable-next-line react/no-array-index-key -- static skeleton placeholders
-    if (loading && !skills.length)
-      return (
-        <ul>
-          {Array.from({ length: 8 }).map((_, i) => (
-            <ListRow key={i} id={`skeleton-${i}`} primary="" loading />
-          ))}
-        </ul>
-      );
-    if (!loading && skills.length === 0)
-      return (
-        <div className="compact-card">
-          <EmptyState
-            title={t("mySkills.empty.installed")}
-            description={t("mySkills.empty.installed.description")}
-          />
-        </div>
-      );
-    if (!loading && skills.length > 0 && visible.length === 0)
-      return (
-        <div className="compact-card">
-          <EmptyState
-            title={t("mySkills.empty.matches")}
-            description={t("mySkills.empty.matches.description")}
-            primaryAction={{
-              label: t("mySkills.empty.matches.clear"),
-              onClick: () => {
-                setQ("");
-                setSourceType("all");
-              },
-            }}
-          />
-        </div>
-      );
-    return (
-      <ul role="rowgroup">
-        {visible.map((skill) => (
-          <li key={skill.id}>
-            <ListRow
-              id={skill.id}
-              primary={<span className="text-14 text-text-primary">{skill.name}</span>}
-              secondary={renderSkillSubtitle(skill)}
-              meta={[
-                uninstallIssuesBySkill[skill.id] ? (
-                  <Badge key="uninstall-issue" variant="danger">
-                    {t("mySkills.uninstallIssue")}
-                  </Badge>
-                ) : null,
-                <span key="linked-tools" className="flex items-center">
-                  {renderLinkedToolIcons(skill)}
-                </span>,
-              ].filter(Boolean)}
-              trailing={
-                <span className="flex items-center gap-2">
-                  <IconButton
-                    icon={<FolderOpen size={16} />}
-                    aria-label={t("mySkills.aria.openFolder", { name: skill.name })}
-                    variant="subtle"
-                    size="sm"
-                    onClick={() => handleOpenFolder(skill)}
-                  />
-                  <IconButton
-                    icon={<Trash2 size={15} />}
-                    aria-label={t("mySkills.aria.uninstall", { name: skill.name })}
-                    title={t("mySkills.uninstall")}
-                    variant="subtle"
-                    size="sm"
-                    className="text-danger hover:text-danger"
-                    onClick={() => openUninstallDialog(skill.id)}
-                  />
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    onClick={() => openSyncDialog(skill.id)}
-                    aria-label={t("mySkills.aria.syncTargets", { name: skill.name })}
-                  >
-                    {t("mySkills.syncTargets")}
-                  </Button>
-                </span>
-              }
-            />
-            {uninstallIssuesBySkill[skill.id] && (
-              <p className="ml-4 mt-[-6px] pb-2 text-12 text-danger">
-                {uninstallIssuesBySkill[skill.id]}
-              </p>
-            )}
-          </li>
-        ))}
-      </ul>
-    );
-  };
-
-  const filterOptions = [
-    { value: "all", label: t("mySkills.sync.allTools") },
-    { value: "linked", label: t("mySkills.sync.linked") },
-    { value: "unlinked", label: t("mySkills.sync.unlinked") },
-  ];
-
-  const modalTools = useMemo(() => {
-    if (!syncSkill) return [];
-    const query = toolQuery.trim().toLowerCase();
-    return (
-      enabledTools
-        .filter((tool) => {
-          const linked = isToolLinked(syncSkill.id, tool.id);
-          if (linkFilter === "linked" && !linked) return false;
-          if (linkFilter === "unlinked" && linked) return false;
-          if (!query) return true;
-          return `${tool.name} ${tool.id} ${tool.config_path}`.toLowerCase().includes(query);
-        })
-        // eslint-disable-next-line unicorn/no-array-sort -- .toSorted() not available in current TS lib target
-        .sort((a, b) => a.name.localeCompare(b.name))
-    );
-  }, [enabledTools, isToolLinked, linkFilter, syncSkill, toolQuery]);
-
-  const renderToolRows = () => {
-    if (!syncSkill) return null;
-    return modalTools.map((tool) => {
-      const linked = isToolLinked(syncSkill.id, tool.id);
-      return (
-        <div
-          key={tool.id}
-          className="grid min-h-[58px] grid-cols-[auto_1fr_auto] items-center gap-3 border-t border-border-subtle px-3 py-2 first:border-t-0"
-        >
-          <ToolIcon tool={tool} size="md" />
-          <span className="min-w-0">
-            <span className="flex min-w-0 items-center gap-2">
-              <span className="truncate text-13 font-semibold text-text-primary">{tool.name}</span>
-              {linked && <Badge variant="success">{t("mySkills.sync.linked")}</Badge>}
-            </span>
-            <span className="block truncate text-12 text-text-tertiary">
-              {tool.config_path}/{tool.skills_subdir}/{syncSkill.id}
-            </span>
-          </span>
-          <Switch
-            checked={linked}
-            onChange={(next) => toggleToolLink(syncSkill, tool, next)}
-            aria-label={t("mySkills.aria.linkTool", { skill: syncSkill.name, tool: tool.name })}
-          />
-        </div>
-      );
-    });
   };
 
   return (
@@ -838,35 +137,15 @@ export function MySkillsPage() {
                 placeholder={t("mySkills.searchPlaceholder")}
               />
             </div>
-            <div className="relative">
-              <Button
-                variant="secondary"
-                size="sm"
-                loading={bulkSyncing}
-                onClick={handleBulkSyncClick}
-                disabled={enabledTools.length === 0 || bulkSyncableSkills.length === 0}
-              >
-                {t("mySkills.bulkSync.action")}
-              </Button>
-              {bulkSyncConfirmOpen && !bulkSyncing && (
-                <div className="absolute right-0 top-[calc(100%+8px)] z-20 w-64 rounded-lg border border-border-subtle bg-surface p-3 shadow-overlay">
-                  <p className="text-12 font-semibold text-text-primary">
-                    {t("mySkills.bulkSync.confirmTitle")}
-                  </p>
-                  <p className="mt-1 text-12 text-text-tertiary">
-                    {t("mySkills.bulkSync.confirmBody")}
-                  </p>
-                  <div className="mt-3 flex justify-end gap-2">
-                    <Button variant="ghost" size="sm" onClick={() => setBulkSyncConfirmOpen(false)}>
-                      {t("common.cancel")}
-                    </Button>
-                    <Button variant="primary" size="sm" onClick={() => void syncAllSkills()}>
-                      {t("mySkills.bulkSync.confirm")}
-                    </Button>
-                  </div>
-                </div>
-              )}
-            </div>
+            <BulkSyncAction
+              syncing={bulkSyncing}
+              disabled={enabledTools.length === 0 || bulkSyncableSkills.length === 0}
+              confirmOpen={bulkSyncConfirmOpen}
+              onOpenConfirm={handleBulkSyncClick}
+              onCancel={() => setBulkSyncConfirmOpen(false)}
+              onConfirm={() => void syncAllSkills()}
+              t={t}
+            />
           </div>
         }
         primaryActions={[
@@ -874,7 +153,7 @@ export function MySkillsPage() {
             key="r"
             icon={<RefreshCw size={16} />}
             aria-label={t("mySkills.refresh")}
-            onClick={() => setRefreshTick((tick) => tick + 1)}
+            onClick={requestRefresh}
             variant="subtle"
             size="sm"
           />,
@@ -896,187 +175,51 @@ export function MySkillsPage() {
             ariaLabel={t("mySkills.filters.aria")}
           />
         )}
-        {bulkSyncProgress && (
-          <div className="compact-card mb-4">
-            <div className="flex items-center justify-between gap-4">
-              <div className="min-w-0">
-                <p className="text-13 font-semibold text-text-primary">
-                  {t("mySkills.bulkSync.progress", { total: bulkSyncProgress.total })}
-                </p>
-                <p className="mt-1 truncate text-12 text-text-tertiary">
-                  {bulkSyncProgress.currentSkillName
-                    ? t("mySkills.bulkSync.progressCurrent", {
-                        name: bulkSyncProgress.currentSkillName,
-                      })
-                    : t("mySkills.bulkSync.progressPreparing")}
-                </p>
-              </div>
-              <span className="shrink-0 text-12 font-semibold text-text-secondary">
-                {Math.round((bulkSyncProgress.done / Math.max(bulkSyncProgress.total, 1)) * 100)}%
-              </span>
-            </div>
-            <div
-              className="mt-3 h-2 overflow-hidden rounded-full bg-surface-raised"
-              role="progressbar"
-              aria-label={t("mySkills.bulkSync.progressAria")}
-              aria-valuemin={0}
-              aria-valuemax={bulkSyncProgress.total}
-              aria-valuenow={bulkSyncProgress.done}
-            >
-              <div
-                className="h-full rounded-full bg-accent transition-[width] duration-200 ease-out"
-                style={{
-                  width: `${(bulkSyncProgress.done / Math.max(bulkSyncProgress.total, 1)) * 100}%`,
-                }}
-              />
-            </div>
-          </div>
-        )}
-        {bulkSyncSummary && !bulkSyncing && (
-          <div className="compact-card mb-4">
-            <p className="text-13 font-semibold text-text-primary">
-              {t("mySkills.bulkSync.complete")}
-            </p>
-            <p className="mt-1 text-12 text-text-tertiary">
-              {bulkSyncSummary.fail === 0
-                ? t("mySkills.bulkSync.completeSummary", { success: bulkSyncSummary.success })
-                : t("mySkills.bulkSync.completeSummaryWithFailures", {
-                    success: bulkSyncSummary.success,
-                    failed: bulkSyncSummary.fail,
-                  })}
-            </p>
-            {bulkSyncSummary.failureDescription && (
-              <p className="mt-1 text-12 text-text-tertiary">
-                {bulkSyncSummary.failureDescription}
-              </p>
-            )}
-          </div>
-        )}
+        <BulkSyncProgressCard progress={bulkSyncProgress} t={t} />
+        <BulkSyncSummaryCard summary={bulkSyncSummary} syncing={bulkSyncing} t={t} />
         <div className="section-kicker">{t("mySkills.section.all", { count: skills.length })}</div>
-        {renderBody()}
+        <MySkillsListBody
+          error={error}
+          loading={loading}
+          skills={skills}
+          visible={visible}
+          uninstallIssuesBySkill={uninstallIssuesBySkill}
+          renderSkillSubtitle={renderSkillSubtitle}
+          getLinkedTools={getLinkedTools}
+          onRetry={refresh}
+          onClearFilters={() => {
+            setQ("");
+            setSourceType("all");
+          }}
+          onOpenFolder={handleOpenFolder}
+          onOpenUninstallDialog={openUninstallDialog}
+          onOpenSyncDialog={openSyncDialog}
+          t={t}
+        />
       </main>
-      {syncSkill && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-text-primary/30 p-6"
-          role="dialog"
-          aria-modal="true"
-          aria-label={t("mySkills.sync.title", { name: syncSkill.name })}
-          onMouseDown={(event) => {
-            if (event.target === event.currentTarget) closeSyncDialog();
-          }}
-          onKeyDown={(event) => {
-            if (event.key === "Escape") closeSyncDialog();
-          }}
-        >
-          <section className="flex max-h-[calc(100vh-56px)] w-[min(860px,calc(100vw-48px))] flex-col overflow-hidden rounded-lg border border-border-subtle bg-surface shadow-overlay">
-            <header className="flex items-start justify-between gap-4 border-b border-border-subtle p-5">
-              <div>
-                <h2 className="text-16 font-bold text-text-primary">
-                  {t("mySkills.sync.title", { name: syncSkill.name })}
-                </h2>
-                <p className="mt-1 text-12 text-text-tertiary">{t("mySkills.sync.subtitle")}</p>
-              </div>
-              <IconButton
-                icon={<X size={16} />}
-                aria-label={t("common.close")}
-                onClick={closeSyncDialog}
-              />
-            </header>
-            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border-subtle bg-surface-raised/70 p-4">
-              <FilterPills
-                options={filterOptions}
-                value={linkFilter}
-                onChange={(value) => setLinkFilter(value as LinkFilter)}
-                ariaLabel={t("mySkills.sync.allTools")}
-              />
-              <div className="flex flex-wrap items-center justify-end gap-2">
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => setAllToolLinks(syncSkill, true)}
-                  disabled={enabledTools.length === 0 || isLinkedToAllEnabledTools(syncSkill.id)}
-                >
-                  {t("mySkills.sync.linkAll")}
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setAllToolLinks(syncSkill, false)}
-                  disabled={!hasAnyLinkedEnabledTools(syncSkill.id)}
-                >
-                  {t("mySkills.sync.unlinkAll")}
-                </Button>
-                <div className="w-[240px] max-w-full">
-                  <TextField
-                    type="search"
-                    size="sm"
-                    leadingIcon={<Search size={14} />}
-                    value={toolQuery}
-                    onChange={setToolQuery}
-                    placeholder={t("mySkills.sync.searchTools")}
-                  />
-                </div>
-              </div>
-            </div>
-            <div className="min-h-0 flex-1 overflow-y-auto p-5">
-              <section>
-                <div className="mb-2 flex items-center justify-between text-11 font-semibold uppercase tracking-[0.07em] text-text-tertiary">
-                  <span>{t("mySkills.sync.enabledTools")}</span>
-                  <span>{t("mySkills.sync.totalTools", { count: modalTools.length })}</span>
-                </div>
-                <div className="overflow-hidden rounded-lg border border-border-subtle bg-surface">
-                  {modalTools.length > 0 ? (
-                    renderToolRows()
-                  ) : (
-                    <div className="p-6 text-center text-13 text-text-tertiary">
-                      {t("mySkills.empty.matches")}
-                    </div>
-                  )}
-                </div>
-              </section>
-            </div>
-          </section>
-        </div>
-      )}
-      {uninstallTarget && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-text-primary/30 p-6"
-          role="alertdialog"
-          aria-modal="true"
-          aria-label={t("mySkills.uninstallDialog.title")}
-          onMouseDown={(event) => {
-            if (event.target === event.currentTarget) closeUninstallDialog();
-          }}
-          onKeyDown={(event) => {
-            if (event.key === "Escape") closeUninstallDialog();
-          }}
-        >
-          <section className="w-[min(420px,calc(100vw-48px))] rounded-lg border border-border-subtle bg-surface p-5 shadow-overlay">
-            <h2 className="text-16 font-bold text-text-primary">
-              {t("mySkills.uninstallDialog.title")}
-            </h2>
-            <p className="mt-2 text-13 text-text-secondary">
-              {t("mySkills.uninstallDialog.body", { name: uninstallTarget.name })}
-            </p>
-            <div className="mt-5 flex justify-end gap-2">
-              <Button variant="ghost" size="sm" onClick={closeUninstallDialog}>
-                {t("common.cancel")}
-              </Button>
-              <Button variant="danger" size="sm" onClick={executeUninstall}>
-                {t("mySkills.uninstall")}
-              </Button>
-            </div>
-          </section>
-        </div>
-      )}
-      {descTooltip && (
-        <div
-          className="pointer-events-none fixed z-50 max-w-64 rounded-md bg-text-primary px-2 py-1 text-12 text-canvas shadow-md leading-relaxed"
-          style={{ left: descTooltip.x + 12, top: descTooltip.y + 12 }}
-        >
-          {descTooltip.text}
-        </div>
-      )}
+      <SyncTargetsDialog
+        syncSkill={syncSkill}
+        modalTools={modalTools}
+        linkFilter={linkFilter}
+        toolQuery={toolQuery}
+        enabledToolsCount={enabledTools.length}
+        isToolLinked={isToolLinked}
+        isLinkedToAllEnabledTools={isLinkedToAllEnabledTools}
+        hasAnyLinkedEnabledTools={hasAnyLinkedEnabledTools}
+        onClose={closeSyncDialog}
+        onLinkFilterChange={setLinkFilter}
+        onToolQueryChange={setToolQuery}
+        onSetAllToolLinks={setAllToolLinks}
+        onToggleToolLink={toggleToolLink}
+        t={t}
+      />
+      <UninstallConfirmDialog
+        target={uninstallTarget}
+        onClose={closeUninstallDialog}
+        onConfirm={executeUninstall}
+        t={t}
+      />
+      <DescriptionTooltip tooltip={descTooltip} />
     </>
   );
 }
