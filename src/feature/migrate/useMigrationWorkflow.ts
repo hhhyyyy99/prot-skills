@@ -340,6 +340,7 @@ export function useMigrationWorkflow() {
   };
 
   useEffect(() => {
+    let cancelled = false;
     const targets = filteredSkills.filter(
       (skill) =>
         selected.has(skill.path) &&
@@ -355,7 +356,7 @@ export function useMigrationWorkflow() {
 
     void (async () => {
       await yieldToBrowser();
-      if (!mountedRef.current) {
+      if (cancelled || !mountedRef.current) {
         for (const path of targetPaths) {
           preflightPendingPaths.current.delete(path);
         }
@@ -373,7 +374,7 @@ export function useMigrationWorkflow() {
         }),
       );
 
-      if (!mountedRef.current) return;
+      if (cancelled || !mountedRef.current) return;
 
       setPreflightByPath((prev) => {
         const next = { ...prev };
@@ -387,6 +388,10 @@ export function useMigrationWorkflow() {
         preflightPendingPaths.current.delete(path);
       }
     })();
+
+    return () => {
+      cancelled = true;
+    };
   }, [filteredSkills, preflightByPath, selected]);
 
   const migrateSelected = async () => {
