@@ -5,7 +5,7 @@ import {
   isLocalSource,
   type BulkSyncFailureItem,
   type TFunction,
-} from "@/pages/my-skills/mySkillsUtils";
+} from "@/feature/my-skills/mySkillsUtils";
 import type { SyncFailureItem } from "@/types";
 
 const t: TFunction = (key, params = {}) => {

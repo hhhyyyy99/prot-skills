@@ -4,7 +4,7 @@ import {
   dedupeSyncIssues,
   getFailureDescription,
   listSyncIssues,
-} from "@/pages/migrate/migrationUtils";
+} from "@/feature/migrate/migrationUtils";
 import type { LifecycleIssue, LifecycleReport } from "@/types";
 
 const permissionFailure: LifecycleIssue = {
