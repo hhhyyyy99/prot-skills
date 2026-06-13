@@ -5,6 +5,9 @@ checks first, then broaden when the change affects shared behavior.
 
 ## Common Checks
 
+- `pnpm harness:check` - app metadata check, design tokens, lint, Vitest, and build.
+- `pnpm harness:check:tauri` - Rust tests.
+- `pnpm harness:check:release` - release and app metadata script tests.
 - `pnpm test` - Vitest single run.
 - `pnpm build` - sync metadata, typecheck, and Vite build.
 - `pnpm lint` - oxlint.
@@ -52,6 +55,7 @@ Run the matching test file when possible:
 ## Release And Automation Scripts
 
 - targeted tests under `scripts/tests/`
+- `pnpm harness:check:release` for release or app metadata script changes
 - `pnpm test`
 - `pnpm build` when package metadata or app sync changes
 
@@ -60,6 +64,5 @@ Run the matching test file when possible:
 For high-risk changes, run or explicitly justify skipping:
 
 1. targeted tests for the changed area
-2. `pnpm test`
-3. `pnpm build`
-4. `cd src-tauri && cargo test` when Rust, filesystem, DB, or Tauri behavior changed
+2. `pnpm harness:check`
+3. `pnpm harness:check:tauri` when Rust, filesystem, DB, or Tauri behavior changed
