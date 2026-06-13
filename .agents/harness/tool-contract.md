@@ -4,9 +4,9 @@ This contract applies to every AI tool and agent working in this repository.
 
 ## Common Entry
 
-Agents must treat `AGENTS.md` as the canonical entrypoint. Tool-specific files
-may exist, but they should point back to `AGENTS.md` and this harness instead of
-duplicating repository rules.
+Agents must treat `.agents/harness/index.md` as the canonical shared protocol.
+Tool-specific files may exist, but they should point back to `.agents/harness/`
+and `.agents/rules/` instead of duplicating repository rules.
 
 ## Required Behavior
 
@@ -37,11 +37,12 @@ instructions or executes commands. They must not redefine repository policy.
 
 Examples:
 
-- Codex uses `AGENTS.md` natively.
-- Claude-specific entry files should point to `AGENTS.md`.
-- Cursor rules should point to `AGENTS.md` and `.agents/harness/`.
+- Codex may use `AGENTS.md` as a local or tool-native adapter.
+- Claude-specific entry files should point to `.agents/harness/index.md`.
+- Cursor rules should point to `.agents/harness/` and `.agents/rules/`.
 
 ## Drift Prevention
 
-If an adapter conflicts with `AGENTS.md` or `.agents/harness/`, the canonical
-repository files win. Fix the adapter rather than changing behavior ad hoc.
+If an adapter conflicts with `.agents/harness/` or `.agents/rules/`, the
+canonical repository files win. Fix the adapter rather than changing behavior ad
+hoc.

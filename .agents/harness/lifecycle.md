@@ -5,7 +5,7 @@ edit and verification phases, but should still use the context map when needed.
 
 ## 1. Orient
 
-- Read `AGENTS.md`.
+- Read `.agents/harness/index.md`.
 - Read the relevant rule, harness, and skill files.
 - Inspect the current branch and worktree before editing.
 - Identify the files and commands most likely to matter.
