@@ -34,6 +34,7 @@ When reporting completed work, agents should include:
 
 Tool-specific adapters should only document differences in how a tool reads
 instructions or executes commands. They must not redefine repository policy.
+Use `.agents/harness/adapters/` as the tracked source for adapter guidance.
 
 Examples:
 

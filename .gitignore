@@ -55,3 +55,4 @@ Thumbs.db
 .kilocode/
 .claude/
 openspec/
+.agents/harness/adapters/
