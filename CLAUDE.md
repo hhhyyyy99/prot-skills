@@ -7,6 +7,9 @@ follow nested imports through `AGENTS.md`.
 Keep shared policy changes in `.agents/rules/`, `.agents/harness/`, or
 `.agents/skills/`; do not duplicate canonical rules here.
 
+Claude skill entries are generated from `.agents/skills/` with
+`pnpm skills:sync`.
+
 @AGENTS.md
 @.agents/rules/branching.md
 @.agents/rules/coding.md
