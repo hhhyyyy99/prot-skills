@@ -49,7 +49,9 @@ Final reports should include:
 
 If the same issue or confusion appears repeatedly, improve the harness:
 
-- unclear behavior -> rule or context map
+- durable repository behavior -> `.agents/rules/`
+- unclear navigation or task flow -> harness file such as `context-map.md` or
+  `lifecycle.md`
 - missing guard -> test or script
-- repeated workflow -> skill
+- repeated workflow -> `.agents/skills/<skill-name>/SKILL.md`
 - risky manual judgment -> verification gate
