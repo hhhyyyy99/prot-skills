@@ -8,6 +8,7 @@ This file provides guidance to AI coding agents when working with code in this r
 @.agents/rules/coding.md
 @.agents/rules/coding-style.md
 @.agents/rules/commits.md
+@.agents/harness/index.md
 
 **Order of operations:**
 
@@ -17,6 +18,19 @@ This file provides guidance to AI coding agents when working with code in this r
 4. Commit following the commit rules.
 5. Never include `Co-Authored-By:`, `Signed-off-by:`, or similar attribution trailers in commit messages.
 
+## Agent Harness
+
+This repository uses `.agents/harness/index.md` as the shared cross-tool agent
+harness. Read it after this file for non-trivial tasks, especially work that
+affects agent behavior, repository guidance, reusable workflows, tool entrypoints,
+or safety-sensitive boundaries.
+
+`.agents/harness/index.md` is the canonical shared agent protocol. This local
+`AGENTS.md` acts as a tool-specific entrypoint and points back to the shared
+repository guidance instead of duplicating it. Keep root entrypoints such as
+`AGENTS.md` and `CLAUDE.md` tracked and thin; update `.agents/rules/`,
+`.agents/harness/`, or `.agents/skills/` for shared policy changes.
+
 ## Agent Skills
 
 This repo includes agent skills in `.agents/skills/`. Read the relevant SKILL.md when a user request matches one of these:
@@ -24,10 +38,15 @@ This repo includes agent skills in `.agents/skills/`. Read the relevant SKILL.md
 - [release-version](.agents/skills/release-version/SKILL.md) — prepare a release branch: bump version, write release notes. Triggered by "准备发版", "bump version", "写 release notes".
 - [release-publish](.agents/skills/release-publish/SKILL.md) — publish a release: push branch, create auto-merge PR, push tag, monitor CI. Triggered by "发布", "publish release".
 - [release-tag](.agents/skills/release-tag/SKILL.md) — direct release from main: bump, verify, push, tag. Triggered by "直接发版", "push tag", "release on main".
-- [submit-pr](.agents/skills/submit-pr/SKILL.md) — submit a PR to main with auto-merge: scan diff, assess risk, create PR, enable auto-merge. Triggered by "提交PR", "create a PR", "submit PR".
+- [submit-pr](.agents/skills/submit-pr/SKILL.md) — submit a PR to main with auto-merge: scan diff, assess risk, creates the PR, enables auto-merge when safe, and reports any blockers. Triggered by "提交PR", "create a PR", "submit PR".
 - [self-check](.agents/skills/self-check/SKILL.md) — run local production/PR self-checks before pushing or submitting a PR. Triggered by "自检", "生产门禁自检", "PR checks", "pre-push check".
+- [sync-agent-skills](.agents/skills/sync-agent-skills/SKILL.md) — maintain repository agent skills across Codex and Claude. Triggered when adding, removing, renaming, or editing skills under `.agents/skills`, or when Claude skill symlinks need to be generated or checked.
 
 When a request triggers a skill, read the full SKILL.md and follow its workflow phases exactly.
+
+`.agents/skills/` is the source of truth for repository skills. Run
+`pnpm skills:sync` after adding, removing, or renaming a skill so Claude can
+load the generated `.claude/skills/` symlinks.
 
 ## Commands
 
@@ -38,6 +57,8 @@ pnpm build             # app:sync → tsc → vite build
 pnpm test              # Vitest single run (jsdom, @/ alias, globals)
 pnpm test:watch        # Vitest watch mode
 pnpm test:tokens       # Validate design token CSS output
+pnpm skills:sync       # Generate local Claude skill symlinks from .agents/skills
+pnpm skills:check      # Check that Claude skill symlinks are in sync
 pnpm lint              # oxlint (correctness=error, suspicious/perf=warn, no ESLint)
 pnpm lint:fix          # oxlint --fix
 pnpm format            # oxfmt (no Prettier)
