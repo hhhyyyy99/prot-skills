@@ -16,7 +16,7 @@ Order of operations:
 3. Read `coding.md` before implementing or refactoring code.
 4. Read `coding-style.md` before changing frontend, backend, tests, or shared contracts.
 5. Read the harness when the task affects implementation, verification,
-   workflows, tool adapters, or safety-sensitive behavior.
+   workflows, tool entrypoints, or safety-sensitive behavior.
 6. Commit with the Conventional Commit rules in `commits.md`.
 
 These rules apply to both human contributors and coding agents working in this repository.

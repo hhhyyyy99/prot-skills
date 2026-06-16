@@ -30,20 +30,19 @@ When reporting completed work, agents should include:
 - skipped verification and why
 - high-risk safety notes when applicable
 
-## Tool-Specific Adapters
+## Tool-Specific Entrypoints
 
-Tool-specific adapters should only document differences in how a tool reads
-instructions or executes commands. They must not redefine repository policy.
-Use `.agents/harness/adapters/` as the tracked source for adapter guidance.
+Tool-specific entrypoints should only document how a tool reads instructions or
+executes commands. They must not redefine repository policy.
 
 Examples:
 
-- Codex may use `AGENTS.md` as a local or tool-native adapter.
+- Codex may use `AGENTS.md` as a local or tool-native entrypoint.
 - Claude-specific entry files should point to `.agents/harness/index.md`.
 - Cursor rules should point to `.agents/harness/` and `.agents/rules/`.
 
 ## Drift Prevention
 
-If an adapter conflicts with `.agents/harness/` or `.agents/rules/`, the
-canonical repository files win. Fix the adapter rather than changing behavior ad
-hoc.
+If an entrypoint conflicts with `.agents/harness/` or `.agents/rules/`, the
+canonical repository files win. Fix the entrypoint rather than changing behavior
+ad hoc.

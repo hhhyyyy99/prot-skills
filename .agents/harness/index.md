@@ -10,7 +10,7 @@ agents should all follow the same repository protocol.
 - `.agents/rules/` defines durable repository rules.
 - `.agents/skills/` defines task-specific workflows.
 - Tool-specific files such as `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, or
-  `.cursor/rules/` are optional adapters. They should point back to
+  `.cursor/rules/` are optional entrypoints. They should point back to
   `.agents/harness/` and `.agents/rules/` instead of duplicating rules.
 
 ## Required Reading
@@ -31,7 +31,6 @@ Before making substantial changes, agents must read:
 - `verification.md` - which checks prove a change.
 - `security-boundaries.md` - high-risk filesystem, symlink, Tauri, and DB areas.
 - `tool-contract.md` - the common contract all AI tools must follow.
-- `adapters/` - tool-specific thin entrypoint guidance.
 
 ## Core Protocol
 
