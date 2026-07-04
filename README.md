@@ -92,8 +92,10 @@ pnpm tauri build  # Build the desktop app
 
 ### Running on macOS
 
-The app is unsigned, so macOS may show an "unidentified developer" warning.
-If so, remove the quarantine attribute:
+macOS release builds use an ad-hoc signature, but they are not notarized with an
+Apple Developer ID yet. Gatekeeper may still show an "unidentified developer"
+warning for downloaded builds. If it blocks launch, remove the quarantine
+attribute:
 
 ```sh
 xattr -d com.apple.quarantine "/Applications/Prot Skills.app"

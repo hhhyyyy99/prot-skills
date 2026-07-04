@@ -87,7 +87,9 @@ pnpm tauri build  # 构建桌面应用
 
 ### macOS 运行说明
 
-应用未签名，macOS 可能提示"无法验证开发者"。出现时移除 quarantine 属性即可：
+macOS 发布包会使用 ad-hoc 临时签名，但暂时还没有 Apple Developer ID
+公证。下载后的构建仍可能被 Gatekeeper 提示"无法验证开发者"；如果因此无法启动，
+移除 quarantine 属性即可：
 
 ```sh
 xattr -d com.apple.quarantine "/Applications/Prot Skills.app"
