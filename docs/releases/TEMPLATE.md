@@ -21,8 +21,9 @@ Short summary of what this release improves for users.
 
 ## Known Issues
 
-- macOS builds are not signed yet. If Gatekeeper blocks the app, remove the
-  quarantine attribute:
+- macOS builds use an ad-hoc signature, but are not notarized with an Apple
+  Developer ID yet. If Gatekeeper blocks the app, remove the quarantine
+  attribute:
 
   ```sh
   xattr -d com.apple.quarantine "/Applications/Prot Skills.app"
